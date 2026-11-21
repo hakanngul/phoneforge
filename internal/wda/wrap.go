@@ -17,10 +17,25 @@ func Wrap(inner device.Device, c *Client, active func() bool) device.Device {
 	return &wrapped{base: inner, c: c, act: active}
 }
 
+// WrapEnsure is Wrap with a hook that runs before UI-tree and input
+// operations (not screenshots): it may start WDA lazily and block until it is
+// up. A non-nil error aborts the operation and is returned as is.
+func WrapEnsure(inner device.Device, c *Client, active func() bool, ensure func(ctx context.Context) error) device.Device {
+	return &wrapped{base: inner, c: c, act: active, ens: ensure}
+}
+
 type wrapped struct {
 	base device.Device
 	c    *Client
 	act  func() bool
+	ens  func(ctx context.Context) error
+}
+
+func (w *wrapped) prep(ctx context.Context) error {
+	if w.ens == nil {
+		return nil
+	}
+	return w.ens(ctx)
 }
 
 var (
@@ -68,6 +83,9 @@ func (w *wrapped) Screenshot(ctx context.Context) (device.Screenshot, error) {
 }
 
 func (w *wrapped) UITree(ctx context.Context) (device.Element, error) {
+	if err := w.prep(ctx); err != nil {
+		return device.Element{}, err
+	}
 	var werr error
 	if w.active() {
 		var e device.Element
@@ -91,22 +109,37 @@ func (w *wrapped) route(op func() error, fallback func() error) error {
 }
 
 func (w *wrapped) Tap(ctx context.Context, x, y int) error {
+	if err := w.prep(ctx); err != nil {
+		return err
+	}
 	return w.route(func() error { return w.c.Tap(ctx, x, y) }, func() error { return w.base.Tap(ctx, x, y) })
 }
 
 func (w *wrapped) LongPress(ctx context.Context, x, y, ms int) error {
+	if err := w.prep(ctx); err != nil {
+		return err
+	}
 	return w.route(func() error { return w.c.LongPress(ctx, x, y, ms) }, func() error { return w.base.LongPress(ctx, x, y, ms) })
 }
 
 func (w *wrapped) Swipe(ctx context.Context, x1, y1, x2, y2, ms int) error {
+	if err := w.prep(ctx); err != nil {
+		return err
+	}
 	return w.route(func() error { return w.c.Swipe(ctx, x1, y1, x2, y2, ms) }, func() error { return w.base.Swipe(ctx, x1, y1, x2, y2, ms) })
 }
 
 func (w *wrapped) TypeText(ctx context.Context, t string) error {
+	if err := w.prep(ctx); err != nil {
+		return err
+	}
 	return w.route(func() error { return w.c.TypeText(ctx, t) }, func() error { return w.base.TypeText(ctx, t) })
 }
 
 func (w *wrapped) PressKey(ctx context.Context, k device.Key) error {
+	if err := w.prep(ctx); err != nil {
+		return err
+	}
 	return w.route(func() error { return w.c.PressKey(ctx, k) }, func() error { return w.base.PressKey(ctx, k) })
 }
 
@@ -128,6 +161,9 @@ func (w *wrapped) gestures() (device.GestureExtras, bool) {
 }
 
 func (w *wrapped) DoubleTap(ctx context.Context, x, y int) error {
+	if err := w.prep(ctx); err != nil {
+		return err
+	}
 	return w.route(func() error { return w.c.DoubleTap(ctx, x, y) }, func() error {
 		if g, ok := w.gestures(); ok {
 			return g.DoubleTap(ctx, x, y)
@@ -137,6 +173,9 @@ func (w *wrapped) DoubleTap(ctx context.Context, x, y int) error {
 }
 
 func (w *wrapped) Drag(ctx context.Context, x1, y1, x2, y2, ms int) error {
+	if err := w.prep(ctx); err != nil {
+		return err
+	}
 	return w.route(func() error { return w.c.Drag(ctx, x1, y1, x2, y2, ms) }, func() error {
 		if g, ok := w.gestures(); ok {
 			return g.Drag(ctx, x1, y1, x2, y2, ms)
@@ -146,6 +185,9 @@ func (w *wrapped) Drag(ctx context.Context, x1, y1, x2, y2, ms int) error {
 }
 
 func (w *wrapped) Pinch(ctx context.Context, cx, cy int, scale float64, ms int) error {
+	if err := w.prep(ctx); err != nil {
+		return err
+	}
 	return w.route(func() error { return w.c.Pinch(ctx, cx, cy, scale, ms) }, func() error {
 		if g, ok := w.gestures(); ok {
 			return g.Pinch(ctx, cx, cy, scale, ms)
@@ -188,6 +230,9 @@ func (w *wrapped) GetClipboard(ctx context.Context) (string, error) {
 }
 
 func (w *wrapped) DismissKeyboard(ctx context.Context) error {
+	if err := w.prep(ctx); err != nil {
+		return err
+	}
 	return w.route(func() error { return w.c.DismissKeyboard(ctx) }, func() error {
 		if k, ok := w.base.(device.KeyboardDismisser); ok {
 			return k.DismissKeyboard(ctx)

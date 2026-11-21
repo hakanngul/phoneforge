@@ -3,6 +3,8 @@ package uia2
 import (
 	"context"
 	"io"
+	"os"
+	"strings"
 
 	"phoneforge/internal/device"
 )
@@ -10,13 +12,28 @@ import (
 // Wrap decorates base so that, while b is running, UI-tree and gesture calls
 // go through the UiAutomator2 bridge (falling back to base on error). All
 // other methods and optional interfaces delegate to base.
+//
+// Unless PF_ANDROID_AUTOBRIDGE=0, the first UI-tree read starts the bridge
+// lazily (the plain `uiautomator dump` path costs ~2 s per read; the bridge
+// ~0.15 s). Taps and other gestures never trigger a start, and a bridge the
+// user stopped explicitly is left alone.
 func Wrap(base device.Device, b *Bridge) device.Device {
-	return &wrapped{base: base, b: b}
+	return &wrapped{base: base, b: b, auto: AutoBridgeEnabled()}
+}
+
+// AutoBridgeEnabled reports whether lazy bridge start is allowed.
+func AutoBridgeEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("PF_ANDROID_AUTOBRIDGE"))) {
+	case "0", "false", "off", "no":
+		return false
+	}
+	return true
 }
 
 type wrapped struct {
 	base device.Device
 	b    *Bridge
+	auto bool
 }
 
 var (
@@ -64,9 +81,20 @@ func (w *wrapped) LaunchApp(ctx context.Context, id string) error { return w.bas
 func (w *wrapped) StopApp(ctx context.Context, id string) error   { return w.base.StopApp(ctx, id) }
 
 func (w *wrapped) UITree(ctx context.Context) (device.Element, error) {
+	if w.auto && w.b != nil && !w.active() {
+		_ = w.b.EnsureStarted(ctx) // failure is remembered; fall through to adb
+	}
 	var el device.Element
 	if ok, _ := w.try(func() (err error) { el, err = w.b.Source(ctx); return }); ok {
 		return el, nil
+	}
+	// The session may have gone stale (instrumentation restarted underneath
+	// us); one fresh start is cheaper than falling back to the 2 s dump, which
+	// also cannot run while the instrumentation holds UiAutomation.
+	if w.auto && w.b != nil && w.active() && ctx.Err() == nil && w.b.restart(ctx) == nil {
+		if ok, _ := w.try(func() (err error) { el, err = w.b.Source(ctx); return }); ok {
+			return el, nil
+		}
 	}
 	return w.base.UITree(ctx)
 }

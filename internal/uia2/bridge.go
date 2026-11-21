@@ -63,7 +63,22 @@ type Bridge struct {
 	since   time.Time
 	lastErr string
 	proc    Proc
+
+	startMu     sync.Mutex // serialises EnsureStarted
+	userStopped bool       // Stop was called explicitly: do not auto-restart
+	failUntil   time.Time  // auto-start is suppressed until then after a failure
+	failErr     error
 }
+
+// autoStartCooldown is how long auto-start stays suppressed after a failed
+// attempt, so a phone without the packages is not retried on every tree read.
+const autoStartCooldown = 60 * time.Second
+
+// autoStartTimeout bounds one lazy start so a broken bridge cannot stall a read.
+const autoStartTimeout = 20 * time.Second
+
+// ErrAutoStartDisabled is returned by EnsureStarted after an explicit Stop.
+var ErrAutoStartDisabled = errors.New("uia2: bridge was stopped explicitly; not auto-starting")
 
 // New creates a bridge for the device with the given adb serial.
 func New(adbPath, serial string, assets *Assets) *Bridge {
@@ -196,6 +211,7 @@ func (b *Bridge) Installed(ctx context.Context) (bool, error) {
 // server. It is a no-op if already running.
 func (b *Bridge) Start(ctx context.Context) error {
 	b.mu.Lock()
+	b.userStopped = false
 	if b.running {
 		b.mu.Unlock()
 		return nil
@@ -269,6 +285,7 @@ func (b *Bridge) start(ctx context.Context) error {
 		cleanup(proc)
 		return err
 	}
+	b.applySettings(ctx, base, sid)
 
 	b.mu.Lock()
 	b.running, b.port, b.baseURL, b.session, b.proc = true, port, base, sid, proc
@@ -327,12 +344,67 @@ func (b *Bridge) createSession(ctx context.Context, base string) (string, error)
 	return r.SessionID, nil
 }
 
+// sessionSettings are applied once per session. Idle waiting is what makes
+// /source slow on busy or animating screens (the server otherwise waits up to
+// 10 s for the device to idle); we poll ourselves, so it is switched off.
+var sessionSettings = map[string]any{"waitForIdleTimeout": 0}
+
+// applySettings is best effort: a failure only costs speed.
+func (b *Bridge) applySettings(ctx context.Context, base, sid string) {
+	sctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	_, _ = b.doRaw(sctx, http.MethodPost, base+"/session/"+sid+"/appium/settings", map[string]any{"settings": sessionSettings})
+}
+
+// EnsureStarted starts the bridge if it is not running, at most once per
+// cooldown window after a failure. It never starts a bridge the user stopped.
+func (b *Bridge) EnsureStarted(ctx context.Context) error {
+	if b.Status().Running {
+		return nil
+	}
+	b.startMu.Lock()
+	defer b.startMu.Unlock()
+	b.mu.Lock()
+	running, stopped, failUntil, failErr := b.running, b.userStopped, b.failUntil, b.failErr
+	b.mu.Unlock()
+	if running {
+		return nil
+	}
+	if stopped {
+		return ErrAutoStartDisabled
+	}
+	if time.Now().Before(failUntil) {
+		return failErr
+	}
+	sctx, cancel := context.WithTimeout(ctx, autoStartTimeout)
+	defer cancel()
+	err := b.Start(sctx)
+	b.mu.Lock()
+	if err != nil {
+		b.failUntil, b.failErr = time.Now().Add(autoStartCooldown), err
+	} else {
+		b.failUntil, b.failErr = time.Time{}, nil
+	}
+	b.mu.Unlock()
+	return err
+}
+
+// restart tears down a wedged session and starts a fresh one.
+func (b *Bridge) restart(ctx context.Context) error {
+	_ = b.Stop(ctx)
+	b.mu.Lock()
+	b.userStopped = false
+	b.mu.Unlock()
+	return b.EnsureStarted(ctx)
+}
+
 // Stop deletes the session, kills the instrumentation and removes the port
 // forward. The APKs stay installed.
 func (b *Bridge) Stop(ctx context.Context) error {
 	b.mu.Lock()
 	base, sid, proc, port := b.baseURL, b.session, b.proc, b.port
 	wasRunning := b.running
+	b.userStopped = true
 	b.running, b.session, b.proc, b.port, b.baseURL = false, "", nil, 0, ""
 	b.mu.Unlock()
 	if !wasRunning && proc == nil {

@@ -328,3 +328,62 @@ func TestSupervisorGivesUpWhenRunnerKeepsDying(t *testing.T) {
 		t.Fatalf("status %+v", st)
 	}
 }
+
+var errCustomBlock = errors.New("custom: cannot fix by retrying")
+
+func TestSupervisorBlockingHookDoesNotLoop(t *testing.T) {
+	r := newRig(fakeInst{ok: true})
+	_ = r.m.SetDesired(udid, true)
+	var calls int
+	s, clk := newSup(r)
+	s.Start = func(ctx context.Context, u string) (Status, error) { calls++; return Status{}, errCustomBlock }
+	s.Blocking = func(err error) bool { return errors.Is(err, errCustomBlock) }
+	ctx := context.Background()
+	s.Seen(ctx, []string{udid})
+	for i := 0; i < 10; i++ {
+		clk.add(time.Minute)
+		s.Tick(ctx)
+	}
+	if calls != 1 {
+		t.Fatalf("calls = %d, want exactly 1", calls)
+	}
+	// Reappearance clears the block.
+	s.Seen(ctx, nil)
+	s.Seen(ctx, []string{udid})
+	if calls != 2 {
+		t.Fatalf("calls after reappear = %d, want 2", calls)
+	}
+}
+
+func TestSupervisorNotReadyHookDoesNotCountAttempts(t *testing.T) {
+	r := newRig(fakeInst{ok: true})
+	_ = r.m.SetDesired(udid, true)
+	errNotBooted := errors.New("not booted")
+	var calls int
+	booted := false
+	s, clk := newSup(r)
+	s.MaxAttempts = 2
+	s.Start = func(ctx context.Context, u string) (Status, error) {
+		calls++
+		if !booted {
+			return Status{}, errNotBooted
+		}
+		return r.m.Start(ctx, u, Options{})
+	}
+	s.NotReady = func(err error) bool { return errors.Is(err, errNotBooted) }
+	ctx := context.Background()
+	s.Seen(ctx, []string{udid})
+	for i := 0; i < 6; i++ { // would exceed MaxAttempts if counted
+		clk.add(time.Minute)
+		s.Tick(ctx) // device treated as absent: no further attempts
+	}
+	if calls != 1 {
+		t.Fatalf("calls = %d, want 1 until the device is seen again", calls)
+	}
+	booted = true
+	s.Seen(ctx, []string{udid}) // sim shows up booted
+	waitState(t, r.m, StateRunning)
+	if calls != 2 {
+		t.Fatalf("calls = %d, want 2", calls)
+	}
+}

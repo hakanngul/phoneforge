@@ -46,6 +46,9 @@ func fail(w http.ResponseWriter, err error) {
 		writeErr(w, "SIMULATOR_NOT_BOOTED", http.StatusConflict, err.Error())
 	case errors.Is(err, ErrNotBuilt):
 		writeErr(w, "SIMULATOR_WDA_NOT_BUILT", http.StatusConflict, err.Error())
+	case errors.Is(err, ErrWDAStarting):
+		w.Header().Set("Retry-After", "5")
+		writeErr(w, "SIMULATOR_WDA_STARTING", http.StatusServiceUnavailable, err.Error())
 	case errors.Is(err, iosbridge.ErrBusy):
 		writeErr(w, "IOSBRIDGE_BUSY", http.StatusConflict, err.Error())
 	default:
@@ -94,7 +97,7 @@ func (c *Control) Routes() http.Handler {
 			}
 			ctx, cancel := context.WithTimeout(req.Context(), 120*time.Second)
 			defer cancel()
-			st, err := c.StartWDA(ctx, chi.URLParam(req, "udid"), o)
+			st, err := c.UserStart(ctx, chi.URLParam(req, "udid"), o)
 			if err != nil {
 				fail(w, err)
 				return
@@ -102,7 +105,7 @@ func (c *Control) Routes() http.Handler {
 			writeJSON(w, http.StatusOK, st)
 		})
 		r.Post("/wda/stop", func(w http.ResponseWriter, req *http.Request) {
-			writeJSON(w, http.StatusOK, c.StopWDA(chi.URLParam(req, "udid")))
+			writeJSON(w, http.StatusOK, c.UserStop(chi.URLParam(req, "udid")))
 		})
 		r.Get("/wda/status", func(w http.ResponseWriter, req *http.Request) {
 			writeJSON(w, http.StatusOK, c.Mgr.Status(chi.URLParam(req, "udid")))

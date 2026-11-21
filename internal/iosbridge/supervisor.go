@@ -20,6 +20,15 @@ type Supervisor struct {
 	Start func(ctx context.Context, udid string) (Status, error)
 	// Log receives human-readable progress lines (optional).
 	Log func(msg string)
+	// Blocking, if set, marks start errors that retrying cannot fix (for
+	// example a missing simulator WDA build): the device is not auto-started
+	// again until it reappears or the user starts it explicitly. ErrNotInstalled
+	// and ErrTunnelUnsupported always block.
+	Blocking func(err error) bool
+	// NotReady, if set, marks start errors meaning the device is not ready yet
+	// (for example a simulator that is not booted): not counted as an attempt;
+	// the device is treated as absent until discovery reports it again.
+	NotReady func(err error) bool
 
 	// Tunables; zero values pick the defaults noted.
 	HealthInterval time.Duration // between reconcile passes (5s)
@@ -260,7 +269,14 @@ func (s *Supervisor) attempt(ctx context.Context, udid string, n int) {
 		d.nextAt = time.Time{}
 		s.mu.Unlock()
 		return
-	case errors.Is(err, ErrNotInstalled), errors.Is(err, ErrTunnelUnsupported):
+	case s.NotReady != nil && s.NotReady(err):
+		d.attempts--
+		d.nextAt = time.Time{}
+		d.present = false
+		s.mu.Unlock()
+		s.logf("WDA auto-start on %s deferred: %v", udid, err)
+		return
+	case errors.Is(err, ErrNotInstalled), errors.Is(err, ErrTunnelUnsupported), s.Blocking != nil && s.Blocking(err):
 		d.blocked = err.Error()
 		s.mu.Unlock()
 		s.logf("WDA auto-start on %s blocked: %v", udid, err)

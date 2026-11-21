@@ -13,7 +13,7 @@ import (
 
 // Timing knobs (variables so tests can shorten them).
 var (
-	waitPollInterval = 500 * time.Millisecond
+	waitPollInterval = 250 * time.Millisecond
 	scrollSettle     = 400 * time.Millisecond
 	retryDelay       = 1000 * time.Millisecond
 	alertPause       = 300 * time.Millisecond

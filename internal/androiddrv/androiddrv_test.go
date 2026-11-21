@@ -1,6 +1,10 @@
 package androiddrv
 
 import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"phoneforge/internal/device"
@@ -73,5 +77,73 @@ func TestParseDevices(t *testing.T) {
 	}
 	if sanitizeSerial("1.2.3.4:5555") != "1.2.3.4-5555" {
 		t.Error("sanitize")
+	}
+}
+
+const compressedXML = `<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0"><node index="0" text="" resource-id="" class="android.widget.FrameLayout" content-desc="" clickable="false" enabled="true" focused="false" bounds="[0,0][1080,2400]"><node index="0" text="OK" resource-id="" class="android.widget.Button" content-desc="" clickable="true" enabled="true" focused="false" bounds="[0,0][10,10]" /></node></hierarchy>
+UI hierchary dumped to: /dev/stdout`
+
+func TestParseUIXMLStdoutNoise(t *testing.T) {
+	root, err := parseUIXML([]byte(compressedXML))
+	if err != nil || len(root.Children) != 1 || root.Children[0].Children[0].Text != "OK" {
+		t.Fatalf("got %+v, %v", root, err)
+	}
+}
+
+// fakeADB writes a shell script standing in for adb. stdoutOK controls whether
+// `exec-out uiautomator dump ... /dev/stdout` prints a hierarchy; every call is
+// appended to the returned log file.
+func fakeADB(t *testing.T, stdoutOK bool) (adb, log string) {
+	t.Helper()
+	dir := t.TempDir()
+	xml := filepath.Join(dir, "dump.xml")
+	if err := os.WriteFile(xml, []byte(sampleXML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	log = filepath.Join(dir, "calls.log")
+	stdout := `printf '%s' ""`
+	if stdoutOK {
+		stdout = "cat " + xml
+	}
+	script := "#!/bin/sh\necho \"$*\" >> " + log + "\ncase \"$*\" in\n" +
+		"*exec-out*uiautomator*/dev/stdout*) " + stdout + " ;;\n" +
+		"*exec-out*cat*) cat " + xml + " ;;\n" +
+		"esac\nexit 0\n"
+	adb = filepath.Join(dir, "adb")
+	if err := os.WriteFile(adb, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return adb, log
+}
+
+func TestUITreeStdoutFastPath(t *testing.T) {
+	adb, log := fakeADB(t, true)
+	d := &androidDevice{adbPath: adb, serial: "FAST1"}
+	root, err := d.UITree(context.Background())
+	if err != nil || len(root.Children) != 1 {
+		t.Fatalf("got %+v, %v", root, err)
+	}
+	calls, _ := os.ReadFile(log)
+	if strings.Contains(string(calls), "pf_dump") || !strings.Contains(string(calls), "--compressed") {
+		t.Fatalf("expected a single compressed stdout dump, got:\n%s", calls)
+	}
+}
+
+func TestUITreeFallsBackToFile(t *testing.T) {
+	adb, log := fakeADB(t, false)
+	d := &androidDevice{adbPath: adb, serial: "SLOW1"}
+	t.Cleanup(func() { noStdoutDump.Delete("SLOW1") })
+	for i := 0; i < 2; i++ {
+		if root, err := d.UITree(context.Background()); err != nil || len(root.Children) != 1 {
+			t.Fatalf("call %d: got %+v, %v", i, root, err)
+		}
+	}
+	calls, _ := os.ReadFile(log)
+	if n := strings.Count(string(calls), "/dev/stdout"); n != 1 {
+		t.Fatalf("stdout dump should be tried once then remembered, tried %d times:\n%s", n, calls)
+	}
+	if n := strings.Count(string(calls), "pf_dump"); n < 4 {
+		t.Fatalf("expected file dump + cat on both calls:\n%s", calls)
 	}
 }

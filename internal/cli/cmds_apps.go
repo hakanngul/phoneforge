@@ -230,7 +230,7 @@ func cmdWait(c *call) error {
 	rid := fs.String("id", "", "")
 	ocr := fs.Bool("ocr", false, "")
 	gone := fs.Bool("gone", false, "")
-	interval := fs.Duration("interval", 500*time.Millisecond, "")
+	interval := fs.Duration("interval", 250*time.Millisecond, "")
 	pos, err := c.parse(fs, c.args)
 	if err != nil {
 		return err

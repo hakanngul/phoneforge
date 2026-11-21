@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"image/png"
+	"sync"
 	"time"
 
 	"phoneforge/internal/device"
@@ -32,12 +33,32 @@ func (d *androidDevice) Screenshot(ctx context.Context) (device.Screenshot, erro
 	return device.Screenshot{PNG: out, Width: cfg.Width, Height: cfg.Height}, nil
 }
 
-// UITree dumps the UI hierarchy with uiautomator to a file on the device,
-// reads it back with `exec-out cat`, and parses it. Dumping to a file is
-// more robust than /dev/tty, which fails on several OEM builds.
+// noStdoutDump remembers serials where `uiautomator dump /dev/stdout` did not
+// produce a hierarchy, so those devices go straight to the file path.
+var noStdoutDump sync.Map
+
+// UITree reads the hierarchy with `adb exec-out uiautomator dump --compressed
+// /dev/stdout`: one adb round trip, no temp file and no separate pull. Where
+// that yields nothing parseable (some OEM builds reject /dev/stdout) it falls
+// back to dumping to a file on the device and reading it back with
+// `exec-out cat`. The dump itself costs ~2 s on slow phones; the UiAutomator2
+// bridge (package uia2) is the fast path.
 func (d *androidDevice) UITree(ctx context.Context) (device.Element, error) {
 	ctx, cancel := withTimeout(ctx, captureTimeout)
 	defer cancel()
+	tryStdout := false
+	if _, skip := noStdoutDump.Load(d.serial); !skip {
+		out, err := d.run(ctx, "exec-out", "uiautomator", "dump", "--compressed", "/dev/stdout")
+		if err == nil && bytes.Contains(out, []byte("<hierarchy")) {
+			if el, perr := parseUIXML(out); perr == nil {
+				return el, nil
+			}
+		}
+		if ctx.Err() != nil {
+			return device.Element{}, ctx.Err()
+		}
+		tryStdout = true
+	}
 	if _, err := d.run(ctx, "shell", "uiautomator", "dump", dumpPath); err != nil {
 		return device.Element{}, err
 	}
@@ -45,7 +66,12 @@ func (d *androidDevice) UITree(ctx context.Context) (device.Element, error) {
 	if err != nil {
 		return device.Element{}, err
 	}
-	return parseUIXML(out)
+	el, err := parseUIXML(out)
+	if err == nil && tryStdout {
+		// The file path works where stdout did not: remember that.
+		noStdoutDump.Store(d.serial, true)
+	}
+	return el, err
 }
 
 type xmlNode struct {

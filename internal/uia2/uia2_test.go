@@ -236,7 +236,13 @@ func TestPinchTwoSequences(t *testing.T) {
 
 type baseDev struct {
 	device.Device
-	taps int
+	taps  int
+	trees int
+}
+
+func (d *baseDev) UITree(ctx context.Context) (device.Element, error) {
+	d.trees++
+	return device.Element{Role: "hierarchy"}, nil
 }
 
 func (d *baseDev) Tap(ctx context.Context, x, y int) error { d.taps++; return nil }
@@ -326,5 +332,98 @@ func TestAssetsDownload(t *testing.T) {
 	}
 	if _, _, ok := a.Status(); !ok {
 		t.Fatal("assets not found after download")
+	}
+}
+
+func newIdleBridge(t *testing.T) (*Bridge, *fakeServer, *[]string) {
+	t.Helper()
+	b, f, cmds := startedBridge(t)
+	b.Stop(context.Background())
+	b.mu.Lock()
+	b.userStopped = false
+	b.mu.Unlock()
+	return b, f, cmds
+}
+
+func TestEnsureStartedRespectsUserStop(t *testing.T) {
+	b, _, _ := startedBridge(t)
+	b.Stop(context.Background()) // explicit stop
+	if err := b.EnsureStarted(context.Background()); !errors.Is(err, ErrAutoStartDisabled) {
+		t.Fatalf("want ErrAutoStartDisabled, got %v", err)
+	}
+	if err := b.Start(context.Background()); err != nil { // explicit start re-enables
+		t.Fatal(err)
+	}
+	if !b.Status().Running {
+		t.Fatal("not running")
+	}
+}
+
+func TestWrapUITreeAutoStarts(t *testing.T) {
+	b, _, _ := newIdleBridge(t)
+	t.Setenv("PF_ANDROID_AUTOBRIDGE", "")
+	base := &baseDev{}
+	w := Wrap(base, b)
+	el, err := w.UITree(context.Background())
+	if err != nil || len(el.Children) == 0 {
+		t.Fatalf("got %+v, %v", el, err)
+	}
+	if !b.Status().Running {
+		t.Fatal("bridge should have been started lazily")
+	}
+	if base.trees != 0 {
+		t.Fatal("base dump must not be used")
+	}
+}
+
+func TestWrapUITreeAutoBridgeDisabled(t *testing.T) {
+	b, _, _ := newIdleBridge(t)
+	t.Setenv("PF_ANDROID_AUTOBRIDGE", "0")
+	base := &baseDev{}
+	w := Wrap(base, b)
+	if _, err := w.UITree(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if b.Status().Running || base.trees != 1 {
+		t.Fatalf("expected adb fallback only: running=%v trees=%d", b.Status().Running, base.trees)
+	}
+}
+
+func TestEnsureStartedFailureCooldown(t *testing.T) {
+	b := New("adb", "SER", &Assets{Dir: t.TempDir()}) // no APKs
+	calls := 0
+	b.runner = Runner{
+		Run: func(ctx context.Context, args ...string) ([]byte, error) {
+			calls++
+			return []byte(""), nil // pm list: nothing installed
+		},
+		Spawn: func(args ...string) (Proc, error) { return &fakeProc{done: make(chan struct{})}, nil },
+	}
+	if err := b.EnsureStarted(context.Background()); !errors.Is(err, ErrAssetsMissing) {
+		t.Fatalf("want ErrAssetsMissing, got %v", err)
+	}
+	first := calls
+	if err := b.EnsureStarted(context.Background()); !errors.Is(err, ErrAssetsMissing) || calls != first {
+		t.Fatalf("second attempt should be suppressed by cooldown (calls %d -> %d, err %v)", first, calls, err)
+	}
+}
+
+func TestStartAppliesIdleSetting(t *testing.T) {
+	f := newFake(t)
+	var got map[string]any
+	f.srv.Config.Handler.(*http.ServeMux).HandleFunc("POST /session/sid1/appium/settings", func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&got)
+		w.Write([]byte(`{"value":null}`))
+	})
+	b := New("adb", "SER", testAssets(t))
+	b.baseURLOverride = f.srv.URL
+	b.runner = pmRunner("package:io.appium.uiautomator2.server\npackage:io.appium.uiautomator2.server.test\n", new([]string))
+	if err := b.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { b.Stop(context.Background()) })
+	s, _ := got["settings"].(map[string]any)
+	if v, ok := s["waitForIdleTimeout"].(float64); !ok || v != 0 {
+		t.Fatalf("settings not applied: %v", got)
 	}
 }

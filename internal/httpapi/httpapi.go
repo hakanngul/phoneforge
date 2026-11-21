@@ -19,6 +19,7 @@ import (
 	"phoneforge/internal/device"
 	"phoneforge/internal/dsl"
 	"phoneforge/internal/events"
+	"phoneforge/internal/iossim"
 	"phoneforge/internal/registry"
 	"phoneforge/internal/uia2"
 )
@@ -167,6 +168,11 @@ func deviceErr(w http.ResponseWriter, err error) {
 		writeErr(w, "DEVICE_NOT_FOUND", http.StatusNotFound, err.Error())
 	case errors.Is(err, device.ErrUnsupported):
 		writeErr(w, "UNSUPPORTED", http.StatusNotImplemented, err.Error())
+	case errors.Is(err, iossim.ErrWDAStarting):
+		w.Header().Set("Retry-After", "5")
+		writeErr(w, "SIMULATOR_WDA_STARTING", http.StatusServiceUnavailable, err.Error())
+	case errors.Is(err, iossim.ErrNotBuilt):
+		writeErr(w, "SIMULATOR_WDA_NOT_BUILT", http.StatusConflict, err.Error())
 	case errors.Is(err, device.ErrElementNotFound):
 		writeErr(w, "ELEMENT_NOT_FOUND", http.StatusNotFound, err.Error())
 	default:

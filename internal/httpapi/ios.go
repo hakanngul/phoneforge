@@ -118,6 +118,16 @@ func notIOS(w http.ResponseWriter) {
 // StartTuned starts the runner for udid and applies the MJPEG settings. It is
 // the start path shared by explicit API calls and the auto-restart supervisor.
 func (c *IOSControl) StartTuned(ctx context.Context, name, udid string, o iosbridge.Options) (iosbridge.Status, error) {
+	if c.isSim(udid) {
+		events.Info("WDA bridge: starting on " + name)
+		st, err := c.Sim.StartWDA(ctx, udid, o)
+		if err != nil {
+			events.Errorf("WDA bridge failed on %s: %v", name, err)
+			return st, err
+		}
+		events.Success("WDA bridge running on " + name)
+		return st, nil
+	}
 	events.Info("WDA bridge: starting on " + name)
 	st, err := c.M(udid).Start(ctx, udid, c.prepare(udid, o))
 	if err != nil {
@@ -163,11 +173,13 @@ func (a *api) iosStart(ctx context.Context, name, udid string, o iosbridge.Optio
 	if err := a.ios.M(udid).SetDesired(udid, true); err != nil {
 		events.Errorf("WDA bridge: could not persist desired state: %v", err)
 	}
-	if sup := a.ios.supervisor(); sup != nil {
+	if a.ios.isSim(udid) {
+		a.ios.Sim.ClearBlocks(udid)
+	} else if sup := a.ios.supervisor(); sup != nil {
 		sup.ClearBlocks(udid)
 	}
 	_, err := a.ios.StartTuned(ctx, name, udid, o)
-	if errors.Is(err, iosbridge.ErrNotInstalled) || errors.Is(err, iosbridge.ErrTunnelUnsupported) {
+	if errors.Is(err, iosbridge.ErrNotInstalled) || errors.Is(err, iosbridge.ErrTunnelUnsupported) || errors.Is(err, iossim.ErrNotBuilt) || errors.Is(err, iossim.ErrNotBooted) {
 		_ = a.ios.M(udid).SetDesired(udid, false) // cannot be satisfied; do not retry on every launch
 	}
 	return a.ios.M(udid).Status(udid), err
@@ -186,6 +198,10 @@ func iosStartErr(w http.ResponseWriter, err error) {
 		writeErr(w, "IOSBRIDGE_BUSY", http.StatusConflict, err.Error())
 	case errors.Is(err, iosbridge.ErrNotInstalled):
 		writeErr(w, "IOSBRIDGE_NOT_INSTALLED", http.StatusConflict, err.Error())
+	case errors.Is(err, iossim.ErrNotBuilt):
+		writeErr(w, "SIMULATOR_WDA_NOT_BUILT", http.StatusConflict, err.Error())
+	case errors.Is(err, iossim.ErrNotBooted):
+		writeErr(w, "SIMULATOR_NOT_BOOTED", http.StatusConflict, err.Error())
 	case errors.Is(err, iosbridge.ErrTunnelUnsupported):
 		writeErr(w, "IOSBRIDGE_TUNNEL_ROOT", http.StatusConflict, err.Error())
 	default:

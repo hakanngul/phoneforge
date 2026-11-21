@@ -155,6 +155,8 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 	// Wi-Fi paired iPhones flap in and out of usbmuxd; keep them listed for a grace period.
 	reg.AddDiscoverer(iosWDADiscoverer{inner: registry.WithGrace(iosdrv.NewDiscoverer(), registry.DefaultGrace), ctl: iosCtl})
 	simCtl := iossim.New("")
+	simCtl.SetStatePath(filepath.Join(stateDir, "iossim-state.json"))
+	simSup := simCtl.Supervise(events.Info)
 	iosCtl.SetSim(simCtl)
 	reg.AddDiscoverer(iossim.NewDiscoverer(simCtl))
 	simCtl.OnChange = func() {
@@ -174,6 +176,8 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 	noteDevices(reg, known, false)
 	iosSup.Seen(bgCtx, iosUDIDs(reg)) // auto-start WDA for devices the user left it on for
 	go iosSup.Run(bgCtx)
+	simSup.Seen(bgCtx, simUDIDs(reg)) // restore WDA on booted simulators the user left it on for
+	go simSup.Run(bgCtx)
 	events.Info("PhoneForge started")
 
 	// Background rescan every 5s so hot-plugged devices appear.
@@ -193,6 +197,7 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 			c()
 			noteDevices(reg, known, true)
 			iosSup.Seen(bgCtx, iosUDIDs(reg))
+			simSup.Seen(bgCtx, simUDIDs(reg))
 		}
 	}()
 
@@ -352,7 +357,18 @@ func (d iosWDADiscoverer) Discover(ctx context.Context) ([]device.Device, error)
 func iosUDIDs(reg *registry.Registry) []string {
 	var out []string
 	for _, d := range reg.List() {
-		if d.Platform == device.PlatformIOS && d.Serial != "" && !strings.HasPrefix(d.ID, "remote-") {
+		if d.Platform == device.PlatformIOS && d.Serial != "" && !strings.HasPrefix(d.ID, "remote-") && !d.Simulator {
+			out = append(out, d.Serial)
+		}
+	}
+	return out
+}
+
+// simUDIDs lists the udids of the currently booted iOS simulators.
+func simUDIDs(reg *registry.Registry) []string {
+	var out []string
+	for _, d := range reg.List() {
+		if d.Platform == device.PlatformIOS && d.Serial != "" && d.Simulator {
 			out = append(out, d.Serial)
 		}
 	}
