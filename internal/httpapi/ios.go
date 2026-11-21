@@ -510,6 +510,15 @@ func (a *api) mjpegInfo(w http.ResponseWriter, r *http.Request, dev device.Devic
 // stream delivers a frame sooner; afterwards every frame comes from stream.
 // Each part is closed with the next boundary right away so browsers paint it
 // without waiting for the following frame.
+// wantRawMJPEG reports whether the client asked for the opaque-content-type
+// variant of the stream (?format=raw or Accept: application/x-pf-mjpeg).
+func wantRawMJPEG(r *http.Request) bool {
+	if strings.EqualFold(r.URL.Query().Get("format"), "raw") {
+		return true
+	}
+	return strings.Contains(strings.ToLower(r.Header.Get("Accept")), "application/x-pf-mjpeg")
+}
+
 func serveMJPEG(w http.ResponseWriter, r *http.Request, flusher http.Flusher,
 	first func(ctx context.Context) ([]byte, error),
 	stream func(ctx context.Context, fn func([]byte) error) error) {
@@ -517,7 +526,15 @@ func serveMJPEG(w http.ResponseWriter, r *http.Request, flusher http.Flusher,
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 	h := w.Header()
-	h.Set("Content-Type", "multipart/x-mixed-replace; boundary="+boundary)
+	if wantRawMJPEG(r) {
+		// WebKit special-cases multipart/x-mixed-replace and never exposes it to
+		// fetch() streams; same framing, opaque content type, boundary in a header.
+		h.Set("Content-Type", "application/octet-stream")
+		h.Set("X-Boundary", boundary)
+		h.Set("Access-Control-Expose-Headers", "X-Boundary, X-Stream-Source, X-Stream-Fallback")
+	} else {
+		h.Set("Content-Type", "multipart/x-mixed-replace; boundary="+boundary)
+	}
 	h.Set("Cache-Control", "no-store")
 
 	var (

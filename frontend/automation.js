@@ -293,7 +293,7 @@
     }
     function connect() {
       if (!live()) return;
-      fetch(PF.API + PF.dev('/mjpeg') + '?t=' + Date.now(), { signal: ac.signal, cache: 'no-store' }).then(function (res) {
+      fetch(PF.API + PF.dev('/mjpeg') + '?format=raw&t=' + Date.now(), { signal: ac.signal, cache: 'no-store' }).then(function (res) {
         if (!live()) return;
         if (!res.ok) throw new Error('HTTP ' + res.status);
         if (!res.body || !res.body.getReader) throw new Error('streaming body not supported');
@@ -301,7 +301,8 @@
         if (src) statsLabel(src === 'av' ? 'Native' : 'WDA');
         else PF.api('GET', PF.dev('/mjpeg/info')).then(function (inf) { if (live() && inf && inf.source) statsLabel(inf.source === 'av' ? 'Native' : 'WDA'); }).catch(function () { /* optional */ });
         var m = /boundary=("?)([^";\s]+)\1/i.exec(res.headers.get('Content-Type') || '');
-        var parser = PF.mjpegParser(m ? m[2] : null, onJpeg), reader = res.body.getReader();
+        var bnd = res.headers.get('X-Boundary') || (m ? m[2] : null);
+        var parser = PF.mjpegParser(bnd, onJpeg), reader = res.body.getReader();
         function pump() {
           return reader.read().then(function (r) {
             if (!live()) { try { reader.cancel(); } catch (e) { /* ignore */ } return; }

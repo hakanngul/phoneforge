@@ -130,3 +130,27 @@ func TestServeMJPEGStreamErrorBeforeAnyFrame(t *testing.T) {
 		t.Fatalf("status %d, want 502", rec.rec.Code)
 	}
 }
+
+func TestServeMJPEGRawFormatHeaders(t *testing.T) {
+	for _, tc := range []struct{ name, url, accept string }{
+		{"query", "/mjpeg?format=raw", ""},
+		{"accept", "/mjpeg", "application/x-pf-mjpeg"},
+	} {
+		rec := newSyncRec()
+		req := httptest.NewRequest(http.MethodGet, tc.url, nil)
+		if tc.accept != "" {
+			req.Header.Set("Accept", tc.accept)
+		}
+		serveMJPEG(rec, req, rec, nil, func(ctx context.Context, fn func([]byte) error) error { return fn([]byte("FRAME")) })
+		if ct := rec.Header().Get("Content-Type"); ct != "application/octet-stream" {
+			t.Fatalf("%s: content type %q", tc.name, ct)
+		}
+		if b := rec.Header().Get("X-Boundary"); b != "pfframe" {
+			t.Fatalf("%s: X-Boundary %q", tc.name, b)
+		}
+		body := rec.body()
+		if !strings.HasPrefix(body, "--pfframe\r\n") || !strings.Contains(body, "Content-Length: 5\r\n\r\nFRAME\r\n--pfframe\r\n") {
+			t.Fatalf("%s: framing changed: %q", tc.name, body)
+		}
+	}
+}
