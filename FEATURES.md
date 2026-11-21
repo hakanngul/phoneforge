@@ -98,7 +98,7 @@ our own software, so every capability is unlocked by design.
 ## Honest limits / next
 - iOS live control beyond the WDA bridge: Wi-Fi-only devices, iOS 17.0-17.3 (root kernel tunnel).
 - AWS Device Farm live listing (AWS SDK), cloud device live streaming, Cloud Agents (CI).
-- Native Wails v3 desktop shell wrapping this web UI.
+- Desktop app (Wails v3, `PhoneForge.app`): built and verified standalone/attach on this Mac; ad-hoc signed only (no notarization), tray/menu verified by menu-bar inspection only.
 - Agent not yet run against a real LLM here (no key set); unit-tested with a fake client.
 - lldb debugging is unit-tested against a fake lldb and the real lldb's static commands; attaching to a live process was not verified on the
   build Mac (Developer mode disabled there) and real-device attach needs a development-signed app. Android debugging is not implemented.

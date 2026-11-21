@@ -50,7 +50,7 @@ Legend: ✅ done & verified, 🟡 code exists but not fully verified, 🔨 in pr
 | **Platform** | | | |
 | REST API | ✅ | ✅ | |
 | CLI | ✅ (mobai) | 🔨 (phoneforge) | phoneforge CLI being finished |
-| Desktop app | ✅ | ❌ | Browser UI only |
+| Desktop app | ✅ | 🟡 | Wails v3 `PhoneForge.app` (ad-hoc signed, no notarization/auto-update) |
 | Remote devices (Tailscale, sharing) | ✅ | 🟡 | Code exists |
 | Cloud relay | ✅ | ❌ | |
 | AWS Device Farm | ✅ | 🟡 | Settings screen only |
@@ -94,7 +94,7 @@ Items already tracked in the sections below (Wails desktop shell, DSL JavaScript
 
 ## Remaining parity features
 
-- Wails v3 native desktop shell
+- Wails v3 native desktop shell: 🟡 done (`cmd/phoneforge-desktop`, `scripts/build-desktop.sh`); remaining: Developer ID signing + notarization, auto-update, Windows/Linux builds
 - Screen recording + performance metrics (CPU/memory/FPS) from DSL
 - DSL JavaScript steps, Maestro YAML import
 - AWS Device Farm integration, Cloud Agents

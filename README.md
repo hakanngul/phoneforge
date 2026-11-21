@@ -21,7 +21,14 @@ commercial product.** Architecture inspired by the documented design of mobile-a
 - `internal/webauto` — Chrome/WebView automation over CDP (Android) + `/api/v1/web`
 - `internal/aiconfig` — AI Configuration: external agent CLIs, MCP connect, run console + `/api/v1/ai`
 - `cmd/phoneforged`  — headless server (like `serve`)
-- `frontend` + Wails app — desktop UI (added later)
+- `internal/server` — reusable server wiring (used by `phoneforged` and the desktop app)
+- `cmd/phoneforge-desktop` — native macOS app (Wails v3), see [docs/desktop.md](docs/desktop.md)
+- `frontend` — web UI (embedded into the binaries via `frontend/embed.go`)
+
+## Desktop app (macOS)
+`scripts/build-desktop.sh [--dmg]` builds `dist/PhoneForge.app` (Wails v3, ad-hoc signed): the same server runs
+in-process and the UI opens in a native window, or attaches to a server already running on `127.0.0.1:8700`.
+See [docs/desktop.md](docs/desktop.md).
 
 ## Claude Code skills and plugin
 
