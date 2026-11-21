@@ -36,15 +36,36 @@
 
   /* quit */
   var quit = $('quitBtn');
+  /* in-page confirm (window.confirm is a no-op in embedded webviews) */
+  function confirmQuit(onYes) {
+    var bg = document.createElement('div');
+    bg.className = 'modal-bg';
+    bg.style.zIndex = 60;
+    bg.innerHTML = '<div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="qcTitle" style="width:min(420px,92vw)">' +
+      '<div class="modal-head"><h3 id="qcTitle">Quit PhoneForge?</h3></div>' +
+      '<div class="modal-body"><p style="margin:0 0 14px">This stops the server and closes the app; devices will no longer be controllable.</p>' +
+      '<div class="btn-row" style="justify-content:flex-end"><button class="btn" data-qc="cancel">Cancel</button>' +
+      '<button class="btn danger" data-qc="ok">Quit</button></div></div></div>';
+    function close() { document.removeEventListener('keydown', onKey, true); if (bg.parentNode) bg.parentNode.removeChild(bg); }
+    function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } }
+    bg.addEventListener('click', function (e) { if (e.target === bg) close(); });
+    bg.querySelector('[data-qc="cancel"]').addEventListener('click', close);
+    bg.querySelector('[data-qc="ok"]').addEventListener('click', function () { close(); onYes(); });
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(bg);
+    bg.querySelector('[data-qc="cancel"]').focus();
+  }
   if (quit) quit.addEventListener('click', function () {
-    if (!window.confirm('Quit PhoneForge? This stops the server and closes the app; devices will no longer be controllable.')) return;
+    confirmQuit(doQuit);
+  });
+  function doQuit() {
     quit.disabled = true;
     fetch('/api/v1/server/shutdown', { method: 'POST', headers: { 'X-PhoneForge-Action': 'shutdown' } }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       document.title = 'PhoneForge stopped';
       document.body.innerHTML = '<div style="display:flex;height:100vh;align-items:center;justify-content:center;flex-direction:column;font-family:system-ui,sans-serif;color:#ccc;background:#0e0d14"><h2>PhoneForge stopped</h2><p>You can close this tab.</p></div>';
     }).catch(function (e) { quit.disabled = false; PF.toast('Could not stop PhoneForge: ' + e.message); });
-  });
+  }
 
   /* health */
   function health() {
