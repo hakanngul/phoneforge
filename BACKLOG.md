@@ -15,28 +15,29 @@ Legend: ✅ done & verified, 🟡 code exists but not fully verified, 🔨 in pr
 | iOS simulators | ✅ | ✅ | Boot, WDA, tap and typing tried |
 | Simulator slimming (memory) | ✅ | ❌ | |
 | **Mirroring and control** | | | |
-| Android live view | ✅ | ✅ | H.264, 540p, max 3 Mbps |
-| iPhone live view | ✅ | ✅ | ~24–28 fps (WDA) |
-| iPhone 60 fps mirroring | ? | 🟡 | Code exists; macOS does not list the iPhone |
+| Android live view | ✅ | ✅ | H.264, 540p, max 3 Mbps; decodes in WebKit (Safari 80 fps while swiping); not checked inside the desktop app itself |
+| iPhone live view | ✅ | ✅ | ~24–28 fps (WDA); desktop app ~22 fps with the WebKit raw-MJPEG fix |
+| iPhone 60 fps mirroring | ? | 🟡 | Camera permission granted to PhoneForge.app, device found, but no frames within 15 s |
 | Mouse tap and swipe | ✅ | ✅ | |
 | Element Picker, UI tree | ✅ | ✅ | |
 | Live FPS indicator | ? | ✅ | |
-| OCR | ✅ | ✅ | Simulator 0.4 s · 🟡 on iPhone: 23 s |
-| Web/Chrome automation | ✅ | 🟡 | Not tried on a phone |
+| OCR | ✅ | ✅ | Simulator 0.4 s · iPhone ~0.5 s warm; tap pixel→point mapping verified |
+| Web/Chrome automation | ✅ | ✅ | Android Chrome: targets, navigate, html, eval, click |
 | **AI** | | | |
 | MCP server | ✅ | ✅ | 48 tools |
 | Phone control with Claude Code | ✅ | ✅ | App launch tried with Haiku |
-| Codex, Cursor, Gemini | ✅ | 🟡 | Connection exists; runs not tried |
-| Kiro / kiro-cli | ? | 🟡 | Implemented from docs, not live-tested (not installed): connect, kiro-cli runs |
+| Codex | ✅ | ✅ | Run verified (Codex 0.169): opened Settings, read items, returned home |
+| Cursor, Gemini | ✅ | 🟡 | Connection exists; runs not tried (no keys/installs) |
+| Kiro / kiro-cli | ? | 🟡 | Implemented, not installed/tested: connect, kiro-cli runs |
 | Own agent (API key or Ollama) | ✅ | 🟡 | Not tried with a real model |
 | Agent replanning / asking the user | ✅ | 🟡 | Not verified |
 | Model selection, chat memory, unlimited permissions | ? | ✅ | |
-| Claude Code skills | ✅ | 🟡 | Written, plugin validator passes; not yet installed/verified in Claude Code |
-| Claude Code plugin | ✅ | 🟡 | Written, plugin validator passes; not yet installed/verified in Claude Code |
+| Claude Code skills | ✅ | ✅ | Installed and listed by Claude Code |
+| Claude Code plugin | ✅ | 🟡 | Validator passes; marketplace install not tried |
 | Cloud agents (mobai-dev) | ✅ | ❌ | |
 | **Automation and testing** | | | |
-| DSL | ✅ | ✅ | ~70 actions |
-| .mob tests, runner, history | ✅ | 🟡 | Not run on a phone |
+| DSL | ✅ | ✅ | ~70 actions; batch verified on Android (8 steps) |
+| .mob tests, runner, history | ✅ | ✅ | Run on Android, iPhone, simulator (CLI `run` and REST); history recorded |
 | Maestro YAML import | ✅ | ❌ | |
 | .mobflow flows | ✅ | ❌ | |
 | JavaScript steps in DSL | ✅ | ❌ | |
@@ -44,21 +45,21 @@ Legend: ✅ done & verified, 🟡 code exists but not fully verified, 🔨 in pr
 | GitHub Action (CI) | ✅ | ❌ | |
 | **Apps and debugging** | | | |
 | App list, launch, stop | ✅ | ✅ | |
-| App install and uninstall | ✅ | 🟡 | Not tried on a device |
+| App install and uninstall | ✅ | ✅ | Android (bridge APKs via CLI + REST incl. multipart); iOS (.app reinstall via CLI, WDA auto-recovered ~15 s) |
 | Crash reports | ✅ | ✅ | iPhone, Galaxy, simulator |
 | lldb | ✅ | 🟡 | Developer Tools disabled on the Mac |
 | App builder | ✅ | ❌ | |
 | **Platform** | | | |
 | REST API | ✅ | ✅ | |
-| CLI | ✅ (mobai) | 🔨 (phoneforge) | phoneforge CLI being finished |
-| Desktop app | ✅ | 🟡 | Wails v3 `PhoneForge.app` (ad-hoc signed, no notarization/auto-update) |
+| CLI | ✅ (mobai) | ✅ (phoneforge) | State-changing commands (launch, tap --text, type, key, swipe, stop, wait) verified on Android, iPhone, simulator |
+| Desktop app | ✅ | ✅ | Wails v3 `PhoneForge.app` (ad-hoc signed; notarization/auto-update open) |
 | Remote devices (Tailscale, sharing) | ✅ | 🟡 | Code exists |
 | Cloud relay | ✅ | ❌ | |
 | AWS Device Farm | ✅ | 🟡 | Settings screen only |
 | Webhooks, secrets, integrations | ✅ | 🟡 | Code exists |
 | License | Free: 1 device · Pro $9.99/mo: unlimited | Open source | |
 
-Items already tracked in the sections below (Wails desktop shell, DSL JavaScript steps, Maestro import, DSL recording and metrics, AWS Device Farm, Cloud Agents, 60 fps mirroring, lldb, iOS Wi-Fi, app install/uninstall, `.mob` runs, Codex, Chrome/WebView, built-in agent with an API key) are not repeated in the checklists.
+Items already tracked in the sections below (Wails notarization/auto-update, DSL JavaScript steps, Maestro import, DSL recording and metrics, AWS Device Farm, Cloud Agents, 60 fps mirroring, lldb, iOS Wi-Fi, built-in agent with an API key) are not repeated in the checklists.
 
 ### Missing entirely
 
@@ -70,7 +71,7 @@ Items already tracked in the sections below (Wails desktop shell, DSL JavaScript
 
 ### Implemented but unverified on device
 
-- [ ] Kiro IDE connect and kiro-cli runs (needs KIRO_API_KEY; verify `--trust-tools=@phoneforge`, `--resume`, `--require-mcp-startup`), Cursor and Gemini runs, and the built-in agent with Ollama (see also the Codex / API key bullet under "Untested on device")
+- [ ] Kiro IDE connect and kiro-cli runs (needs KIRO_API_KEY; verify `--trust-tools=@phoneforge`, `--resume`, `--require-mcp-startup`), Cursor and Gemini runs, and the built-in agent with a real model (API key or Ollama)
 - [ ] Agent replan / ask-user loop
 - [ ] Remote devices / Tailscale
 - [ ] Webhooks, secrets, integrations
@@ -78,7 +79,7 @@ Items already tracked in the sections below (Wails desktop shell, DSL JavaScript
 ## Live mirroring
 
 - **iOS native 60 fps capture (parked).** Code exists: `internal/avcapture` (Swift helper `internal/avcapture/helper/pfcapture.swift` → `~/.phoneforge/bin/pfcapture`, gate in `internal/httpapi/avgate.go`).
-  - Status: macOS Camera (TCC) permission was granted to the Claude app/Terminal panel context; the first test streamed frames (1180x2556). After stopping that test with SIGINT, `pfcapture list` returns no devices, even after replugging the iPhone.
+  - Status: Camera permission is now granted to PhoneForge.app; the device is found but no frames arrive within 15 s. Earlier (Claude app/Terminal context) a first test streamed frames (1180x2556); after stopping it with SIGINT, `pfcapture list` returned no devices.
   - Suspects: device left claimed after SIGINT (the helper should stop the AVCaptureSession on SIGINT/SIGTERM); MobAI.app holding the CMIO device; discovery needing AVCaptureDeviceWasConnected notifications or a longer wait.
   - Also: the TCC permission belongs to the launching app, so the server must be started from a context that has Camera permission.
   - Next: add a `diag` subcommand (CMIO + AVFoundation device list), add graceful signal handling, retest with MobAI closed.
@@ -87,11 +88,20 @@ Items already tracked in the sections below (Wails desktop shell, DSL JavaScript
 
 ## iOS
 
-- OCR on the real iPhone takes ~23 s (simulator 0.4 s); likely the real-device screenshot path (2.7 MB PNG). Speed up with JPEG / a scaled screenshot from WDA.
+- Simulator WDA is not auto-restarted after a server restart (the real iPhone has a supervisor; simulators don't).
+- iOS Settings search needs a tap on the SearchField itself before typing (a tip for skills/docs, not a bug).
 - iOS 27.3 iPhone (iPhone18,2): needs USB connection + Trust, developer disk image, WDA install; currently only seen over Wi-Fi.
 - lldb debugging: implemented (`internal/debugger`), but never attached live. The Mac has Developer Tools security disabled (`sudo DevToolsSecurity -enable` needed, user action).
-- Untested on real devices: iOS app install/uninstall, iOS crash-report delete, element picker/tap via the new fetch-based mirror viewer.
+- Untested on real devices: iOS crash-report delete, element picker/tap via the new fetch-based mirror viewer.
 - REST gestures take points (393x852 on iPhone 15); clients using screenshot pixel coordinates tap the wrong place. Consider a `units=px` option.
+
+## Android
+
+- `tree`/`wait`/`assert` take ~2.2 s each on the Galaxy (SM-G780G), making scripts slow; investigate uia2 dump speed.
+
+## Fixed 2026-11-21
+
+- Codex flags (Codex 0.169), simctl screenshot temp file, device deep link `?device=`.
 
 ## Remaining parity features
 
@@ -103,4 +113,4 @@ Items already tracked in the sections below (Wails desktop shell, DSL JavaScript
 
 ## Untested on device (needs user OK)
 
-- Android pinch/drag, app install/uninstall, permissions, `.mob` runs on a phone, agent tap/type actions, Codex runs, Chrome/WebView automation on a phone, built-in agent with an API key.
+- Android pinch/drag, permissions, agent tap/type actions, built-in agent with a real model, Cursor, Gemini, Kiro (no keys/installs).
