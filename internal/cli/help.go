@@ -183,6 +183,7 @@ plain lines are the agent's thoughts, "▸ tool(args)" are actions, and
                 automation model; settings are restored right after start)
   --agent NAME  agent CLI (default: the one chosen in AI settings)
   --session ID  resume an earlier Claude Code session
+  --max-steps N step limit for the built-in agent (ignored by other agents)
 With --json, raw events are printed one per line.`,
 
 	"server": `Usage: phoneforge server status

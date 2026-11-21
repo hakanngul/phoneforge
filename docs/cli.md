@@ -60,13 +60,13 @@ longpress X Y [--ms N]
 swipe X1 Y1 X2 Y2 [--ms N] | swipe up|down|left|right
 type "text"                   key home|back|enter|delete|volume_up|...
 apps [--filter T]             launch|stop|uninstall <bundle>     install <file.apk|.ipa|.app>
-open <url>                    ocr [--find T] [--exact] [--regex] [--words]
+open <url>                    ocr [--find T] [--exact] [--regex] [--case-sensitive] [--words]
 wait --text T | --id ID [--gone] [--ocr] [--timeout 10s]
 dsl <file.json|->             run <file.mob|file.json> [--project NAME]
 logs [-f] [--seconds N] [--grep T]       record [--seconds N] [-o file.mp4]
 crashes [--app B] [--limit N]            crash <name> [-o file]
 bridge start|stop|status      sims      sim boot|shutdown <udid|name>
-agent "prompt" [--model haiku] [--agent NAME]
+agent "prompt" [--model haiku] [--agent NAME] [--session ID] [--max-steps N]
 server status                 version   help [command]
 ```
 
@@ -79,7 +79,7 @@ server status                 version   help [command]
   `POST /ocr/devices/{id}/tap`.
 - **swipe up|down|left|right** moves the finger in that direction across the middle of the screen
   (`swipe up` scrolls content down). The screen size comes from the UI tree root.
-- **wait** polls the tree (and OCR with `--ocr`) every 500 ms (`--interval`) until the element appears,
+- **wait** polls the tree (and OCR with `--ocr`) every 250 ms by default (`--interval`) until the element appears,
   or with `--gone` disappears. Exit 1 on timeout.
 - **dsl** posts the document to `POST /devices/{id}/dsl/execute` and prints one line per step.
 - **run** stores the script in a server-side test project (default `cli`, created on first use), runs
@@ -91,6 +91,10 @@ server status                 version   help [command]
   `--model` temporarily sets the automation model in the AI settings (the run API has no model field)
   and restores it as soon as the run has started. If the selected agent is the built-in one, the CLI
   streams `POST /devices/{id}/agent/run` instead.
+- **agent --session ID** resumes an earlier Claude Code session (sent as `sessionId` in the run request).
+- **agent --max-steps N** caps the number of steps for the built-in agent only (`maxSteps` in the
+  `agent/run` request); other agent CLIs ignore it.
+- **ocr --case-sensitive** makes `--find` match case-sensitively (default is case-insensitive).
 
 ## Examples
 

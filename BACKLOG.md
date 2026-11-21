@@ -52,7 +52,7 @@ Legend: ✅ done & verified, 🟡 code exists but not fully verified, 🔨 in pr
 | **Platform** | | | |
 | REST API | ✅ | ✅ | |
 | CLI | ✅ (mobai) | ✅ (phoneforge) | State-changing commands (launch, tap --text, type, key, swipe, stop, wait) verified on Android, iPhone, simulator |
-| Desktop app | ✅ | ✅ | Wails v3 `PhoneForge.app` (ad-hoc signed; notarization/auto-update open) |
+| Desktop app | ✅ | ✅ | Wails v3 `PhoneForge.app` (ad-hoc signed; notarization workflow + `scripts/notarize-local.sh` ready, needs Developer ID cert + GitHub secrets; auto-update open) |
 | Remote devices (Tailscale, sharing) | ✅ | 🟡 | Code exists |
 | Cloud relay | ✅ | ❌ | |
 | AWS Device Farm | ✅ | 🟡 | Settings screen only |
@@ -102,7 +102,8 @@ Items already tracked in the sections below (Wails notarization/auto-update, DSL
 
 ## Remaining parity features
 
-- Wails v3 native desktop shell: 🟡 done (`cmd/phoneforge-desktop`, `scripts/build-desktop.sh`); remaining: Developer ID signing + notarization, auto-update, Windows/Linux builds
+- Wails v3 native desktop shell: 🟡 done (`cmd/phoneforge-desktop`, `scripts/build-desktop.sh`); remaining: Developer ID certificate + GitHub secrets (workflow and local script ready, see docs/release.md), auto-update, Windows/Linux builds
+- GitHub Actions Node 20 deprecation: ✅ done (checkout v7.0.1, setup-go v7.1.0, upload-artifact v7.0.2, download-artifact v8.0.2, action-gh-release v3.0.4, all Node 24, SHA-pinned)
 - Screen recording + performance metrics (CPU/memory/FPS) from DSL
 - DSL JavaScript steps
 - Maestro YAML import (kept in the backlog for later by user's choice; low priority, no existing Maestro tests)
