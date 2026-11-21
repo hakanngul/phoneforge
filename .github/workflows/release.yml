@@ -168,6 +168,8 @@ jobs:
           - { goos: darwin, goarch: amd64 }
           - { goos: linux, goarch: amd64 }
           - { goos: linux, goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+          - { goos: windows, goarch: arm64 }
     env:
       VERSION: ${{ needs.version.outputs.version }}
       CGO_ENABLED: "0"
@@ -185,8 +187,10 @@ jobs:
           NAME="phoneforge_${VERSION}_${GOOS}_${GOARCH}"
           mkdir -p "pkg/$NAME" out
           LDFLAGS="-s -w -X phoneforge/internal/version.Version=${VERSION}"
-          go build $GO_FLAGS -ldflags "$LDFLAGS" -o "pkg/$NAME/phoneforged" ./cmd/phoneforged
-          go build $GO_FLAGS -ldflags "$LDFLAGS" -o "pkg/$NAME/phoneforge" ./cmd/phoneforge
+          EXT=""
+          if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
+          go build $GO_FLAGS -ldflags "$LDFLAGS" -o "pkg/$NAME/phoneforged$EXT" ./cmd/phoneforged
+          go build $GO_FLAGS -ldflags "$LDFLAGS" -o "pkg/$NAME/phoneforge$EXT" ./cmd/phoneforge
           cat > "pkg/$NAME/README.txt" <<README
           PhoneForge ${VERSION} (${GOOS}/${GOARCH})
 
@@ -200,7 +204,11 @@ jobs:
 
           Docs: https://github.com/hakanngul/phoneforge
           README
-          tar -C pkg -czf "out/$NAME.tar.gz" "$NAME"
+          if [ "$GOOS" = "windows" ]; then
+            (cd pkg && zip -qr "../out/$NAME.zip" "$NAME")
+          else
+            tar -C pkg -czf "out/$NAME.tar.gz" "$NAME"
+          fi
           ls -lh out
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -208,9 +216,41 @@ jobs:
           path: out/*
           if-no-files-found: error
 
+  app-windows:
+    name: Windows app (amd64)
+    needs: [version, test]
+    runs-on: windows-latest
+    timeout-minutes: 30
+    continue-on-error: true # best effort (unsigned, untested on device): a failure does not block the release
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      CGO_ENABLED: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build and package
+        run: |
+          set -euo pipefail
+          mkdir -p pkg out
+          LDFLAGS="-s -w -H windowsgui -X phoneforge/internal/version.Version=${VERSION}"
+          go build $GO_FLAGS -ldflags "$LDFLAGS" -o pkg/phoneforge-desktop.exe ./cmd/phoneforge-desktop
+          (cd pkg && 7z a -tzip "../out/PhoneForge-${VERSION}-windows-amd64.zip" phoneforge-desktop.exe)
+          ls -lh out
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: app-windows-amd64
+          path: out/*
+          if-no-files-found: error
+
   release:
     name: Publish
-    needs: [version, app, cli]
+    needs: [version, app, cli, app-windows]
     # app may be "success" even when the optional amd64 build failed (continue-on-error).
     if: ${{ !cancelled() && needs.app.result == 'success' && needs.cli.result == 'success' }}
     runs-on: ubuntu-latest
@@ -245,7 +285,8 @@ jobs:
             echo "## Install"
             echo
             echo '- **macOS app:** download `PhoneForge-<version>-macos-<arch>.dmg` (or the `.zip`) and drag `PhoneForge.app` to Applications.'
-            echo '- **CLI + server:** download `phoneforge_<version>_<os>_<arch>.tar.gz`, extract, and run `./phoneforged` / `./phoneforge`.'
+            echo '- **CLI + server:** download `phoneforge_<version>_<os>_<arch>.tar.gz` (`.zip` on Windows), extract, and run `./phoneforged` / `./phoneforge` (`phoneforged.exe` / `phoneforge.exe` on Windows).'
+            echo '- **Windows app (experimental, unsigned):** `PhoneForge-<version>-windows-amd64.zip`; needs the WebView2 runtime.'
             echo '- Verify downloads with `SHA256SUMS.txt`.'
             echo
             if [ "$HAVE_NOTARY" = "true" ]; then

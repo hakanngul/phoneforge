@@ -110,6 +110,10 @@ Items already tracked in the sections below (Wails notarization/auto-update, DSL
 - AWS Device Farm integration, Cloud Agents
 - Remote-node proxying for crashes and debug routes
 
+## Windows
+
+- Windows on-device testing (Android, iOS 17+ tunnel): the Windows build compiles and vets in CI, but nothing was run on a real Windows host; verify adb.exe discovery, go-ios USB/tunnel on iOS 17+, the desktop zip (WebView2), and add code signing / an installer.
+
 ## Untested on device (needs user OK)
 
 - Android pinch/drag, permissions, agent tap/type actions, built-in agent with a real model, Cursor, Gemini, Kiro (no keys/installs).

@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -36,6 +37,9 @@ type Runner func(ctx context.Context, env []string, name string, args ...string)
 
 // ExecRunner is the production Runner.
 func ExecRunner(ctx context.Context, env []string, name string, args ...string) (string, error) {
+	if runtime.GOOS != "darwin" && (name == "xcrun" || name == "lldb") {
+		return "", errors.New("the iOS debugger requires macOS")
+	}
 	c := exec.CommandContext(ctx, name, args...)
 	if len(env) > 0 {
 		c.Env = append(os.Environ(), env...)

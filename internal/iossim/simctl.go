@@ -7,9 +7,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -137,11 +139,17 @@ func ParseApps(data []byte) ([]App, error) {
 	return out, nil
 }
 
+// ErrMacOnly is returned by simulator operations on non-macOS hosts.
+var ErrMacOnly = errors.New("iOS simulators require macOS")
+
 // Runner executes `xcrun simctl <args>` and returns stdout. Replaceable in tests.
 type Runner func(ctx context.Context, args ...string) ([]byte, error)
 
 // ExecRunner is the real Runner.
 func ExecRunner(ctx context.Context, args ...string) ([]byte, error) {
+	if runtime.GOOS != "darwin" {
+		return nil, ErrMacOnly
+	}
 	cmd := exec.CommandContext(ctx, "xcrun", append([]string{"simctl"}, args...)...)
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -96,6 +97,9 @@ func TestParseUIXMLStdoutNoise(t *testing.T) {
 // appended to the returned log file.
 func fakeADB(t *testing.T, stdoutOK bool) (adb, log string) {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("fake adb is a POSIX shell script")
+	}
 	dir := t.TempDir()
 	xml := filepath.Join(dir, "dump.xml")
 	if err := os.WriteFile(xml, []byte(sampleXML), 0o644); err != nil {

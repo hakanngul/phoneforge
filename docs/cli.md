@@ -14,6 +14,12 @@ scripts/install-cli.sh --copy                 # copy instead of symlink
 The script picks the first of `~/.local/bin`, `/usr/local/bin` that is on `PATH` and writable, and prints
 what it did.
 
+### Windows
+
+`phoneforge.exe` and `phoneforged.exe` ship as a `.zip` (amd64, arm64). Android works with `adb.exe` in `PATH`. iOS real devices need
+Apple Devices or iTunes installed (USB driver) and WDA installed once from a Mac. Simulators, the lldb debugger and native
+capture are macOS-only and report a clear error elsewhere.
+
 ## Global flags and environment
 
 | Flag | Env | Meaning |

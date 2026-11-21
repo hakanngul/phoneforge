@@ -18,6 +18,12 @@ Requirements: Xcode command line tools (cgo), Go 1.27+, macOS 13+. The script re
 `codesign -s -` plus a camera entitlement. Plain `go build ./...` also compiles the desktop target on macOS.
 Wails v3 is alpha-era software; the build was verified with Wails v3.1.0 on macOS 27.2.
 
+## Windows (experimental)
+
+Releases include `PhoneForge-<version>-windows-amd64.zip` with `phoneforge-desktop.exe` (built with `CGO_ENABLED=0 go build
+-ldflags "-H windowsgui" ./cmd/phoneforge-desktop`). It is unsigned and not yet tested on a device; it needs the WebView2 runtime.
+Simulators, debugger and native capture are unavailable (macOS only).
+
 ## Behaviour
 
 - Default address `127.0.0.1:8700`; override with `--addr` or `PHONEFORGE_ADDR`.

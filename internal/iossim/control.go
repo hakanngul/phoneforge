@@ -12,13 +12,13 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/danielpaulus/go-ios/ios"
 
 	"phoneforge/internal/device"
 	"phoneforge/internal/iosbridge"
+	"phoneforge/internal/procutil"
 	"phoneforge/internal/wda"
 )
 
@@ -483,7 +483,7 @@ func (l launcher) Run(ctx context.Context, dev ios.DeviceEntry, o iosbridge.Opti
 	}
 	cmd.Env = env
 	cmd.Stdout, cmd.Stderr = logs, logs
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	procutil.SetProcessGroup(cmd)
 	if err := cmd.Start(); err != nil {
 		return err
 	}
@@ -493,11 +493,11 @@ func (l launcher) Run(ctx context.Context, dev ios.DeviceEntry, o iosbridge.Opti
 	case err := <-waitc:
 		return err
 	case <-ctx.Done():
-		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+		procutil.Terminate(cmd)
 		select {
 		case <-waitc:
 		case <-time.After(4 * time.Second):
-			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			procutil.KillGroup(cmd)
 			<-waitc
 		}
 		// Make sure the runner app is gone so its port is released.

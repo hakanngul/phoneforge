@@ -10,8 +10,9 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
+
+	"phoneforge/internal/procutil"
 )
 
 const (
@@ -58,7 +59,7 @@ func startLLDB(c *exec.Cmd) (*lldbProc, error) {
 		return nil, err
 	}
 	c.Stdout, c.Stderr = pw, pw
-	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	procutil.SetProcessGroup(c)
 	if err := c.Start(); err != nil {
 		pr.Close()
 		pw.Close()
@@ -241,7 +242,7 @@ func (p *lldbProc) exec(ctx context.Context, line string, timeout time.Duration)
 		}
 		if ctx.Err() == nil || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			// Try to interrupt whatever lldb is blocked on, then give it a moment.
-			_ = syscall.Kill(-p.cmd.Process.Pid, syscall.SIGINT)
+			procutil.Interrupt(p.cmd)
 			if p.waitFor(context.Background(), interruptGap, func() bool { idx = p.tokenIndex(tok, mark); return idx >= 0 }) {
 				return clean(p.slice(mark, idx), line), fmt.Errorf("%w: %q was interrupted after %s", ErrTimeout, line, timeout)
 			}
@@ -283,7 +284,7 @@ func isSentinel(s string) bool {
 
 func (p *lldbProc) kill() {
 	if p.cmd.Process != nil {
-		_ = syscall.Kill(-p.cmd.Process.Pid, syscall.SIGKILL)
+		procutil.KillGroup(p.cmd)
 		_ = p.cmd.Process.Kill()
 	}
 }

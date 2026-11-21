@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -163,7 +164,9 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 	simCtl.SetStatePath(filepath.Join(stateDir, "iossim-state.json"))
 	simSup := simCtl.Supervise(events.Info)
 	iosCtl.SetSim(simCtl)
-	reg.AddDiscoverer(iossim.NewDiscoverer(simCtl))
+	if runtime.GOOS == "darwin" { // simulators need xcrun simctl
+		reg.AddDiscoverer(iossim.NewDiscoverer(simCtl))
+	}
 	simCtl.OnChange = func() {
 		cctx, c := context.WithTimeout(context.Background(), 10*time.Second)
 		defer c()
@@ -182,7 +185,9 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 	iosSup.Seen(bgCtx, iosUDIDs(reg)) // auto-start WDA for devices the user left it on for
 	go iosSup.Run(bgCtx)
 	simSup.Seen(bgCtx, simUDIDs(reg)) // restore WDA on booted simulators the user left it on for
-	go simSup.Run(bgCtx)
+	if runtime.GOOS == "darwin" {
+		go simSup.Run(bgCtx)
+	}
 	events.Info("PhoneForge started")
 
 	// Background rescan every 5s so hot-plugged devices appear.

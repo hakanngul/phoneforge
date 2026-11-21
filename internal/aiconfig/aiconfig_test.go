@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -107,6 +108,9 @@ func TestDetect(t *testing.T) {
 }
 
 func TestFindBinaryInCommonDirs(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses an extensionless fake binary")
+	}
 	m := newTestMgr(t, &fakeExec{})
 	d := filepath.Join(m.home, ".local", "bin")
 	os.MkdirAll(d, 0o755)

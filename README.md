@@ -13,6 +13,18 @@ commercial product.** Architecture inspired by the documented design of mobile-a
 - Bundle id: `dev.phoneforge.app` · default API/MCP port: `127.0.0.1:8700`
 - MVP platform: Android via adb (no on-device agent required).
 
+## Platform support
+
+| Feature | macOS | Windows | Linux |
+|---|---|---|---|
+| Server, CLI, web UI, MCP | yes | yes | yes |
+| Android (adb) | yes | yes | yes |
+| iOS real devices (go-ios + WDA) | yes | yes (needs Apple Devices/iTunes for USB; install WDA once from a Mac) | yes (usbmuxd) |
+| iOS simulators, lldb debugger, native USB capture, Vision OCR | yes | no (macOS only) | no |
+| Desktop app (Wails v3) | yes | experimental, unsigned zip | no |
+
+On non-macOS hosts the simulator features return "iOS simulators require macOS" and the simulator discovery does not start.
+
 ## Layout
 - `internal/device`  — Device interface + shared types (stable contract)
 - `internal/androiddrv` — Android driver (adb: screencap, uiautomator dump, input)
@@ -35,7 +47,7 @@ See [docs/desktop.md](docs/desktop.md).
 
 ## Releases
 
-Pushing a `v*` tag builds the macOS app (`.dmg`/`.zip`, arm64 + amd64), CLI/server tarballs for macOS and Linux and
+Pushing a `v*` tag builds the macOS app (`.dmg`/`.zip`, arm64 + amd64), CLI/server archives for macOS, Linux (`.tar.gz`) and Windows (`.zip`, amd64 + arm64), an experimental Windows desktop zip and
 `SHA256SUMS.txt`, and publishes a GitHub Release. See [docs/release.md](docs/release.md) (signing and notarization
 secrets are optional; builds are ad-hoc signed by default).
 
