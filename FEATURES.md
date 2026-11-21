@@ -91,6 +91,7 @@ our own software, so every capability is unlocked by design.
 ## Platform / API
 - Single Go server: REST `/api/v1` (~55 routes plus `/ai`, `/ocr`, `/web`), embedded **MCP server** `/mcp` (36 tools: devices, gestures incl. pinch, bridge start/stop/status, test projects/scripts/run/runs, OCR, web) for
   Claude Code, SSE `/events`, agent SSE.
+- **`phoneforge` CLI** (`cmd/phoneforge`, `scripts/install-cli.sh`): terminal client for the REST API - devices, screenshot, compact UI tree, tap by coords/text/id/OCR, swipe, type, apps/install, OCR, wait, DSL/test run, logs, record, crashes, bridge, simulators, streamed AI `agent`; `--json`, exit codes 0-4. See docs/cli.md.
 - **Hardened security**: CORS does not reflect arbitrary Origins; no Allow-Private-Network; optional
   `-token` for non-loopback; all secrets in the OS Keychain.
 

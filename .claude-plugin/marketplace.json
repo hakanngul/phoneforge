@@ -1,0 +1,15 @@
+{
+  "name": "phoneforge",
+  "owner": { "name": "hakanngul", "url": "https://github.com/hakanngul" },
+  "metadata": { "description": "PhoneForge mobile automation skills for Claude Code" },
+  "plugins": [
+    {
+      "name": "phoneforge",
+      "source": "./",
+      "description": "Drive Android/iOS devices with PhoneForge: device control, smoke tests, accessibility audits, store screenshots, test authoring, CLI.",
+      "version": "0.1.0",
+      "category": "development",
+      "keywords": ["mobile", "android", "ios", "automation", "testing", "mcp"]
+    }
+  ]
+}

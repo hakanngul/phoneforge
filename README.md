@@ -23,6 +23,17 @@ commercial product.** Architecture inspired by the documented design of mobile-a
 - `cmd/phoneforged`  — headless server (like `serve`)
 - `frontend` + Wails app — desktop UI (added later)
 
+## Claude Code skills and plugin
+
+`skills/` holds six agent skills (device control, smoke test, accessibility audit, store screenshots, test
+authoring, CLI). Install them as a plugin, which also registers the MCP server `phoneforge`:
+
+```
+/plugin marketplace add hakanngul/phoneforge
+/plugin install phoneforge --marketplace hakanngul/phoneforge
+```
+or only the skills: `scripts/install-skills.sh`. Details in [docs/skills.md](docs/skills.md).
+
 ## iOS live control
 
 Real iPhones are controlled through PhoneForge's own signed WebDriverAgent (WDA). Build it once with
@@ -30,5 +41,18 @@ Real iPhones are controlled through PhoneForge's own signed WebDriverAgent (WDA)
 then **Start WDA**. Once the chip reads `WDA: running` the Live view switches to an MJPEG stream and taps, swipes,
 Home, typing, Element Picker, OCR and app launch work through WDA. Full prerequisites and troubleshooting:
 [docs/ios-setup.md](docs/ios-setup.md).
+
+## Command-line client
+
+`phoneforge` is a CLI for a running server: `devices`, `screenshot`, `tree`, `tap`, `swipe`, `type`, `apps`,
+`launch`, `install`, `ocr`, `wait`, `dsl`, `run`, `logs`, `record`, `crashes`, `bridge`, `sims`, `agent`, ...
+
+```sh
+scripts/install-cli.sh        # builds bin/phoneforge and links it into ~/.local/bin or /usr/local/bin
+phoneforge devices
+phoneforge -d sm-g tap --text "Settings"
+```
+
+See [docs/cli.md](docs/cli.md) for all commands, device resolution and exit codes.
 
 Backlog and known gaps: [BACKLOG.md](BACKLOG.md)
