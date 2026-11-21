@@ -88,26 +88,24 @@ Items already tracked in the sections below (Wails notarization/auto-update, DSL
 
 ## iOS
 
-- Simulator WDA is not auto-restarted after a server restart (the real iPhone has a supervisor; simulators don't).
 - iOS Settings search needs a tap on the SearchField itself before typing (a tip for skills/docs, not a bug).
 - iOS 27.3 iPhone (iPhone18,2): needs USB connection + Trust, developer disk image, WDA install; currently only seen over Wi-Fi.
 - lldb debugging: implemented (`internal/debugger`), but never attached live. The Mac has Developer Tools security disabled (`sudo DevToolsSecurity -enable` needed, user action).
 - Untested on real devices: iOS crash-report delete, element picker/tap via the new fetch-based mirror viewer.
 - REST gestures take points (393x852 on iPhone 15); clients using screenshot pixel coordinates tap the wrong place. Consider a `units=px` option.
 
-## Android
-
-- `tree`/`wait`/`assert` take ~2.2 s each on the Galaxy (SM-G780G), making scripts slow; investigate uia2 dump speed.
-
 ## Fixed 2026-11-21
 
 - Codex flags (Codex 0.169), simctl screenshot temp file, device deep link `?device=`.
+- Android `tree`/`wait`/`assert` speed (commit e6188d0): ~2.2 s on the Galaxy (SM-G780G) → 0.1–0.2 s via lazy UiAutomator2 bridge auto-start (`PF_ANDROID_AUTOBRIDGE=0` disables), `waitForIdleTimeout=0`, 250 ms polling.
+- Simulator WDA auto-restart (commit e6188d0): simulators are now supervised like real iPhones (desired state in `~/.phoneforge/iossim-state.json`, restored on server restart and sim reboot, lazy start on first input/tree; `PF_SIM_AUTOWDA=0` disables).
 
 ## Remaining parity features
 
 - Wails v3 native desktop shell: 🟡 done (`cmd/phoneforge-desktop`, `scripts/build-desktop.sh`); remaining: Developer ID signing + notarization, auto-update, Windows/Linux builds
 - Screen recording + performance metrics (CPU/memory/FPS) from DSL
-- DSL JavaScript steps, Maestro YAML import
+- DSL JavaScript steps
+- Maestro YAML import (kept in the backlog for later by user's choice; low priority, no existing Maestro tests)
 - AWS Device Farm integration, Cloud Agents
 - Remote-node proxying for crashes and debug routes
 
