@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"phoneforge/internal/dsl"
+
+	"phoneforge/internal/version"
 )
 
 // ---- dsl / run ----
@@ -571,9 +573,9 @@ func cmdVersion(c *call) error {
 		return err
 	}
 	if c.g.json {
-		return c.printJSON(map[string]string{"version": Version})
+		return c.printJSON(map[string]string{"version": version.Version})
 	}
-	fmt.Fprintf(c.out, "phoneforge %s\n", Version)
+	fmt.Fprintf(c.out, "phoneforge %s\n", version.Version)
 	return nil
 }
 

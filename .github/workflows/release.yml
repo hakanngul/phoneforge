@@ -1,0 +1,243 @@
+name: Release
+
+# Tag push (v*)       -> build everything and publish a GitHub Release.
+# workflow_dispatch   -> build only; artifacts are uploaded to the run, no release is created.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GO_FLAGS: -trimpath
+
+jobs:
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            v="${GITHUB_REF_NAME#v}"
+          else
+            v="0.0.0-manual.${GITHUB_SHA::7}"
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Version: $v"
+
+  test:
+    name: Test
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      # Tests that need adb, swiftc, lldb or a device skip themselves when the tool/env is missing.
+      - run: go vet ./...
+      - run: go test ./...
+
+  app:
+    name: macOS app (${{ matrix.arch }})
+    needs: [version, test]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    continue-on-error: ${{ matrix.optional }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-latest
+            optional: false
+          - arch: amd64
+            runner: macos-15-intel
+            optional: true # best effort: a failure here does not block the release
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      HAVE_SIGNING: ${{ secrets.APPLE_CERT_P12_BASE64 != '' && secrets.APPLE_CERT_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_ID != '' && secrets.APPLE_APP_PASSWORD != '' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Import Developer ID certificate
+        if: env.HAVE_SIGNING == 'true'
+        env:
+          APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/pf-build.keychain-db"
+          KEYCHAIN_PW="$(uuidgen)"
+          echo "::add-mask::$KEYCHAIN_PW"
+          echo "$APPLE_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$APPLE_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PW" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/cert.p12"
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" | grep "Developer ID Application" | grep "$APPLE_TEAM_ID" | head -1 | sed -E 's/^[^"]*"(.*)"$/\1/')
+          [ -n "$IDENTITY" ] || { echo "no Developer ID Application identity for team $APPLE_TEAM_ID in the certificate"; exit 1; }
+          echo "PF_CODESIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          echo "PF_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+
+      - name: Build PhoneForge.app and .dmg
+        env:
+          PF_VERSION: ${{ env.VERSION }}
+        run: scripts/build-desktop.sh --dmg
+
+      - name: Notarize and staple
+        if: env.HAVE_SIGNING == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          xcrun notarytool submit dist/PhoneForge.dmg \
+            --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple dist/PhoneForge.dmg
+          # The notarization ticket covers the app inside the dmg, so staple the loose app as well.
+          xcrun stapler staple dist/PhoneForge.app
+          spctl --assess --type execute --verbose=2 dist/PhoneForge.app
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          cp dist/PhoneForge.dmg "out/PhoneForge-${VERSION}-macos-${{ matrix.arch }}.dmg"
+          ditto -c -k --keepParent dist/PhoneForge.app "out/PhoneForge-${VERSION}-macos-${{ matrix.arch }}.zip"
+          ls -lh out
+
+      - name: Clean up keychain
+        if: always() && env.HAVE_SIGNING == 'true'
+        run: security delete-keychain "$PF_KEYCHAIN" || true
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: app-macos-${{ matrix.arch }}
+          path: out/*
+          if-no-files-found: error
+
+  cli:
+    name: CLI + server (${{ matrix.goos }}-${{ matrix.goarch }})
+    needs: [version, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: darwin, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      CGO_ENABLED: "0"
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build and package
+        run: |
+          set -euo pipefail
+          NAME="phoneforge_${VERSION}_${GOOS}_${GOARCH}"
+          mkdir -p "pkg/$NAME" out
+          LDFLAGS="-s -w -X phoneforge/internal/version.Version=${VERSION}"
+          go build $GO_FLAGS -ldflags "$LDFLAGS" -o "pkg/$NAME/phoneforged" ./cmd/phoneforged
+          go build $GO_FLAGS -ldflags "$LDFLAGS" -o "pkg/$NAME/phoneforge" ./cmd/phoneforge
+          cat > "pkg/$NAME/README.txt" <<README
+          PhoneForge ${VERSION} (${GOOS}/${GOARCH})
+
+            phoneforged   headless server: REST /api/v1, MCP /mcp and the web UI on 127.0.0.1:8700
+            phoneforge    command-line client for a running server
+
+          Quick start:
+            ./phoneforged &            # needs adb in PATH for Android devices
+            ./phoneforge devices
+            ./phoneforge version
+
+          Docs: https://github.com/hakanngul/phoneforge
+          README
+          tar -C pkg -czf "out/$NAME.tar.gz" "$NAME"
+          ls -lh out
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cli-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: out/*
+          if-no-files-found: error
+
+  release:
+    name: Publish
+    needs: [version, app, cli]
+    # app may be "success" even when the optional amd64 build failed (continue-on-error).
+    if: ${{ !cancelled() && needs.app.result == 'success' && needs.cli.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Checksums
+        working-directory: artifacts
+        run: |
+          set -euo pipefail
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Upload bundle (manual runs)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-bundle
+          path: artifacts/*
+      - name: Release notes header
+        if: github.ref_type == 'tag'
+        run: |
+          cat > release-body.md <<'EOF2'
+          ## Install
+
+          - **macOS app:** download `PhoneForge-<version>-macos-<arch>.dmg` (or the `.zip`) and drag `PhoneForge.app` to Applications.
+          - **CLI + server:** download `phoneforge_<version>_<os>_<arch>.tar.gz`, extract, and run `./phoneforged` / `./phoneforge`.
+          - Verify downloads with `SHA256SUMS.txt`.
+
+          > **Signing:** unless the notes below say otherwise, the macOS app is **ad-hoc signed and not notarized**.
+          > On first open, right-click the app and choose **Open**, or run
+          > `xattr -dr com.apple.quarantine /Applications/PhoneForge.app`.
+
+          ## Changes
+          EOF2
+      - name: Create GitHub Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          body_path: release-body.md
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true
+          files: artifacts/*

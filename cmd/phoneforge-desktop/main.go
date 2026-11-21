@@ -23,11 +23,11 @@ import (
 	"phoneforge/frontend"
 	"phoneforge/internal/config"
 	"phoneforge/internal/server"
+	"phoneforge/internal/version"
 )
 
 const (
-	repoURL    = "https://github.com/hakanngul/phoneforge"
-	appVersion = "0.1.0-dev"
+	repoURL = "https://github.com/hakanngul/phoneforge"
 )
 
 // devBuild is set to a non-empty value via -ldflags "-X main.devBuild=1" to
@@ -91,7 +91,7 @@ func main() {
 	st := loadState()
 	app := application.New(application.Options{
 		Name:        "PhoneForge",
-		Description: "Control Android and iOS devices from your Mac or from an AI agent.",
+		Description: "PhoneForge " + version.Version + ". Control Android and iOS devices from your Mac or from an AI agent.",
 		Icon:        appIcon,
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: *noTray,
@@ -343,4 +343,3 @@ func (s *windowState) save() {
 		log.Printf("desktop state: %v", err)
 	}
 }
-

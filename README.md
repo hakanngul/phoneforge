@@ -1,5 +1,8 @@
 # PhoneForge
 
+[![CI](https://github.com/hakanngul/phoneforge/actions/workflows/ci.yml/badge.svg)](https://github.com/hakanngul/phoneforge/actions/workflows/ci.yml)
+[![Release](https://github.com/hakanngul/phoneforge/actions/workflows/release.yml/badge.svg)](https://github.com/hakanngul/phoneforge/actions/workflows/release.yml)
+
 A clean-room, original mobile-device automation tool: a local HTTP + MCP service that lets an AI
 coding agent drive real Android devices (screenshot, UI tree, tap/swipe/type) via a JSON DSL.
 
@@ -29,6 +32,12 @@ commercial product.** Architecture inspired by the documented design of mobile-a
 `scripts/build-desktop.sh [--dmg]` builds `dist/PhoneForge.app` (Wails v3, ad-hoc signed): the same server runs
 in-process and the UI opens in a native window, or attaches to a server already running on `127.0.0.1:8700`.
 See [docs/desktop.md](docs/desktop.md).
+
+## Releases
+
+Pushing a `v*` tag builds the macOS app (`.dmg`/`.zip`, arm64 + amd64), CLI/server tarballs for macOS and Linux and
+`SHA256SUMS.txt`, and publishes a GitHub Release. See [docs/release.md](docs/release.md) (signing and notarization
+secrets are optional; builds are ad-hoc signed by default).
 
 ## Claude Code skills and plugin
 

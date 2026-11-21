@@ -3,6 +3,11 @@
 #   scripts/build-desktop.sh [--dmg] [--dev]
 #     --dmg  also create dist/PhoneForge.dmg
 #     --dev  enable Toggle DevTools / web inspector in the app
+#   Environment:
+#     PF_VERSION            version to stamp (Info.plist + Go binary); default 0.1.0-dev
+#     PF_CODESIGN_IDENTITY  codesign identity (e.g. "Developer ID Application: ... (TEAMID)");
+#                           default "-" (ad-hoc). A real identity also enables the hardened runtime.
+#     PF_KEYCHAIN           optional keychain path to search for the identity
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT=$PWD
@@ -15,8 +20,9 @@ for a in "$@"; do
   esac
 done
 
-VERSION=$(sed -n 's/.*appVersion *= *"\(.*\)".*/\1/p' cmd/phoneforge-desktop/main.go | head -1)
-VERSION=${VERSION:-0.1.0}
+VERSION=${PF_VERSION:-$(sed -n 's/.*Version = "\(.*\)".*/\1/p' internal/version/version.go | head -1)}
+VERSION=${VERSION#v}
+IDENTITY=${PF_CODESIGN_IDENTITY:--}
 APP=dist/PhoneForge.app
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
@@ -35,7 +41,7 @@ done
 iconutil -c icns "$ICONSET" -o "$WORK/PhoneForge.icns"
 
 # --- build the binary (cgo, Wails v3) --------------------------------------
-LDFLAGS="-s -w"
+LDFLAGS="-s -w -X phoneforge/internal/version.Version=$VERSION"
 [ $DEV = 1 ] && LDFLAGS="$LDFLAGS -X main.devBuild=1"
 mkdir -p dist
 MACOSX_DEPLOYMENT_TARGET=13.0 CGO_ENABLED=1 CGO_CFLAGS="-mmacosx-version-min=13.0" CGO_LDFLAGS="-mmacosx-version-min=13.0" \
@@ -49,10 +55,15 @@ cp "$WORK/PhoneForge.icns" "$APP/Contents/Resources/PhoneForge.icns"
 sed "s/__VERSION__/$VERSION/g" desktop/Info.plist > "$APP/Contents/Info.plist"
 plutil -lint "$APP/Contents/Info.plist" >/dev/null
 
-# --- ad-hoc sign (camera entitlement so the native capture path can prompt) -
-codesign --force --deep -s - --entitlements desktop/entitlements.plist "$APP"
+# --- sign: ad-hoc by default, Developer ID when PF_CODESIGN_IDENTITY is set (camera entitlement so the native capture path can prompt) -
+SIGN_ARGS=(--force --deep -s "$IDENTITY" --entitlements desktop/entitlements.plist)
+if [ "$IDENTITY" != "-" ]; then
+  SIGN_ARGS+=(--options runtime --timestamp)
+  [ -n "${PF_KEYCHAIN:-}" ] && SIGN_ARGS+=(--keychain "$PF_KEYCHAIN")
+fi
+codesign "${SIGN_ARGS[@]}" "$APP"
 codesign --verify --deep --strict "$APP"
-echo "built $APP"
+echo "built $APP (version $VERSION, identity $IDENTITY)"
 
 if [ $DMG = 1 ]; then
   rm -f dist/PhoneForge.dmg
@@ -60,5 +71,10 @@ if [ $DMG = 1 ]; then
   cp -R "$APP" "$STAGE/"
   ln -s /Applications "$STAGE/Applications"
   hdiutil create -volname PhoneForge -srcfolder "$STAGE" -ov -format UDZO dist/PhoneForge.dmg >/dev/null
+  if [ "$IDENTITY" != "-" ]; then
+    DMG_SIGN=(--force -s "$IDENTITY" --timestamp)
+    [ -n "${PF_KEYCHAIN:-}" ] && DMG_SIGN+=(--keychain "$PF_KEYCHAIN")
+    codesign "${DMG_SIGN[@]}" dist/PhoneForge.dmg
+  fi
   echo "built dist/PhoneForge.dmg"
 fi

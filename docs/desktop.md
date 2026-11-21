@@ -9,6 +9,7 @@ shows the UI in a native window built with Wails v3 (v3.1.0, pinned in `go.mod`)
 scripts/build-desktop.sh          # -> dist/PhoneForge.app (ad-hoc signed)
 scripts/build-desktop.sh --dmg    # also dist/PhoneForge.dmg
 scripts/build-desktop.sh --dev    # enable View > Toggle DevTools
+PF_VERSION=1.2.3 scripts/build-desktop.sh   # stamp a version (see docs/release.md)
 ```
 
 Requirements: Xcode command line tools (cgo), Go 1.27+, macOS 13+. The script renders `desktop/icon.svg` and

@@ -15,9 +15,6 @@ import (
 	"time"
 )
 
-// Version is the CLI version (override with -ldflags "-X phoneforge/internal/cli.Version=...").
-var Version = "0.1.0-dev"
-
 // DefaultServer is used when neither --server nor PHONEFORGE_URL is set.
 const DefaultServer = "http://127.0.0.1:8700"
 

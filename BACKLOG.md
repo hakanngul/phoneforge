@@ -42,7 +42,7 @@ Legend: ✅ done & verified, 🟡 code exists but not fully verified, 🔨 in pr
 | .mobflow flows | ✅ | ❌ | |
 | JavaScript steps in DSL | ✅ | ❌ | |
 | Screen recording and performance metrics from DSL | ✅ | ❌ | UI record button exists |
-| GitHub Action (CI) | ✅ | ❌ | |
+| GitHub Action (CI) | ✅ | 🟡 | Release + CI workflows added (`.github/workflows`), not yet run on GitHub; no reusable Action for users yet |
 | **Apps and debugging** | | | |
 | App list, launch, stop | ✅ | ✅ | |
 | App install and uninstall | ✅ | ✅ | Android (bridge APKs via CLI + REST incl. multipart); iOS (.app reinstall via CLI, WDA auto-recovered ~15 s) |
