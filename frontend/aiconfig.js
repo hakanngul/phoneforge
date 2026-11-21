@@ -77,6 +77,15 @@
         }
         var name = PF.el('div'); name.appendChild(PF.el('strong', '', a.label));
         if (a.path) name.appendChild(PF.el('div', 'muted', a.path));
+        if (a.ide) name.appendChild(PF.el('div', 'muted', 'IDE: connect only, no headless runs'));
+        if (!a.installed && !a.builtin && (a.installHint || a.installUrl)) {
+          var hint = PF.el('div', 'muted', 'Install: ' + (a.installHint || '') + ' ');
+          if (a.installUrl) {
+            var lk = document.createElement('a'); lk.href = a.installUrl; lk.target = '_blank'; lk.rel = 'noopener'; lk.textContent = a.installUrl;
+            hint.appendChild(lk);
+          }
+          name.appendChild(hint);
+        }
         return [name, status, a.version || '', conn, acts];
       });
       cardsBox.appendChild(PF.table(['Agent', 'Status', 'Version', 'MCP', ''], rows, 'No agents.'));
@@ -98,12 +107,13 @@
       TYPES.forEach(function (t) {
         var sel = document.createElement('select');
         state.agents.forEach(function (a) {
+          if (a.ide) return; // IDEs (Kiro) can be connected but have no headless mode
           var o = document.createElement('option'); o.value = a.name;
           o.textContent = a.label + (a.installed || a.builtin ? '' : ' (not installed)');
           sel.appendChild(o);
         });
         sel.value = (s[t.id] && s[t.id].agent) || 'builtin';
-        var mi = PF.input('text', 'model (blank = agent default; Claude: haiku, sonnet, opus, fable)');
+        var mi = PF.input('text', 'model (blank = agent default; Claude: haiku, sonnet, opus, fable; Kiro CLI: free text, e.g. auto)');
         mi.value = (s[t.id] && s[t.id].model) || '';
         sels[t.id] = sel; models[t.id] = mi;
         setBox.appendChild(PF.row(t.label + ' agent', sel, t.hint));
@@ -112,7 +122,7 @@
       var auto = document.createElement('input'); auto.type = 'checkbox'; auto.checked = !!s.fullAccess;
       var extra = document.createElement('textarea'); extra.rows = 4; extra.value = s.extraInstructions || '';
       extra.placeholder = 'Extra instructions appended to the agent system prompt';
-      var ar = PF.row('Full access', auto, 'Run Claude Code with --dangerously-skip-permissions so it can also use Bash and file tools on this Mac without prompts. Off by default. PhoneForge tools are always allowed.');
+      var ar = PF.row('Full access', auto, 'Run Claude Code with --dangerously-skip-permissions (and Kiro CLI with --trust-all-tools) so it can also use Bash and file tools on this Mac without prompts. Off by default. PhoneForge tools are always allowed.');
       ar.className += ' inline'; setBox.appendChild(ar);
       setBox.appendChild(PF.row('Extra instructions', extra));
       var save = PF.btn('Save settings', 'primary', function () {

@@ -29,20 +29,36 @@ const (
 	AgentCodex   = "codex"
 	AgentGemini  = "gemini"
 	AgentCursor  = "cursor"
+	AgentKiro    = "kiro"     // Kiro IDE (connect only, no headless runs)
+	AgentKiroCLI = "kiro-cli" // Kiro terminal agent
 )
+
+// runDirEnv is a reserved env entry understood by osExec.Stream: its value is
+// the working directory for the child (not passed to the child).
+const runDirEnv = "PHONEFORGE_RUN_DIR="
 
 // agentSpec describes one external CLI.
 type agentSpec struct {
 	Name   string
 	Label  string
 	Binary string
+	// App is a macOS app bundle name (IDE agents), searched in /Applications and ~/Applications.
+	App string
+	// NoRun marks agents that cannot run headless (IDEs): Connect only.
+	NoRun       bool
+	InstallHint string
+	InstallURL  string
 }
 
 var externalAgents = []agentSpec{
-	{AgentClaude, "Claude Code", "claude"},
-	{AgentCodex, "OpenAI Codex CLI", "codex"},
-	{AgentGemini, "Gemini CLI", "gemini"},
-	{AgentCursor, "Cursor Agent", "cursor-agent"},
+	{Name: AgentClaude, Label: "Claude Code", Binary: "claude"},
+	{Name: AgentCodex, Label: "OpenAI Codex CLI", Binary: "codex"},
+	{Name: AgentGemini, Label: "Gemini CLI", Binary: "gemini"},
+	{Name: AgentCursor, Label: "Cursor Agent", Binary: "cursor-agent"},
+	{Name: AgentKiro, Label: "Kiro (IDE)", Binary: "kiro", App: "Kiro.app", NoRun: true,
+		InstallHint: "Download the Kiro IDE", InstallURL: "https://kiro.dev/downloads/"},
+	{Name: AgentKiroCLI, Label: "Kiro CLI", Binary: "kiro-cli",
+		InstallHint: "curl -fsSL https://cli.kiro.dev/install | bash", InstallURL: "https://kiro.dev/docs/getting-started/installation/"},
 }
 
 func specFor(name string) (agentSpec, bool) {
@@ -71,7 +87,14 @@ func (osExec) Output(ctx context.Context, name string, args ...string) ([]byte, 
 
 func (osExec) Stream(ctx context.Context, name string, args []string, env []string, onLine func(string, string)) error {
 	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Env = append(os.Environ(), env...)
+	cmd.Env = os.Environ()
+	for _, e := range env {
+		if dir, ok := strings.CutPrefix(e, runDirEnv); ok {
+			cmd.Dir = dir
+			continue
+		}
+		cmd.Env = append(cmd.Env, e)
+	}
 	cmd.WaitDelay = 3 * time.Second
 	so, err := cmd.StdoutPipe()
 	if err != nil {
@@ -109,6 +132,7 @@ type Manager struct {
 	lookPath     func(string) (string, error)
 	tmpDir       string
 	dirs         []string // extra install dirs searched after PATH
+	appDirs      []string // macOS app dirs searched for IDE agents (default /Applications, ~/Applications)
 
 	setMu    sync.Mutex
 	settings Settings
@@ -186,6 +210,31 @@ type AgentStatus struct {
 	Scope      string `json:"scope,omitempty"` // claude: user | local | project
 	ConfigPath string `json:"configPath,omitempty"`
 	Error      string `json:"error,omitempty"`
+	// IDE agents can only be connected, never run headless.
+	IDE         bool   `json:"ide,omitempty"`
+	InstallHint string `json:"installHint,omitempty"`
+	InstallURL  string `json:"installUrl,omitempty"`
+}
+
+func (m *Manager) searchAppDirs() []string {
+	if m.appDirs != nil {
+		return m.appDirs
+	}
+	return []string{"/Applications", filepath.Join(m.home, "Applications")}
+}
+
+// findApp returns the path of a macOS app bundle, or "".
+func (m *Manager) findApp(app string) string {
+	if app == "" {
+		return ""
+	}
+	for _, d := range m.searchAppDirs() {
+		p := filepath.Join(d, app)
+		if st, err := os.Stat(p); err == nil && st.IsDir() {
+			return p
+		}
+	}
+	return ""
 }
 
 func (m *Manager) searchDirs() []string {
@@ -230,9 +279,23 @@ func (m *Manager) Detect(ctx context.Context) []AgentStatus {
 }
 
 func (m *Manager) detectOne(ctx context.Context, spec agentSpec) AgentStatus {
-	st := AgentStatus{Name: spec.Name, Label: spec.Label, ConfigPath: m.configPath(spec.Name)}
+	st := AgentStatus{Name: spec.Name, Label: spec.Label, ConfigPath: m.configPath(spec.Name), IDE: spec.NoRun}
 	path := m.findBinary(spec.Binary)
+	if app := m.findApp(spec.App); app != "" {
+		// IDE: the app bundle counts as installed even without a PATH launcher.
+		st.Installed, st.Path = true, app
+		st.Connected = m.isRegisteredFile(spec.Name)
+		if path != "" {
+			vctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+			if b, err := m.exec.Output(vctx, path, "--version"); err == nil {
+				st.Version = firstLine(string(b))
+			}
+		}
+		return st
+	}
 	if path == "" {
+		st.InstallHint, st.InstallURL = spec.InstallHint, spec.InstallURL
 		// Config-file based agents can still report registration.
 		if spec.Name != AgentClaude {
 			st.Connected = m.isRegisteredFile(spec.Name)

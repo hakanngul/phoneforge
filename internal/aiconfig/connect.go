@@ -21,6 +21,9 @@ func (m *Manager) configPath(agent string) string {
 		return filepath.Join(m.home, ".gemini", "settings.json")
 	case AgentCursor:
 		return filepath.Join(m.home, ".cursor", "mcp.json")
+	case AgentKiro, AgentKiroCLI:
+		// Kiro IDE and kiro-cli share the user-level MCP config.
+		return filepath.Join(m.home, ".kiro", "settings", "mcp.json")
 	}
 	return ""
 }
@@ -76,7 +79,7 @@ func (m *Manager) Connect(ctx context.Context, agent string) error {
 		return m.editFile(agent, func(old []byte) ([]byte, error) {
 			return jsonSetServer(old, map[string]any{"httpUrl": m.mcpURL})
 		})
-	case AgentCursor:
+	case AgentCursor, AgentKiro, AgentKiroCLI:
 		return m.editFile(agent, func(old []byte) ([]byte, error) {
 			return jsonSetServer(old, map[string]any{"url": m.mcpURL})
 		})
@@ -144,8 +147,11 @@ func (m *Manager) editFile(agent string, fn func([]byte) ([]byte, error)) error 
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			return err
 		}
-	} else if err := os.WriteFile(p+".phoneforge-bak", old, 0o600); err != nil {
-		return fmt.Errorf("backup: %w", err)
+	} else if _, serr := os.Stat(p + ".phoneforge-bak"); os.IsNotExist(serr) {
+		// Keep the backup of the original: never overwrite an earlier one.
+		if err := os.WriteFile(p+".phoneforge-bak", old, 0o600); err != nil {
+			return fmt.Errorf("backup: %w", err)
+		}
 	}
 	mode := os.FileMode(0o600)
 	if st, err := os.Stat(p); err == nil {

@@ -27,6 +27,7 @@ Legend: ✅ done & verified, 🟡 code exists but not fully verified, 🔨 in pr
 | MCP server | ✅ | ✅ | 48 tools |
 | Phone control with Claude Code | ✅ | ✅ | App launch tried with Haiku |
 | Codex, Cursor, Gemini | ✅ | 🟡 | Connection exists; runs not tried |
+| Kiro / kiro-cli | ? | 🟡 | Implemented from docs, not live-tested (not installed): connect, kiro-cli runs |
 | Own agent (API key or Ollama) | ✅ | 🟡 | Not tried with a real model |
 | Agent replanning / asking the user | ✅ | 🟡 | Not verified |
 | Model selection, chat memory, unlimited permissions | ? | ✅ | |
@@ -69,7 +70,7 @@ Items already tracked in the sections below (Wails desktop shell, DSL JavaScript
 
 ### Implemented but unverified on device
 
-- [ ] Cursor and Gemini runs, and the built-in agent with Ollama (see also the Codex / API key bullet under "Untested on device")
+- [ ] Kiro IDE connect and kiro-cli runs (needs KIRO_API_KEY; verify `--trust-tools=@phoneforge`, `--resume`, `--require-mcp-startup`), Cursor and Gemini runs, and the built-in agent with Ollama (see also the Codex / API key bullet under "Untested on device")
 - [ ] Agent replan / ask-user loop
 - [ ] Remote devices / Tailscale
 - [ ] Webhooks, secrets, integrations

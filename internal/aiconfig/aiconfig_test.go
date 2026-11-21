@@ -22,6 +22,7 @@ type fakeExec struct {
 	failures map[string]bool
 	lines    []string
 	block    chan struct{}
+	envs     [][]string
 }
 
 func (f *fakeExec) Output(ctx context.Context, name string, args ...string) ([]byte, error) {
@@ -38,6 +39,7 @@ func (f *fakeExec) Output(ctx context.Context, name string, args ...string) ([]b
 func (f *fakeExec) Stream(ctx context.Context, name string, args []string, env []string, onLine func(string, string)) error {
 	f.mu.Lock()
 	f.calls = append(f.calls, append([]string{name}, args...))
+	f.envs = append(f.envs, env)
 	f.mu.Unlock()
 	for _, l := range f.lines {
 		onLine("stdout", l)
@@ -60,6 +62,7 @@ func newTestMgr(t *testing.T, fe *fakeExec, bins ...string) *Manager {
 	m.exec = fe
 	m.tmpDir = t.TempDir()
 	m.dirs = []string{filepath.Join(home, ".local", "bin")}
+	m.appDirs = []string{filepath.Join(home, "Applications")}
 	set := map[string]bool{}
 	for _, b := range bins {
 		set[b] = true
@@ -417,7 +420,7 @@ func TestHTTP(t *testing.T) {
 	}
 	json.NewDecoder(res.Body).Decode(&ag)
 	res.Body.Close()
-	if len(ag.Agents) != 5 {
+	if len(ag.Agents) != 7 {
 		t.Fatalf("%+v", ag)
 	}
 
@@ -531,5 +534,178 @@ func TestSettingsLegacyAutoApproveIgnored(t *testing.T) {
 	}
 	if !New(path, "").Settings().FullAccess {
 		t.Fatal("fullAccess not persisted")
+	}
+}
+
+func newKiroMgr(t *testing.T, fe *fakeExec, bins ...string) *Manager {
+	m := newTestMgr(t, fe, bins...)
+	m.appDirs = []string{filepath.Join(m.home, "Applications")}
+	return m
+}
+
+func TestDetectKiro(t *testing.T) {
+	fe := &fakeExec{outputs: map[string]string{"--version": "kiro-cli 1.9.0"}}
+	m := newKiroMgr(t, fe, "kiro-cli")
+	got := map[string]AgentStatus{}
+	for _, a := range m.Detect(context.Background()) {
+		got[a.Name] = a
+	}
+	k, c := got[AgentKiro], got[AgentKiroCLI]
+	if k.Installed || !k.IDE || k.InstallURL == "" || k.Label == "" {
+		t.Fatalf("kiro IDE: %+v", k)
+	}
+	if !c.Installed || c.Version != "kiro-cli 1.9.0" || c.IDE || c.Path != "/fake/bin/kiro-cli" {
+		t.Fatalf("kiro-cli: %+v", c)
+	}
+	if got["claude"].InstallHint != "" && got["claude"].Installed {
+		t.Fatal("unexpected hint")
+	}
+	// IDE app bundle makes the IDE installed; shared config makes both connected.
+	os.MkdirAll(filepath.Join(m.home, "Applications", "Kiro.app"), 0o755)
+	if err := m.Connect(context.Background(), AgentKiroCLI); err != nil {
+		t.Fatal(err)
+	}
+	got = map[string]AgentStatus{}
+	for _, a := range m.Detect(context.Background()) {
+		got[a.Name] = a
+	}
+	if !got[AgentKiro].Installed || !got[AgentKiro].Connected || !got[AgentKiroCLI].Connected {
+		t.Fatalf("after connect: %+v / %+v", got[AgentKiro], got[AgentKiroCLI])
+	}
+	if got[AgentKiro].ConfigPath != filepath.Join(m.home, ".kiro", "settings", "mcp.json") {
+		t.Fatalf("path %q", got[AgentKiro].ConfigPath)
+	}
+	// kiro on PATH (no app) also counts as installed.
+	m2 := newKiroMgr(t, &fakeExec{}, "kiro")
+	for _, a := range m2.Detect(context.Background()) {
+		if a.Name == AgentKiro && !a.Installed {
+			t.Fatal("kiro on PATH not detected")
+		}
+	}
+}
+
+func TestKiroConnectDisconnectPreserves(t *testing.T) {
+	m := newKiroMgr(t, &fakeExec{})
+	cp := m.configPath(AgentKiro)
+	os.MkdirAll(filepath.Dir(cp), 0o755)
+	orig := `{"mcpServers":{"other":{"command":"npx","args":["x"],"autoApprove":["*"]}},"extra":1}`
+	os.WriteFile(cp, []byte(orig), 0o600)
+	ctx := context.Background()
+	if err := m.Connect(ctx, AgentKiro); err != nil {
+		t.Fatal(err)
+	}
+	var cfg struct {
+		MCPServers map[string]map[string]any `json:"mcpServers"`
+		Extra      int                       `json:"extra"`
+	}
+	b, _ := os.ReadFile(cp)
+	if err := json.Unmarshal(b, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MCPServers["phoneforge"]["url"] != DefaultMCPURL || cfg.MCPServers["other"]["command"] != "npx" || cfg.Extra != 1 {
+		t.Fatalf("bad merge:\n%s", b)
+	}
+	if bak, _ := os.ReadFile(cp + ".phoneforge-bak"); string(bak) != orig {
+		t.Fatal("backup wrong")
+	}
+	// second connect (via kiro-cli) must not overwrite the original backup
+	if err := m.Connect(ctx, AgentKiroCLI); err != nil {
+		t.Fatal(err)
+	}
+	if bak, _ := os.ReadFile(cp + ".phoneforge-bak"); string(bak) != orig {
+		t.Fatal("backup overwritten")
+	}
+	if err := m.Disconnect(ctx, AgentKiroCLI); err != nil {
+		t.Fatal(err)
+	}
+	b, _ = os.ReadFile(cp)
+	if strings.Contains(string(b), "phoneforge") || !strings.Contains(string(b), `"other"`) || !strings.Contains(string(b), `"extra"`) {
+		t.Fatalf("after disconnect:\n%s", b)
+	}
+	// connect creating the file from scratch
+	m3 := newKiroMgr(t, &fakeExec{})
+	if err := m3.Connect(ctx, AgentKiro); err != nil {
+		t.Fatal(err)
+	}
+	if !m3.isRegisteredFile(AgentKiroCLI) {
+		t.Fatal("not registered")
+	}
+}
+
+func TestBuildCommandKiroCLI(t *testing.T) {
+	cmd := strings.Join(buildCommand(AgentKiroCLI, "kiro-cli", "sys", "do it", "claude-sonnet-4", "", "last", Settings{}), "\x00")
+	for _, w := range []string{"kiro-cli\x00chat\x00--no-interactive", "--trust-tools=@phoneforge", "--model\x00claude-sonnet-4", "--resume", "--require-mcp-startup", "sys\n\nTask: do it"} {
+		if !strings.Contains(cmd, w) {
+			t.Fatalf("missing %q in %q", w, cmd)
+		}
+	}
+	if strings.Contains(cmd, "--trust-all-tools") {
+		t.Fatal("unexpected trust-all")
+	}
+	cmd = strings.Join(buildCommand(AgentKiroCLI, "kiro-cli", "sys", "p", "", "", "", Settings{FullAccess: true}), "\x00")
+	if !strings.Contains(cmd, "--trust-all-tools") || strings.Contains(cmd, "--trust-tools") || strings.Contains(cmd, "--resume") || strings.Contains(cmd, "--model") {
+		t.Fatalf("bad full-access cmd: %q", cmd)
+	}
+}
+
+func TestCleanTerminalLine(t *testing.T) {
+	cases := map[string]string{
+		"\x1b[1;32mHello\x1b[0m world  ": "Hello world",
+		"spinner\rSecond frame\r> done":  "> done",
+		"\x1b[2K\x1b[1G":                 "",
+		"\x1b]0;title\x07text":           "text",
+		"plain":                          "plain",
+	}
+	for in, want := range cases {
+		if got := CleanTerminalLine(in); got != want {
+			t.Fatalf("%q -> %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestRunKiroCLI(t *testing.T) {
+	fe := &fakeExec{lines: []string{"\x1b[32mThinking\x1b[0m", "", "\x1b[2K", "Opened Settings."}}
+	m := newKiroMgr(t, fe, "kiro-cli")
+	if _, err := m.StartRun(RunRequest{Agent: AgentKiro, Prompt: "x"}); err == nil {
+		t.Fatal("IDE must not run")
+	}
+	if err := m.SetSettings(Settings{Automation: TypeSettings{Agent: AgentKiro}}); err == nil {
+		t.Fatal("IDE must not be selectable")
+	}
+	if err := m.SetSettings(Settings{Automation: TypeSettings{Agent: AgentKiroCLI, Model: "auto"}}); err != nil {
+		t.Fatal(err)
+	}
+	id, err := m.StartRun(RunRequest{Type: "automation", DeviceID: "dev1", Prompt: "open settings"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	evs := waitDone(t, m, id)
+	var out []string
+	sawSession := false
+	for _, e := range evs {
+		if e.Type == "stdout" {
+			out = append(out, e.Data)
+		}
+		if e.Type == "session" {
+			sawSession = true
+		}
+	}
+	if strings.Join(out, "|") != "Thinking|Opened Settings." || !sawSession || evs[len(evs)-1].Data != "ok" {
+		t.Fatalf("%+v", evs)
+	}
+	call := strings.Join(fe.calls[0], "\x00")
+	if !strings.Contains(call, "--model\x00auto") || strings.Contains(call, "--resume") {
+		t.Fatalf("call %q", call)
+	}
+	dir := strings.TrimPrefix(fe.envs[0][0], runDirEnv)
+	b, err := os.ReadFile(filepath.Join(dir, ".kiro", "settings", "mcp.json"))
+	if err != nil || !strings.Contains(string(b), DefaultMCPURL) {
+		t.Fatalf("workspace mcp.json: %v %s", err, b)
+	}
+	// follow-up with a session marker resumes
+	id, _ = m.StartRun(RunRequest{Type: "automation", Prompt: "again", SessionID: "last"})
+	waitDone(t, m, id)
+	if !strings.Contains(strings.Join(fe.calls[1], "\x00"), "--resume") {
+		t.Fatalf("no resume: %v", fe.calls[1])
 	}
 }

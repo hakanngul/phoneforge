@@ -74,6 +74,11 @@ func (s *Settings) normalize() error {
 	if !validAgent(s.Automation.Agent) || !validAgent(s.Testing.Agent) {
 		return errors.New("unknown agent")
 	}
+	for _, a := range []string{s.Automation.Agent, s.Testing.Agent} {
+		if sp, _ := specFor(a); sp.NoRun {
+			return errors.New(sp.Label + " has no headless mode; it can only be connected, not selected to run")
+		}
+	}
 	s.Version = settingsVersion
 	if s.MaxSteps <= 0 {
 		s.MaxSteps = 50

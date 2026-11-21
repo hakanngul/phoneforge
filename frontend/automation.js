@@ -852,7 +852,7 @@
 
   /* ---------- agent selection (AI Configuration) + external agent runs ---------- */
   var aiSettings = null, extRun = null; // extRun: {id, es, cancelled}
-  var AGENT_LABELS = { builtin: 'Built-in agent', claude: 'Claude Code', codex: 'Codex', gemini: 'Gemini CLI', cursor: 'Cursor' };
+  var AGENT_LABELS = { builtin: 'Built-in agent', claude: 'Claude Code', codex: 'Codex', gemini: 'Gemini CLI', cursor: 'Cursor', kiro: 'Kiro', 'kiro-cli': 'Kiro CLI' };
   function loadAISettings() {
     return PF.api('GET', '/ai/settings').then(function (st) { aiSettings = st; renderAgentUI(); return st; },
       function () { return aiSettings; });
@@ -943,14 +943,20 @@
       var runKey = chatKey();
       es.addEventListener('session', function (ev) { var id = data(ev); if (id) chatSessions[runKey] = id; });
       es.addEventListener('start', function () { emit({ type: 'thought', text: lbl + ' started' }); });
-      es.addEventListener('stdout', function (ev) { mapExternalLine(data(ev)).forEach(function (e) { if (e.type === 'done') run.sawDone = true; emit(e); }); });
+      es.addEventListener('stdout', function (ev) {
+        var raw = data(ev);
+        // kiro-cli prints plain text (ANSI already stripped by the server): each line is a thought,
+        // and the last one becomes the final answer.
+        if (agent === 'kiro-cli') { if (raw.trim()) { run.lastText = raw; emit({ type: 'thought', text: raw }); } return; }
+        mapExternalLine(raw).forEach(function (e) { if (e.type === 'done') run.sawDone = true; emit(e); });
+      });
       es.addEventListener('stderr', function (ev) { var t = data(ev); if (t.trim()) emit({ type: 'error', text: t }); });
       es.addEventListener('error', function (ev) { if (ev.data) emit({ type: 'error', text: data(ev) }); });
       es.addEventListener('done', function (ev) {
         var d = data(ev);
         if (d === 'cancelled') emit({ type: 'error', text: 'Stopped.' });
         else if (d === 'failed') emit({ type: 'error', text: lbl + ' run failed' });
-        else if (!run.sawDone) emit({ type: 'done', text: 'done' });
+        else if (!run.sawDone) emit({ type: 'done', text: run.lastText || 'done' });
         finish();
       });
       es.onerror = function () { if (run.es === es && es.readyState === 2) finish(); };

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -26,7 +27,8 @@ type RunRequest struct {
 	Type     string `json:"type"`  // automation | testing
 	DeviceID string `json:"deviceId"`
 	Prompt   string `json:"prompt"`
-	// SessionID resumes an earlier agent conversation (Claude Code only).
+	// SessionID resumes an earlier agent conversation (Claude Code: a session id;
+	// kiro-cli: any non-empty value resumes the last conversation of its work dir).
 	SessionID string `json:"sessionId,omitempty"`
 }
 
@@ -135,6 +137,23 @@ func buildCommand(agent, bin, system, prompt, model, mcpConfig, sessionID string
 		}
 		a = append(a, "--yolo")
 		return append(a, "-p", system+"\n\nTask: "+prompt)
+	case AgentKiroCLI:
+		// Plain-text output (the stream-json record schema is undocumented). Trust only the
+		// phoneforge MCP server's tools (@server reference, kiro-cli >= 3.3.0), or everything
+		// when full access is on. --require-mcp-startup makes the run wait for the MCP server.
+		a := []string{bin, "chat", "--no-interactive", "--require-mcp-startup"}
+		if s.FullAccess {
+			a = append(a, "--trust-all-tools")
+		} else {
+			a = append(a, "--trust-tools=@"+MCPName)
+		}
+		if model != "" {
+			a = append(a, "--model", model)
+		}
+		if sessionID != "" {
+			a = append(a, "--resume")
+		}
+		return append(a, system+"\n\nTask: "+prompt)
 	case AgentCursor:
 		// No confident equivalent of --strict-mcp-config; left unrestricted.
 		a := []string{bin, "-p", system + "\n\nTask: " + prompt, "--output-format", "stream-json"}
@@ -180,6 +199,9 @@ func (m *Manager) StartRun(req RunRequest) (string, error) {
 	if !ok {
 		return "", errUnknownAgent
 	}
+	if spec.NoRun {
+		return "", fmt.Errorf("%s has no headless mode; use it through MCP only", spec.Label)
+	}
 	bin := m.findBinary(spec.Binary)
 	if bin == "" {
 		return "", fmt.Errorf("%s is not installed", spec.Label)
@@ -203,8 +225,18 @@ func (m *Manager) StartRun(req RunRequest) (string, error) {
 		}
 	}
 	sid := ""
-	if agent == AgentClaude {
+	var runEnv []string
+	if agent == AgentClaude || agent == AgentKiroCLI {
 		sid = strings.TrimSpace(req.SessionID)
+	}
+	if agent == AgentKiroCLI {
+		// A dedicated work dir keeps --resume ("previous conversation from this directory")
+		// scoped to PhoneForge, and its workspace MCP config makes runs independent of Connect.
+		dir, err := m.prepareKiroDir()
+		if err != nil {
+			return "", err
+		}
+		runEnv = []string{runDirEnv + dir}
 	}
 	argv := buildCommand(agent, bin, system, req.Prompt, ResolveModel(agent, req.Type, ts.Model), cfgPath, sid, s)
 
@@ -221,11 +253,17 @@ func (m *Manager) StartRun(req RunRequest) (string, error) {
 		}
 		r.append("start", agent)
 		sessionSent := false
-		err := m.exec.Stream(ctx, argv[0], argv[1:], nil, func(stream, line string) {
+		err := m.exec.Stream(ctx, argv[0], argv[1:], runEnv, func(stream, line string) {
 			if stream == "stdout" && agent == AgentClaude && !sessionSent {
 				if id := sessionIDFromLine(line); id != "" {
 					sessionSent = true
 					r.append("session", id)
+				}
+			}
+			if agent == AgentKiroCLI {
+				line = CleanTerminalLine(line)
+				if line == "" {
+					return
 				}
 			}
 			r.append(stream, line)
@@ -237,6 +275,10 @@ func (m *Manager) StartRun(req RunRequest) (string, error) {
 			r.append("error", err.Error())
 			r.append("done", "failed")
 		default:
+			if agent == AgentKiroCLI {
+				// No session id in plain output; a marker lets the UI request --resume next time.
+				r.append("session", "last")
+			}
 			r.append("done", "ok")
 		}
 	}()
@@ -277,4 +319,39 @@ func sessionIDFromLine(line string) string {
 		return ""
 	}
 	return j.SessionID
+}
+
+// prepareKiroDir creates the dedicated kiro-cli work directory next to the settings file
+// and writes a workspace-level .kiro/settings/mcp.json registering the phoneforge server.
+func (m *Manager) prepareKiroDir() (string, error) {
+	base := m.tmpDir
+	if m.settingsPath != "" {
+		base = filepath.Dir(m.settingsPath)
+	}
+	dir := filepath.Join(base, "kiro-cli-workdir")
+	cfgDir := filepath.Join(dir, ".kiro", "settings")
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		return "", err
+	}
+	b, err := jsonSetServer(nil, map[string]any{"url": m.mcpURL})
+	if err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(filepath.Join(cfgDir, "mcp.json"), b, 0o600); err != nil {
+		return "", err
+	}
+	return dir, nil
+}
+
+// ansiRe matches CSI and OSC terminal escape sequences.
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[()][0-9A-Za-z]`)
+
+// CleanTerminalLine strips ANSI escapes, keeps only the text after the last carriage
+// return (spinner/progress redraws) and trims trailing space. Empty result = skip line.
+func CleanTerminalLine(line string) string {
+	if i := strings.LastIndex(line, "\r"); i >= 0 {
+		line = line[i+1:]
+	}
+	line = ansiRe.ReplaceAllString(line, "")
+	return strings.TrimRight(line, " \t\r")
 }

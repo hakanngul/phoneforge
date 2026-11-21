@@ -64,6 +64,11 @@ our own software, so every capability is unlocked by design.
 - **AI Configuration** (`/api/v1/ai`): detect external coding-agent CLIs, connect/disconnect PhoneForge's MCP server in
   their configs, per-task agent type settings, and a run console (external agents stream over SSE; the built-in agent
   runs through the existing agent endpoint).
+  - **Kiro / kiro-cli** (🟡 implemented from docs, not live-tested; neither is installed here): Connect writes a `phoneforge`
+    `url` entry to the shared `~/.kiro/settings/mcp.json` (backed up once as `.phoneforge-bak`). The Kiro IDE is connect-only;
+    `kiro-cli` is also a selectable run agent (`kiro-cli chat --no-interactive --trust-tools=@phoneforge`, `--trust-all-tools`
+    with Full access, free-text `--model`, `--resume` for chat memory in a dedicated work dir with its own workspace MCP config).
+    Headless runs need `KIRO_API_KEY` (paid Kiro plans). Output is plain text: ANSI stripped, lines shown as thoughts.
 - **AI Tools**: manage LLM provider keys (Keychain; never shown). Agent uses them after restart.
 - **API Server**: REST + MCP URLs, copy buttons, MCP client config snippet.
 - **Webhooks**: full CRUD, event filters, HMAC-SHA256 signatures, delivery status, Test.

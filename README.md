@@ -19,7 +19,7 @@ commercial product.** Architecture inspired by the documented design of mobile-a
 - `internal/mcpserver` — embedded MCP server (/mcp) proxying to the API
 - `internal/ocr`     — on-screen text recognition (Apple Vision helper / tesseract) + `/api/v1/ocr`
 - `internal/webauto` — Chrome/WebView automation over CDP (Android) + `/api/v1/web`
-- `internal/aiconfig` — AI Configuration: external agent CLIs, MCP connect, run console + `/api/v1/ai`
+- `internal/aiconfig` — AI Configuration: external agent CLIs (Claude Code, Codex, Gemini, Cursor, Kiro IDE, kiro-cli), MCP connect, run console + `/api/v1/ai`
 - `cmd/phoneforged`  — headless server (like `serve`)
 - `internal/server` — reusable server wiring (used by `phoneforged` and the desktop app)
 - `cmd/phoneforge-desktop` — native macOS app (Wails v3), see [docs/desktop.md](docs/desktop.md)
@@ -63,3 +63,10 @@ phoneforge -d sm-g tap --text "Settings"
 See [docs/cli.md](docs/cli.md) for all commands, device resolution and exit codes.
 
 Backlog and known gaps: [BACKLOG.md](BACKLOG.md)
+
+## Kiro and kiro-cli
+AI Configuration detects the Kiro IDE (`Kiro.app` or `kiro` on PATH) and `kiro-cli`. **Connect** adds
+`"phoneforge": {"url": "http://127.0.0.1:8700/mcp"}` to `~/.kiro/settings/mcp.json` (other servers kept, original backed up to
+`mcp.json.phoneforge-bak`); **Disconnect** removes it. The IDE is connect-only. `kiro-cli` can also be picked as the Automation or
+Testing agent; headless runs need a `KIRO_API_KEY` in the environment (Kiro Pro and above). Install the CLI with
+`curl -fsSL https://cli.kiro.dev/install | bash`. This integration follows the official docs and has not been run against a real Kiro install.
