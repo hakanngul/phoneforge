@@ -175,6 +175,29 @@ func main() {
 		buildTray(app, uiAddr, attached, showWindow)
 	}
 
+	// In-app Quit button (POST /api/v1/server/shutdown) means "stop everything":
+	// owned server -> quit the app (OnShutdown then stops the server); attached
+	// server -> it reports shuttingDown on /health, so quit too.
+	if srv != nil {
+		go func() {
+			select {
+			case <-srv.ShutdownRequested():
+			case <-srv.Done():
+			}
+			app.Quit()
+		}()
+	} else {
+		go func() {
+			for {
+				time.Sleep(300 * time.Millisecond)
+				if shuttingDown(uiAddr) {
+					app.Quit()
+					return
+				}
+			}
+		}()
+	}
+
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}
@@ -268,6 +291,20 @@ func isPhoneForge(addr string) bool {
 		return false
 	}
 	return body.Service == "phoneforge"
+}
+
+// shuttingDown reports whether the server at addr has accepted a shutdown request.
+func shuttingDown(addr string) bool {
+	c := &http.Client{Timeout: 1000 * time.Millisecond}
+	resp, err := c.Get("http://" + addr + "/api/v1/health")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	var body struct {
+		ShuttingDown bool `json:"shuttingDown"`
+	}
+	return json.NewDecoder(resp.Body).Decode(&body) == nil && body.ShuttingDown
 }
 
 // portBusy reports whether something is listening on addr (any protocol).

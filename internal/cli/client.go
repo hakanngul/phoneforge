@@ -91,6 +91,9 @@ func (c *client) request(ctx context.Context, method, path string, body io.Reade
 	if c.token != "" {
 		req.Header.Set("X-API-Key", c.token)
 	}
+	if path == "/server/shutdown" {
+		req.Header.Set("X-PhoneForge-Action", "shutdown")
+	}
 	resp, err := c.hc.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {

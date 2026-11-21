@@ -34,6 +34,8 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	select {
 	case <-stop:
+	case <-srv.ShutdownRequested():
+		log.Println("shutdown requested via API")
 	case <-srv.Done():
 	}
 	log.Println("shutting down")

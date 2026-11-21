@@ -186,9 +186,11 @@ plain lines are the agent's thoughts, "▸ tool(args)" are actions, and
   --max-steps N step limit for the built-in agent (ignored by other agents)
 With --json, raw events are printed one per line.`,
 
-	"server": `Usage: phoneforge server status
+	"server": `Usage: phoneforge server status|stop
 
-Show server URL, status, version and device count (GET /health).`,
+status: show server URL, status, version and device count (GET /health).
+stop:   ask the server to shut down gracefully (POST /server/shutdown); a
+        desktop app attached to it quits as well.`,
 
 	"version": `Usage: phoneforge version
 

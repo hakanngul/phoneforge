@@ -73,7 +73,12 @@ type Server struct {
 	webMgr   *webauto.Manager
 	once     sync.Once
 	shutdown error
+	stopReq  chan struct{}
 }
+
+// ShutdownRequested is closed when a client asked the server to stop via
+// POST /api/v1/server/shutdown. The owner should then call Shutdown and exit.
+func (s *Server) ShutdownRequested() <-chan struct{} { return s.stopReq }
 
 // Addr returns the actual listen address (host:port).
 func (s *Server) Addr() string { return s.addr }
@@ -218,7 +223,10 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 		return info.Serial, nil
 	}
 
+	stopReq := make(chan struct{})
+	var stopOnce sync.Once
 	deps := httpapi.Deps{
+		Shutdown: func() { stopOnce.Do(func() { close(stopReq) }) },
 		Webhooks: whMgr.Routes(), Farms: farmMgr.Routes(), Bridges: bridges, IOS: iosCtl,
 		AI:  aiconfig.New(filepath.Join(stateDir, "aiconfig.json"), "http://"+cfg.Addr+"/mcp").Routes(),
 		OCR: ocr.Routes(getDevice),
@@ -265,7 +273,7 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 
 	s := &Server{
 		addr: cfg.Addr, srv: &http.Server{Handler: mux}, cancel: cancel, done: make(chan struct{}),
-		bridges: bridges, iosMgr: iosMgr, dbgMgr: dbgMgr, simCtl: simCtl, webMgr: webMgr,
+		stopReq: stopReq, bridges: bridges, iosMgr: iosMgr, dbgMgr: dbgMgr, simCtl: simCtl, webMgr: webMgr,
 	}
 	go func() {
 		defer close(s.done)

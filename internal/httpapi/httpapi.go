@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -37,6 +38,9 @@ type api struct {
 	cfg     config.Config
 	bridges *uia2.Manager
 	ios     *IOSControl
+
+	shutdown func()
+	stopping atomic.Bool
 }
 
 // Deps holds optional feature sub-routers mounted under /api/v1.
@@ -55,6 +59,7 @@ type Deps struct {
 	Sims        http.Handler  // mounted at /simulators (iOS Simulator boot/shutdown/WDA)
 	Bridges     *uia2.Manager // UiAutomator2 bridge manager (enables /bridge routes)
 	IOS         *IOSControl   // WebDriverAgent bridge for iOS (enables /iosbridge, /mjpeg and iOS /bridge)
+	Shutdown    func()        // enables POST /server/shutdown; called (once, asynchronously) after the 202 is sent
 }
 
 // NewRouter builds the HTTP handler serving the REST API with no feature deps.
@@ -64,7 +69,7 @@ func NewRouter(reg *registry.Registry, cfg config.Config) http.Handler {
 
 // NewRouterWithDeps builds the REST API and mounts the provided feature routers.
 func NewRouterWithDeps(reg *registry.Registry, cfg config.Config, deps Deps) http.Handler {
-	a := &api{reg: reg, cfg: cfg, bridges: deps.Bridges, ios: deps.IOS}
+	a := &api{reg: reg, cfg: cfg, bridges: deps.Bridges, ios: deps.IOS, shutdown: deps.Shutdown}
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
 	r.Use(corsMiddleware)
@@ -72,6 +77,7 @@ func NewRouterWithDeps(reg *registry.Registry, cfg config.Config, deps Deps) htt
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/health", a.health)
 		r.Get("/version", a.version)
+		r.Post("/server/shutdown", a.serverShutdown)
 
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware(cfg.APIToken))
@@ -223,11 +229,12 @@ func authMiddleware(token string) func(http.Handler) http.Handler {
 
 func (a *api) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"service":     "phoneforge",
-		"status":      "ok",
-		"version":     a.cfg.Version,
-		"deviceCount": len(a.reg.List()),
-		"time":        time.Now().UTC().Format(time.RFC3339),
+		"service":      "phoneforge",
+		"status":       "ok",
+		"version":      a.cfg.Version,
+		"deviceCount":  len(a.reg.List()),
+		"shuttingDown": a.stopping.Load(),
+		"time":         time.Now().UTC().Format(time.RFC3339),
 	})
 }
 
@@ -450,4 +457,49 @@ func (a *api) agentRun(w http.ResponseWriter, r *http.Request, dev device.Device
 		}
 	}
 	_, _ = agent.RunModel(r.Context(), dev, body.Task, body.MaxSteps, body.Model, emit)
+}
+
+// shutdownHeader must be present (value "shutdown") on POST /server/shutdown.
+// A custom header forces a CORS preflight for cross-origin browser requests,
+// which this server never grants, so other websites cannot stop PhoneForge.
+const shutdownHeader = "X-PhoneForge-Action"
+
+// shutdownOriginOK reports whether the request may stop the server: a missing
+// Origin (curl, CLI, MCP) is fine; otherwise it must be this server's own
+// origin on a loopback/IP-literal host (blocks DNS rebinding) or the Wails app.
+func shutdownOriginOK(r *http.Request) bool {
+	host := r.Host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.Trim(host, "[]")
+	hostOK := host == "localhost" || strings.HasSuffix(host, ".localhost") || net.ParseIP(host) != nil
+	o := r.Header.Get("Origin")
+	if o == "" {
+		return hostOK
+	}
+	if o == "wails://wails" || o == "http://wails.localhost" || o == "https://wails.localhost" {
+		return true
+	}
+	return hostOK && (o == "http://"+r.Host || o == "https://"+r.Host)
+}
+
+func (a *api) serverShutdown(w http.ResponseWriter, r *http.Request) {
+	if a.shutdown == nil {
+		writeErr(w, "UNSUPPORTED", http.StatusNotImplemented, "shutdown is not available on this server")
+		return
+	}
+	if r.Header.Get(shutdownHeader) != "shutdown" {
+		writeErr(w, "FORBIDDEN", http.StatusForbidden, "missing "+shutdownHeader+": shutdown header")
+		return
+	}
+	if !shutdownOriginOK(r) {
+		writeErr(w, "FORBIDDEN", http.StatusForbidden, "cross-origin shutdown request rejected")
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"status": "shutting down"})
+	if a.stopping.CompareAndSwap(false, true) {
+		// Delay so the response is flushed and desktop apps can observe shuttingDown.
+		go func() { time.Sleep(400 * time.Millisecond); a.shutdown() }()
+	}
 }

@@ -34,6 +34,18 @@
   try { saved = localStorage.getItem('pf.tab') || saved; } catch (e) { /* ignore */ }
   showTab(saved);
 
+  /* quit */
+  var quit = $('quitBtn');
+  if (quit) quit.addEventListener('click', function () {
+    if (!window.confirm('Quit PhoneForge? This stops the server and closes the app; devices will no longer be controllable.')) return;
+    quit.disabled = true;
+    fetch('/api/v1/server/shutdown', { method: 'POST', headers: { 'X-PhoneForge-Action': 'shutdown' } }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      document.title = 'PhoneForge stopped';
+      document.body.innerHTML = '<div style="display:flex;height:100vh;align-items:center;justify-content:center;flex-direction:column;font-family:system-ui,sans-serif;color:#ccc;background:#0e0d14"><h2>PhoneForge stopped</h2><p>You can close this tab.</p></div>';
+    }).catch(function (e) { quit.disabled = false; PF.toast('Could not stop PhoneForge: ' + e.message); });
+  });
+
   /* health */
   function health() {
     PF.api('GET', '/health').then(function (h) {

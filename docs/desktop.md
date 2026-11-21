@@ -23,9 +23,15 @@ Wails v3 is alpha-era software; the build was verified with Wails v3.1.0 on macO
 - Default address `127.0.0.1:8700`; override with `--addr` or `PHONEFORGE_ADDR`.
 - If a PhoneForge server (`GET /api/v1/health` reports `service: phoneforge`) already answers there, the
   window attaches to it and the title reads "PhoneForge — connected to running server" (plus a toast).
-  No second server is started and quitting the app does not stop that server.
+  No second server is started and quitting the app (menu, tray, Cmd+Q) does not stop that server.
+- **Quit PhoneForge** button (top bar, with a confirm) calls `POST /api/v1/server/shutdown`: the server stops and
+  the port is released, and the desktop app quits too, whether it owns the server or is attached to one
+  (attached apps notice via `shuttingDown` on `/health`). The same button works in the browser UI, which then
+  shows "PhoneForge stopped". `phoneforge server stop` does the same from a shell, and `phoneforged` exits 0.
+  The endpoint needs the `X-PhoneForge-Action: shutdown` header (forces a CORS preflight, which is never granted)
+  and rejects a foreign `Origin` or a non-loopback/non-IP `Host` (anti-CSRF / DNS rebinding).
 - If the port is used by something else, a free port is chosen.
-- Otherwise the server starts in-process; on quit it is shut down cleanly (WDA bridges, simulators, debuggers).
+- Otherwise the server starts in-process; on quit (menu, tray, Cmd+Q) it is shut down cleanly (WDA bridges, simulators, debuggers).
 - `--webdir <dir>` serves the UI from disk instead of the embedded copy (development).
   Other flags: `--adb`, `--token`, `--no-tray`. State dir: `$PHONEFORGE_HOME` (default `~/.phoneforge`).
 - Window size/position are stored in `~/.phoneforge/desktop.json`.

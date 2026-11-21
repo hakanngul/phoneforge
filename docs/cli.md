@@ -67,7 +67,7 @@ logs [-f] [--seconds N] [--grep T]       record [--seconds N] [-o file.mp4]
 crashes [--app B] [--limit N]            crash <name> [-o file]
 bridge start|stop|status      sims      sim boot|shutdown <udid|name>
 agent "prompt" [--model haiku] [--agent NAME] [--session ID] [--max-steps N]
-server status                 version   help [command]
+server status|stop           version   help [command]
 ```
 
 `phoneforge help <command>` (or `<command> --help`) prints concise per-command help.

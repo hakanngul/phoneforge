@@ -540,8 +540,16 @@ func cmdServer(c *call) error {
 	if err != nil {
 		return err
 	}
+	if len(pos) == 1 && pos[0] == "stop" {
+		ctx, cancel := c.ctxFor(10 * time.Second)
+		defer cancel()
+		if err := c.client().do(ctx, "POST", "/server/shutdown", nil, nil); err != nil {
+			return err
+		}
+		return c.actionResult("server stopping")
+	}
 	if len(pos) != 1 || pos[0] != "status" {
-		return usagef("usage: phoneforge server status")
+		return usagef("usage: phoneforge server status|stop")
 	}
 	ctx, cancel := c.ctxFor(10 * time.Second)
 	defer cancel()
