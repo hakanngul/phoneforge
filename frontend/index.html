@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PhoneForge</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo">&#9670;</span><span class="wordmark">PhoneForge</span>
+    <span id="ver" class="meta">connecting...</span></div>
+  <nav class="tabs" id="mainTabs">
+    <button class="tab active" data-tab="apps-tab">Apps</button>
+    <button class="tab" data-tab="automation-tab">Automation</button>
+    <button class="tab" data-tab="testing-tab">Testing</button>
+  </nav>
+  <div class="menu-wrap">
+    <button id="intBtn" class="btn">Integrations &#9662;</button>
+    <div id="intMenu" class="menu" hidden>
+      <button data-int="aiconfig">AI Configuration</button>
+      <button data-int="ai">AI Tools</button>
+      <button data-int="api">API Server</button>
+      <button data-int="webhooks">Webhooks</button>
+      <button data-int="farms">Mobile Farms</button>
+      <button data-int="sims">iOS Simulators</button>
+      <button data-int="creds">Credentials / App Cards</button>
+      <button data-int="cloud">Cloud Agents</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- Automation -->
+  <section id="automation-tab" class="pane" hidden>
+    <aside class="col devices">
+      <div class="col-head"><h2>Devices</h2><button id="refreshDevices" class="btn sm" title="Refresh">&#8635;</button></div>
+      <div class="side-scroll">
+        <div class="group-head">Local Devices <span id="localCount" class="badge">0</span></div>
+        <ul id="deviceList" class="device-list"></ul>
+        <div class="group-head">Remote <span id="remoteCount" class="badge">0</span></div>
+        <ul id="remoteDeviceList" class="device-list"></ul>
+        <div id="nodesBox" class="nodes-box"></div>
+        <div class="share-row"><button id="shareBtn" class="btn sm">Share my devices&hellip;</button></div>
+      </div>
+    </aside>
+
+    <section class="col center">
+      <div class="col-head"><h2 id="liveTitle">Live</h2></div>
+      <div class="toolbar">
+        <div class="tgroup" data-label="View">
+          <span class="seg" id="modeSwitch" title="Live mirror source"><button type="button" data-mode="video" class="active">Video</button><button type="button" data-mode="screenshots">Screenshots</button></span>
+          <label id="fpsWrap" hidden>FPS <select id="fps"><option>1</option><option selected>2</option><option>5</option><option>10</option><option>20</option></select></label>
+          <span id="liveStats" class="lstats" hidden></span><span id="modeLabel" class="modelabel" hidden>screenshot mode</span>
+          <label class="toggle"><input type="checkbox" id="multiToggle"> Multi</label>
+          <label class="toggle"><input type="checkbox" id="pickerToggle"> Element Picker</label>
+          <span id="bridgeChip" class="bchip stopped" hidden title="Live-control helper (UiAutomator2 / WebDriverAgent)">Bridge: stopped</span>
+        </div>
+        <div class="tgroup" data-label="Keys">
+          <button class="btn sm" data-key="home">Home</button>
+          <button class="btn sm" data-key="back">Back</button>
+          <button class="btn sm" data-key="enter">Enter</button>
+          <button class="btn sm" data-key="delete">Delete</button>
+        </div>
+        <div class="tgroup" data-label="Gestures">
+          <button class="btn sm" id="swipeUp">Swipe &#8593;</button>
+          <button class="btn sm" id="swipeDown">Swipe &#8595;</button>
+          <button class="btn sm" id="zoomIn" title="Pinch out at the screen centre (needs the bridge). Ctrl/Cmd + wheel pinches at the pointer.">Zoom +</button>
+          <button class="btn sm" id="zoomOut" title="Pinch in at the screen centre (needs the bridge)">Zoom &#8722;</button>
+        </div>
+        <div class="tgroup grow" data-label="Text">
+          <input id="typeText" type="text" placeholder="Text to type" class="grow">
+          <button class="btn sm" id="typeBtn">Type</button>
+        </div>
+      </div>
+      <div class="toolbar tools" id="tools">
+        <div class="tgroup grow" data-label="Browser">
+          <input id="urlText" type="text" placeholder="https://example.com" class="grow" autocomplete="off">
+          <button class="btn sm" id="urlBtn">Open URL</button>
+        </div>
+        <div class="tgroup" data-label="Device">
+          <button class="btn sm" id="kbBtn">Hide keyboard</button>
+          <button class="btn sm" id="clipBtn">Clipboard</button>
+        </div>
+        <div class="tgroup" data-label="Record">
+          <label>Rec <input id="recSecs" type="number" min="1" max="180" value="10" class="num"> s</label>
+          <button class="btn sm" id="recBtn">Record</button>
+        </div>
+        <div class="tgroup" data-label="Screen text">
+          <button class="btn sm" id="ocrBtn" title="Run OCR on the device screen; click a result to tap it">OCR</button>
+        </div>
+        <div class="tgroup" data-label="Web">
+          <button class="btn sm" id="webBtn" title="Drive Chrome / WebView pages (Android)">Web&hellip;</button>
+        </div>
+        <div class="tgroup" data-label="Diagnostics">
+          <button class="btn sm" id="crashBtn" title="Crash reports from the device (iOS .ips, Android logcat/DropBox)">Crash Reports&hellip;</button>
+        </div>
+        <div id="ocrPop" class="popover wide" hidden></div>
+        <div id="webPop" class="popover wide" hidden></div>
+        <div id="clipPop" class="popover" hidden>
+          <textarea id="clipText" rows="4" spellcheck="false" placeholder="Clipboard text"></textarea>
+          <div class="btn-row"><button class="btn sm" id="clipRead">Read from device</button><button class="btn sm primary" id="clipSend">Send to device</button><button class="btn sm" id="clipClose">Close</button></div>
+        </div>
+      </div>
+      <div id="multiGrid" class="multi-grid" hidden></div>
+      <div class="live-area" id="singleArea">
+        <div class="phone">
+          <div class="screen" id="screen">
+            <img id="mirror" alt="device screen" draggable="false">
+            <canvas id="vmirror"></canvas>
+            <div id="hl" class="hl" hidden></div>
+            <div id="noDevice" class="placeholder">Select a device</div>
+            <div id="iosNotice" class="placeholder notice" hidden><div><strong>iOS live control needs the WDA bridge &mdash; not running</strong><div class="detail muted"></div><div class="muted">Use &ldquo;Start WDA&rdquo; in the toolbar (or &ldquo;Install helper&rdquo; first). Device info and Apps still work.</div></div></div>
+          </div>
+        </div>
+        <div id="inspector" class="inspector" hidden></div>
+      </div>
+      <div class="agent">
+        <div id="transcript" class="transcript" hidden></div>
+        <form id="agentForm" class="agent-form">
+          <input id="agentInput" type="text" placeholder="Describe what you want the agent to do&hellip;" autocomplete="off">
+          <button class="btn primary" id="agentSend" type="submit">Send</button>
+          <button class="btn" id="agentStop" type="button" hidden>Stop</button>
+          <button class="btn" id="agentNewChat" type="button" title="Forget the conversation and start a new chat">New chat</button>
+          <label class="agent-details" title="Show tool results, internal tool calls and raw arguments"><input type="checkbox" id="agentDetails"> Show details</label>
+          <span id="agentWho" class="muted agent-who" title="Agent selected in Integrations &rarr; AI Configuration"></span>
+          <select id="agentModel" class="agent-model" title="Model" hidden>
+            <option value="default">Default</option>
+            <option value="haiku">Haiku</option>
+            <option value="sonnet">Sonnet</option>
+            <option value="opus">Opus</option>
+            <option value="fable">Fable</option>
+          </select>
+          <input id="agentModelText" class="agent-model" type="text" placeholder="model (blank = default)" title="Model" hidden>
+        </form>
+      </div>
+    </section>
+
+    <aside class="col activity">
+      <div class="col-head"><div class="subtabs" id="rightTabs"><button type="button" class="subtab active" data-sub="activityPane">Activity</button><button type="button" class="subtab" data-sub="logsPane">Logs</button></div><span id="live" class="live off">&#9675; disconnected</span></div>
+      <div id="activityPane" class="subpane"><div id="log" class="log"></div></div>
+      <div id="logsPane" class="subpane" hidden>
+        <div class="logbar">
+          <button type="button" class="btn sm primary" id="logToggle">Start</button>
+          <input id="logFilter" type="search" placeholder="Filter" class="grow">
+          <label class="toggle"><input type="checkbox" id="logAuto" checked> Auto-scroll</label>
+          <button type="button" class="btn sm" id="logClear">Clear</button>
+        </div>
+        <div id="logStatus" class="muted logstatus"></div>
+        <div id="logOut" class="log logout"></div>
+      </div>
+    </aside>
+  </section>
+
+  <!-- Apps -->
+  <section id="apps-tab" class="pane block">
+    <div class="block-inner">
+      <div class="col-head"><h2 id="appsTitle">Apps</h2>
+        <input id="appSearch" type="search" placeholder="Search bundle id or name" class="grow">
+        <input id="apkFile" type="file" accept=".apk" hidden>
+        <button id="apkBtn" class="btn sm">Install APK&hellip;</button>
+        <button id="appsRefresh" class="btn sm">Reload</button></div>
+      <p id="installMsg" class="muted" hidden></p>
+      <p id="appsMsg" class="muted"></p>
+      <ul id="appList" class="app-list"></ul>
+    </div>
+  </section>
+
+  <!-- Testing -->
+  <section id="testing-tab" class="pane" hidden>
+    <div class="tsubbar">
+      <div class="subtabs" id="testSubTabs"><button type="button" class="subtab active" data-tsub="wsView">Workspace</button><button type="button" class="subtab" data-tsub="quickView">Quick run</button></div>
+    </div>
+    <div id="wsView" class="ws">
+      <aside class="ws-col ws-left">
+        <div class="col-head"><h2>Projects</h2><button id="tpNew" class="btn sm" title="New project">+ New</button></div>
+        <div id="tpForm" class="inline-form tpad" hidden></div>
+        <ul id="tpList" class="tlist"></ul>
+        <div class="col-head"><h2>Scripts</h2><button id="tsNew" class="btn sm" title="New script" disabled>+ New</button></div>
+        <div id="tsForm" class="inline-form tpad" hidden></div>
+        <ul id="tsList" class="tlist"></ul>
+      </aside>
+      <section class="ws-col ws-mid">
+        <div class="col-head"><h2 id="edTitle">Editor</h2><span id="edDirty" class="dirty" hidden title="Unsaved changes">&#9679;</span><span class="grow"></span>
+          <button id="edExample" class="btn sm" disabled>Insert example</button>
+          <button id="edSave" class="btn sm" disabled>Save</button>
+          <button id="edRun" class="btn sm primary" disabled>Run</button></div>
+        <div id="edHint" class="muted tpad"></div>
+        <div class="ed" id="edWrap" hidden>
+          <div class="gut" id="edGut" aria-hidden="true"></div>
+          <textarea id="edText" spellcheck="false" wrap="off" autocomplete="off" autocapitalize="off"></textarea>
+        </div>
+        <div id="edEmpty" class="muted tpad">Select or create a script.</div>
+        <div id="edErrs" class="errs" hidden></div>
+      </section>
+      <aside class="ws-col ws-right">
+        <div class="col-head"><h2 id="resTitle">Results</h2></div>
+        <div id="resBox" class="results tpad muted">No run yet.</div>
+        <div class="col-head"><h2>Run history</h2><button id="runsReload" class="btn sm" title="Reload">&#8635;</button></div>
+        <ul id="runList" class="tlist"></ul>
+      </aside>
+    </div>
+    <div id="quickView" class="block-inner two quick" hidden>
+      <div>
+        <div class="col-head"><h2>DSL Script</h2><button id="dslRun" class="btn primary sm">Run</button></div>
+        <textarea id="dslBody" spellcheck="false"></textarea>
+      </div>
+      <div>
+        <div class="col-head"><h2>Results</h2></div>
+        <div id="dslResult" class="results muted">No run yet.</div>
+        <div class="col-head"><h2>History</h2></div>
+        <ul id="dslHistory" class="history"></ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast" hidden></div>
+<div id="modal" class="modal-bg" hidden><div class="modal" id="modalBox">
+  <div class="modal-head"><h3 id="modalTitle"></h3><button class="btn sm" id="modalClose" title="Close (Esc)">&#10005;</button></div>
+  <div id="modalBody" class="modal-body"></div></div></div>
+
+<script src="api.js"></script>
+<script src="ui.js"></script>
+<script src="video.js"></script>
+<script src="automation.js"></script>
+<script src="tools.js"></script>
+<script src="logs.js"></script>
+<script src="ocr.js"></script>
+<script src="web.js"></script>
+<script src="crashes.js"></script>
+<script src="multiwindow.js"></script>
+<script src="apps.js"></script>
+<script src="testing.js"></script>
+<script src="tests.js"></script>
+<script src="bridge.js"></script>
+<script src="nodes.js"></script>
+<script src="webhooks.js"></script>
+<script src="aiconfig.js"></script>
+<script src="farms.js"></script>
+<script src="credentials.js"></script>
+<script src="simulators.js"></script>
+<script src="integrations.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

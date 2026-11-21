@@ -1,0 +1,7 @@
+/phoneforged
+*.out
+/bin/
+/attachments/
+/-
+*.log
+.DS_Store
