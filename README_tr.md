@@ -5,6 +5,7 @@
 [![CI](https://github.com/hakanngul/phoneforge/actions/workflows/ci.yml/badge.svg)](https://github.com/hakanngul/phoneforge/actions/workflows/ci.yml)
 [![Release](https://github.com/hakanngul/phoneforge/actions/workflows/release.yml/badge.svg)](https://github.com/hakanngul/phoneforge/actions/workflows/release.yml)
 [![Latest release](https://img.shields.io/github/v/release/hakanngul/phoneforge)](https://github.com/hakanngul/phoneforge/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Yapay zekâ kodlama ajanlarının ve insanların gerçek iOS/Android cihazları, iOS simülatörlerini ve web sayfalarını görüp
 yönetmesini sağlayan yerel bir araç. Web arayüzü, REST API, MCP sunucusu ve CLI içeren tek bir Go sunucusu olarak çalışır.
@@ -188,5 +189,4 @@ Açık işler, doğrulama durumu ve bilinen eksikler [BACKLOG.md](BACKLOG.md) do
 
 ## Katkı ve lisans
 
-Issue ve pull request'ler memnuniyetle karşılanır. Değişiklik göndermeden önce `go test ./...` çalıştırın. Bu depoda henüz bir LICENSE dosyası
-yok, bu nedenle şu an için herhangi bir lisans tanınmamıştır.
+Issue ve pull request'ler memnuniyetle karşılanır. Değişiklik göndermeden önce `go test ./...` çalıştırın. PhoneForge [MIT Lisansı](LICENSE) ile yayınlanmaktadır.

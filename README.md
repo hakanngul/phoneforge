@@ -5,6 +5,7 @@
 [![CI](https://github.com/hakanngul/phoneforge/actions/workflows/ci.yml/badge.svg)](https://github.com/hakanngul/phoneforge/actions/workflows/ci.yml)
 [![Release](https://github.com/hakanngul/phoneforge/actions/workflows/release.yml/badge.svg)](https://github.com/hakanngul/phoneforge/actions/workflows/release.yml)
 [![Latest release](https://img.shields.io/github/v/release/hakanngul/phoneforge)](https://github.com/hakanngul/phoneforge/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A local tool that lets AI coding agents and humans see and drive real iOS and Android devices, iOS simulators and web pages.
 It runs as one Go server with a web UI, a REST API, an MCP server and a CLI.
@@ -189,5 +190,4 @@ Open work, verification status and known gaps are tracked in [BACKLOG.md](BACKLO
 
 ## Contributing and license
 
-Issues and pull requests are welcome. Run `go test ./...` before sending a change. This repository does not contain a LICENSE file yet, so no
-license is granted at the moment.
+Issues and pull requests are welcome. Run `go test ./...` before sending a change. PhoneForge is released under the [MIT License](LICENSE).

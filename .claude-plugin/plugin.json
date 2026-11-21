@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Skills for driving Android and iOS devices with PhoneForge: device control, smoke tests, accessibility audits, store screenshots, test authoring and the phoneforge CLI.",
   "author": { "name": "hakanngul", "url": "https://github.com/hakanngul" },
+  "license": "MIT",
   "homepage": "https://github.com/hakanngul/phoneforge",
   "repository": "https://github.com/hakanngul/phoneforge",
   "keywords": ["mobile", "android", "ios", "automation", "testing", "mcp"],
