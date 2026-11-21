@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"phoneforge/internal/agent/llm"
 	"strings"
 	"sync"
 	"time"
@@ -144,6 +145,12 @@ type Manager struct {
 	cache    []AgentStatus
 	cacheAt  time.Time
 	cacheTTL time.Duration
+
+	// builtinProvider reports the LLM provider the built-in agent would use
+	// ("anthropic", "ollama" or ""); ollamaHost/ollamaModels are test seams.
+	builtinProvider func() string
+	ollamaHost      func() string
+	ollamaModels    func(ctx context.Context, host string) ([]string, error)
 }
 
 const detectCacheTTL = 30 * time.Second
@@ -193,6 +200,10 @@ func New(settingsPath, mcpURL string) *Manager {
 		lookPath:     exec.LookPath,
 		tmpDir:       os.TempDir(),
 		runs:         map[string]*run{},
+
+		builtinProvider: func() string { _, p, _ := llm.FromEnvModel(""); return p },
+		ollamaHost:      func() string { return llm.OllamaHost(os.Getenv) },
+		ollamaModels:    llm.ListOllamaModels,
 	}
 	m.settings = m.loadSettings()
 	return m

@@ -123,7 +123,7 @@
           <button class="btn" id="agentStop" type="button" hidden>Stop</button>
           <button class="btn" id="agentNewChat" type="button" title="Forget the conversation and start a new chat">New chat</button>
           <label class="agent-details" title="Show tool results, internal tool calls and raw arguments"><input type="checkbox" id="agentDetails"> Show details</label>
-          <span id="agentWho" class="muted agent-who" title="Agent selected in Integrations &rarr; AI Configuration"></span>
+          <select id="agentPick" class="agent-pick" title="Agent that runs your prompts (same setting as Integrations &rarr; AI Configuration)"></select>
           <select id="agentModel" class="agent-model" title="Model" hidden>
             <option value="default">Default</option>
             <option value="haiku">Haiku</option>
@@ -131,6 +131,7 @@
             <option value="opus">Opus</option>
             <option value="fable">Fable</option>
           </select>
+          <select id="agentModelOllama" class="agent-model" title="Local Ollama model" hidden></select>
           <input id="agentModelText" class="agent-model" type="text" placeholder="model (blank = default)" title="Model" hidden>
         </form>
       </div>

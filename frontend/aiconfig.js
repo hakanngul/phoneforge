@@ -210,8 +210,10 @@
       runBox.appendChild(out);
     }
 
+    // The Automation box changed agent/model: reload settings so this panel shows them.
+    var refreshModel = PF.refreshAIConfigModel = function () { if (!root.isConnected) return; state.settings = null; drawSettings(); };
     loadAgents();
-    return { destroy: function () { if (state.es) state.es.close(); state.es = null; } };
+    return { destroy: function () { if (state.es) state.es.close(); state.es = null; if (PF.refreshAIConfigModel === refreshModel) PF.refreshAIConfigModel = null; } };
   };
 
   PF.openAIConfig = function () {

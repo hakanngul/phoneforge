@@ -54,6 +54,9 @@ var selectClient = llm.FromEnv
 // settleDelay is how long to wait after a device action so the UI can update.
 var settleDelay = 700 * time.Millisecond
 
+// selectClientModel is selectClient with a model override (a seam for tests).
+var selectClientModel = llm.FromEnvModel
+
 // Available reports which LLM provider is configured via the environment
 // ("anthropic" or "ollama"). It returns ("", false) if none is.
 func Available() (provider string, ok bool) {
@@ -66,7 +69,21 @@ func Available() (provider string, ok bool) {
 // if non-nil, for every Step as it happens. If no provider is configured it
 // returns a Result with Error set and a nil error.
 func Run(ctx context.Context, dev device.Device, task string, maxSteps int, emit func(Step)) (Result, error) {
-	client, _, ok := selectClient()
+	return RunModel(ctx, dev, task, maxSteps, "", emit)
+}
+
+// RunModel is Run with an optional model override for the selected provider
+// (an Ollama model name or an Anthropic model id). Empty keeps the default.
+func RunModel(ctx context.Context, dev device.Device, task string, maxSteps int, model string, emit func(Step)) (Result, error) {
+	var (
+		client llm.Client
+		ok     bool
+	)
+	if strings.TrimSpace(model) == "" {
+		client, _, ok = selectClient()
+	} else {
+		client, _, ok = selectClientModel(model)
+	}
 	if !ok {
 		res := Result{Task: task, Steps: []Step{}, Error: ErrNoProvider}
 		s := Step{Type: "error", Text: ErrNoProvider}

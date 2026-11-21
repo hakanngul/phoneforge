@@ -412,6 +412,7 @@ func (a *api) agentRun(w http.ResponseWriter, r *http.Request, dev device.Device
 	var body struct {
 		Task     string `json:"task"`
 		MaxSteps int    `json:"maxSteps"`
+		Model    string `json:"model"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&body); err != nil {
 		writeErr(w, "BAD_REQUEST", http.StatusBadRequest, "invalid JSON body")
@@ -448,5 +449,5 @@ func (a *api) agentRun(w http.ResponseWriter, r *http.Request, dev device.Device
 			events.Errorf("agent error: %s", s.Text)
 		}
 	}
-	_, _ = agent.Run(r.Context(), dev, body.Task, body.MaxSteps, emit)
+	_, _ = agent.RunModel(r.Context(), dev, body.Task, body.MaxSteps, body.Model, emit)
 }

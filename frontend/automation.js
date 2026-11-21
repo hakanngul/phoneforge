@@ -810,6 +810,10 @@
     });
   }
 
+  function builtinModel() {
+    var m = (aiSettings && aiSettings.automation && aiSettings.automation.model) || '';
+    return CLAUDE_ALIASES.indexOf(m) >= 0 ? '' : m;
+  }
   function runAgent(task, sink) {
     if (!PF.needDevice()) { if (sink) sink.done(); return; }
     var d = PF.selectedDevice();
@@ -820,7 +824,7 @@
     agentAbort = new AbortController();
     fetch(PF.API + PF.dev('/agent/run'), {
       method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ task: task, maxSteps: 15 }), signal: agentAbort.signal
+      body: JSON.stringify({ task: task, maxSteps: 15, model: builtinModel() }), signal: agentAbort.signal
     }).then(function (res) {
       if (!res.ok) {
         return res.text().then(function (t) {
@@ -852,38 +856,114 @@
 
   /* ---------- agent selection (AI Configuration) + external agent runs ---------- */
   var aiSettings = null, extRun = null; // extRun: {id, es, cancelled}
-  var AGENT_LABELS = { builtin: 'Built-in agent', claude: 'Claude Code', codex: 'Codex', gemini: 'Gemini CLI', cursor: 'Cursor', kiro: 'Kiro', 'kiro-cli': 'Kiro CLI' };
+  var AGENT_LABELS = { builtin: 'Built-in agent', claude: 'Claude Code', codex: 'Codex', gemini: 'Gemini', cursor: 'Cursor', kiro: 'Kiro', 'kiro-cli': 'Kiro CLI' };
+  var AGENT_ORDER = ['builtin', 'claude', 'codex', 'kiro-cli', 'gemini', 'cursor'];
+  var CLAUDE_ALIASES = ['default', 'haiku', 'sonnet', 'opus', 'fable'];
+  var shownAgent = null;
+  var agentList = [], builtinInfo = { provider: '', defaultModel: '' }, ollamaInfo = { reachable: false, models: [] };
+  function loadAgentMeta() {
+    var none = function () { return null; };
+    return Promise.all([
+      PF.api('GET', '/ai/agents').catch(none),
+      PF.api('GET', '/ai/builtin').catch(none)
+    ]).then(function (r) {
+      if (r[0] && r[0].agents) agentList = r[0].agents;
+      if (r[1]) builtinInfo = r[1];
+      if (builtinInfo.provider !== 'ollama') { ollamaInfo = { reachable: false, models: [] }; return null; }
+      return PF.api('GET', '/ai/ollama/models').then(function (o) { ollamaInfo = o || ollamaInfo; }, none);
+    });
+  }
   function loadAISettings() {
-    return PF.api('GET', '/ai/settings').then(function (st) { aiSettings = st; renderAgentUI(); return st; },
-      function () { return aiSettings; });
+    return Promise.all([
+      PF.api('GET', '/ai/settings').then(function (st) { aiSettings = st; }, function () {}),
+      loadAgentMeta()
+    ]).then(function () { renderAgentUI(); return aiSettings; });
   }
   PF.refreshAgentSettings = loadAISettings;
   function selAgent() { return (aiSettings && aiSettings.automation && aiSettings.automation.agent) || 'builtin'; }
+  function agentShort(a) { return AGENT_LABELS[a] || a; }
+  function builtinLabel() {
+    if (builtinInfo.provider === 'ollama') return 'Built-in (Ollama)';
+    if (builtinInfo.provider === 'anthropic') return 'Built-in (Anthropic)';
+    return 'Built-in (not configured)';
+  }
+  function runnableAgents() {
+    var byName = {};
+    agentList.forEach(function (a) { if (!a.ide) byName[a.name] = a; });
+    if (!byName.builtin) byName.builtin = { name: 'builtin', builtin: true, installed: true };
+    var names = AGENT_ORDER.filter(function (n) { return byName[n]; });
+    Object.keys(byName).forEach(function (n) { if (names.indexOf(n) < 0) names.push(n); });
+    return names.map(function (n) { return byName[n]; });
+  }
+  function fillPick(a) {
+    var pick = $('agentPick');
+    pick.innerHTML = '';
+    runnableAgents().forEach(function (ag) {
+      var o = document.createElement('option'); o.value = ag.name;
+      var ok = ag.builtin || ag.installed;
+      o.textContent = (ag.builtin ? builtinLabel() : agentShort(ag.name)) + (ok ? '' : ' (not installed)');
+      o.disabled = !ok && ag.name !== a;
+      pick.appendChild(o);
+    });
+    if (!pick.querySelector('option[value="' + a + '"]')) {
+      var x = document.createElement('option'); x.value = a; x.textContent = agentShort(a); pick.appendChild(x);
+    }
+    pick.value = a;
+  }
+  function fillOllama(m) {
+    var sel = $('agentModelOllama');
+    sel.innerHTML = '';
+    var d = document.createElement('option'); d.value = ''; d.textContent = 'Default' + (builtinInfo.defaultModel ? ' (' + builtinInfo.defaultModel + ')' : '');
+    sel.appendChild(d);
+    var names = (ollamaInfo.models || []).slice();
+    if (m && names.indexOf(m) < 0) names.unshift(m);
+    names.forEach(function (n) { var o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o); });
+    sel.value = m;
+  }
   function renderAgentUI() {
-    var a = selAgent(), ext = a !== 'builtin';
-    var lbl = AGENT_LABELS[a] || a;
-    $('agentWho').textContent = lbl;
-    $('agentInput').placeholder = 'Describe what you want ' + lbl + ' to do…';
+    var a = selAgent(), isBuiltin = a === 'builtin', lbl = isBuiltin ? 'the built-in agent' : agentShort(a);
+    if (shownAgent !== null && shownAgent !== a) resetChat(); // sessions are agent-specific
+    shownAgent = a;
+    fillPick(a);
+    $('agentInput').placeholder = 'Describe what you want ' + lbl + ' to do\u2026';
     var m = (aiSettings && aiSettings.automation && aiSettings.automation.model) || '';
+    var ollama = isBuiltin && builtinInfo.provider === 'ollama';
     $('agentModel').hidden = !(a === 'claude');
-    $('agentModelText').hidden = !(ext && a !== 'claude');
+    $('agentModelOllama').hidden = !ollama;
+    $('agentModelText').hidden = !((!isBuiltin && a !== 'claude') || (isBuiltin && builtinInfo.provider === 'anthropic'));
     $('agentModel').value = m || 'haiku';
     if ($('agentModel').value !== (m || 'haiku')) $('agentModel').value = 'default';
-    $('agentModelText').value = a === 'claude' ? '' : m;
+    if (ollama) fillOllama(CLAUDE_ALIASES.indexOf(m) >= 0 ? '' : m);
+    $('agentModelText').value = a === 'claude' || (isBuiltin && CLAUDE_ALIASES.indexOf(m) >= 0) ? '' : m;
+    $('agentModelText').placeholder = isBuiltin ? 'model (blank = ' + (builtinInfo.defaultModel || 'default') + ')' : 'model (blank = default)';
   }
-  function saveModel(v) {
-    PF.api('GET', '/ai/settings').then(function (st) {
-      st.automation = st.automation || {}; st.automation.model = v;
+  function putAutomation(mut) {
+    return PF.api('GET', '/ai/settings').then(function (st) {
+      st.automation = st.automation || {}; mut(st.automation);
       return PF.api('PUT', '/ai/settings', st);
-    }).then(function (st) { aiSettings = st; renderAgentUI(); if (PF.refreshAIConfigModel) PF.refreshAIConfigModel(); },
+    }).then(function (st) { aiSettings = st; renderAgentUI(); if (PF.refreshAIConfigModel) PF.refreshAIConfigModel(); return st; },
       function (e) { PF.toast(e.message); renderAgentUI(); });
   }
+  function saveModel(v) { putAutomation(function (au) { au.model = v; }); }
   $('agentModel').addEventListener('change', function () { saveModel(this.value); });
   $('agentModelText').addEventListener('change', function () { saveModel(this.value.trim()); });
+  $('agentModelOllama').addEventListener('change', function () { saveModel(this.value); });
+  $('agentPick').addEventListener('change', function () {
+    var n = this.value;
+    if (n === selAgent()) return;
+    if (agentAbort || extRun) { PF.toast('Stop the running agent first'); renderAgentUI(); return; }
+    putAutomation(function (au) { au.agent = n; au.model = n === 'claude' ? 'haiku' : ''; }).then(function (st) {
+      if (st) PF.toast('Agent: ' + (n === 'builtin' ? builtinLabel() : agentShort(n)) + ' (new chat)', true);
+    });
+  });
 
   /* Chat sessions: one Claude Code session id per device, used with --resume for follow-ups. */
   var chatSessions = {};
   function chatKey() { return PF.selectedId || ''; }
+  function resetChat() {
+    chatSessions = {}; lastThought = '';
+    var t = $('transcript'); t.innerHTML = ''; t.hidden = true;
+  }
   $('agentNewChat').addEventListener('click', function () {
     delete chatSessions[chatKey()]; lastThought = '';
     var t = $('transcript'); t.innerHTML = ''; t.hidden = true;

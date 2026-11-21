@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"phoneforge/internal/agent/llm"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -20,6 +22,22 @@ func writeErr(w http.ResponseWriter, code int, err error) {
 	writeJSON(w, code, map[string]string{"error": err.Error()})
 }
 
+func builtinDefaultModel(provider string) string {
+	switch provider {
+	case llm.ProviderAnthropic:
+		if v := strings.TrimSpace(os.Getenv("ANTHROPIC_MODEL")); v != "" {
+			return v
+		}
+		return llm.DefaultAnthropicModel
+	case llm.ProviderOllama:
+		if v := strings.TrimSpace(os.Getenv("OLLAMA_MODEL")); v != "" {
+			return v
+		}
+		return llm.DefaultOllamaModel
+	}
+	return ""
+}
+
 // Routes returns the handler to mount at /api/v1/ai.
 func (m *Manager) Routes() http.Handler {
 	r := chi.NewRouter()
@@ -30,6 +48,24 @@ func (m *Manager) Routes() http.Handler {
 			"mcpUrl":  m.mcpURL,
 			"mcpName": MCPName,
 		})
+	})
+
+	// Which LLM the built-in agent would use right now.
+	r.Get("/builtin", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"provider":     m.builtinProvider(),
+			"defaultModel": builtinDefaultModel(m.builtinProvider()),
+		})
+	})
+
+	// Models installed on the local Ollama server (empty list when unreachable).
+	r.Get("/ollama/models", func(w http.ResponseWriter, req *http.Request) {
+		host := m.ollamaHost()
+		models, err := m.ollamaModels(req.Context(), host)
+		if models == nil {
+			models = []string{}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"host": host, "reachable": err == nil, "models": models})
 	})
 
 	r.Get("/settings", func(w http.ResponseWriter, _ *http.Request) {

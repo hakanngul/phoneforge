@@ -66,8 +66,9 @@ main{flex:1;min-height:0;display:flex}
 .transcript .tag{display:inline-block;min-width:78px;font-weight:600;text-transform:uppercase;font-size:10px}
 .st.thought .tag{color:var(--acc2)} .st.action .tag{color:var(--warn)} .st.observation .tag{color:var(--mut)} .st.done .tag{color:var(--ok)} .st.error .tag{color:var(--bad)}
 .st code{background:var(--panel2);padding:0 4px;border-radius:3px;word-break:break-all}
-.agent-form{display:flex;gap:8px}
+.agent-form{display:flex;gap:8px;flex-wrap:wrap}
 .agent-form input{flex:1}
+.agent-form #agentInput{min-width:220px}
 .live{font-size:11px;color:var(--ok)} .live.off{color:var(--mut)}
 .log{flex:1;overflow:auto;padding:0 10px 10px;font:11px/1.5 ui-monospace,Menlo,monospace}
 .log .t{color:var(--mut)} .log .l{font-weight:700;margin:0 6px;text-transform:uppercase}
@@ -272,6 +273,8 @@ input[type=password]:focus{border-color:var(--acc)}
 .agent-notice label{display:inline-flex;gap:6px;align-items:center;cursor:pointer;color:var(--fg)}
 .agent-form select.agent-model,.agent-form input.agent-model{flex:0 0 auto;width:auto;max-width:130px;align-self:center;font-size:12px}
 .agent-form input.agent-model{width:130px}
+.agent-form select.agent-pick{flex:0 0 auto;width:auto;max-width:190px;align-self:center;font-size:12px}
+.agent-form select.agent-model#agentModelOllama{max-width:170px}
 .agent-form [hidden]{display:none}
 
 .agent-details{display:inline-flex;gap:4px;align-items:center;align-self:center;font-size:12px;color:var(--mut);cursor:pointer;white-space:nowrap}

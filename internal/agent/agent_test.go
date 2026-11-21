@@ -199,3 +199,18 @@ func TestRunWithMaxStepsAndCancel(t *testing.T) {
 		t.Fatalf("cancel: res=%+v err=%v", res, err)
 	}
 }
+
+func TestRunModelUsesOverride(t *testing.T) {
+	old, oldM := selectClient, selectClientModel
+	defer func() { selectClient, selectClientModel = old, oldM }()
+	var gotModel string
+	selectClient = func() (llm.Client, string, bool) { return nil, "", false }
+	selectClientModel = func(m string) (llm.Client, string, bool) { gotModel = m; return nil, "", false }
+	res, err := RunModel(context.Background(), &fakeDevice{}, "x", 0, "qwen3:4b", nil)
+	if err != nil || res.Error != ErrNoProvider {
+		t.Fatalf("%+v %v", res, err)
+	}
+	if gotModel != "qwen3:4b" {
+		t.Fatalf("model override not applied: %q", gotModel)
+	}
+}

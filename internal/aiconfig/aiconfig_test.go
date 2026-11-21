@@ -726,3 +726,52 @@ func TestBuildCommandCodex(t *testing.T) {
 		t.Fatalf("bad full-access cmd: %q", cmd)
 	}
 }
+
+func TestBuiltinAndOllamaEndpoints(t *testing.T) {
+	m := newTestMgr(t, &fakeExec{})
+	m.builtinProvider = func() string { return "ollama" }
+	m.ollamaHost = func() string { return "http://127.0.0.1:1" }
+	m.ollamaModels = func(_ context.Context, host string) ([]string, error) {
+		return []string{"llama3.1:8b", "qwen3:4b"}, nil
+	}
+	srv := httptest.NewServer(m.Routes())
+	defer srv.Close()
+
+	var b struct {
+		Provider     string `json:"provider"`
+		DefaultModel string `json:"defaultModel"`
+	}
+	res, err := http.Get(srv.URL + "/builtin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	json.NewDecoder(res.Body).Decode(&b)
+	res.Body.Close()
+	if b.Provider != "ollama" || b.DefaultModel == "" {
+		t.Fatalf("builtin: %+v", b)
+	}
+
+	var o struct {
+		Reachable bool     `json:"reachable"`
+		Models    []string `json:"models"`
+	}
+	res, _ = http.Get(srv.URL + "/ollama/models")
+	json.NewDecoder(res.Body).Decode(&o)
+	res.Body.Close()
+	if !o.Reachable || len(o.Models) != 2 || o.Models[1] != "qwen3:4b" {
+		t.Fatalf("ollama models: %+v", o)
+	}
+
+	// Unreachable Ollama: reachable=false and an empty (non-null) list.
+	m.ollamaModels = func(context.Context, string) ([]string, error) { return nil, errors.New("down") }
+	res, _ = http.Get(srv.URL + "/ollama/models")
+	raw := map[string]any{}
+	json.NewDecoder(res.Body).Decode(&raw)
+	res.Body.Close()
+	if raw["reachable"] != false {
+		t.Fatalf("expected unreachable: %v", raw)
+	}
+	if l, ok := raw["models"].([]any); !ok || len(l) != 0 {
+		t.Fatalf("models should be []: %v", raw["models"])
+	}
+}

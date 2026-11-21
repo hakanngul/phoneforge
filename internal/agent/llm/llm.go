@@ -5,6 +5,9 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -124,6 +127,62 @@ func Select(getenv func(string) string, probe func(host string) bool) (Client, s
 // of the default local Ollama address.
 func FromEnv() (Client, string, bool) {
 	return Select(os.Getenv, ProbeOllama)
+}
+
+// FromEnvModel is FromEnv with an optional model override applied to whichever
+// provider is selected (ANTHROPIC_MODEL / OLLAMA_MODEL). An empty model keeps
+// the environment/default model.
+func FromEnvModel(model string) (Client, string, bool) {
+	model = strings.TrimSpace(model)
+	getenv := os.Getenv
+	if model != "" {
+		getenv = func(k string) string {
+			if k == "ANTHROPIC_MODEL" || k == "OLLAMA_MODEL" {
+				return model
+			}
+			return os.Getenv(k)
+		}
+	}
+	return Select(getenv, ProbeOllama)
+}
+
+// OllamaHost returns the Ollama address in use: OLLAMA_HOST or the default.
+func OllamaHost(getenv func(string) string) string {
+	if h := strings.TrimSpace(getenv("OLLAMA_HOST")); h != "" {
+		return normalizeHost(h)
+	}
+	return DefaultOllamaHost
+}
+
+// ListOllamaModels returns the model names installed on the Ollama server at host.
+func ListOllamaModels(ctx context.Context, host string) ([]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, normalizeHost(host)+"/api/tags", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := (&http.Client{Timeout: 2 * time.Second}).Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ollama: %s", resp.Status)
+	}
+	var out struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&out); err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(out.Models))
+	for _, m := range out.Models {
+		if m.Name != "" {
+			names = append(names, m.Name)
+		}
+	}
+	return names, nil
 }
 
 // ProbeOllama reports whether an Ollama server answers at host within a
