@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -168,7 +169,8 @@ func TestInstallApp(t *testing.T) {
 	// JSON path variant
 	tmp := t.TempDir() + "/x.apk"
 	_ = os.WriteFile(tmp, []byte("LOCAL"), 0o600)
-	rec = do(h, "POST", "/api/v1/devices/full/install-app", "application/json", `{"path":"`+tmp+`"}`)
+	body, _ := json.Marshal(map[string]string{"path": tmp})
+	rec = do(h, "POST", "/api/v1/devices/full/install-app", "application/json", string(body))
 	if rec.Code != 200 || string(f.installed) != "LOCAL" {
 		t.Fatalf("json install: %d %s", rec.Code, rec.Body)
 	}

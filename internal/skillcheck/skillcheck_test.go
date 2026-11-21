@@ -160,7 +160,9 @@ func TestAuthoringExamples(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, m := range fenceRe.FindAllStringSubmatch(string(b), -1) {
+		// Windows checkouts (git autocrlf) hand us CRLF files.
+		text := strings.ReplaceAll(string(b), "\r\n", "\n")
+		for _, m := range fenceRe.FindAllStringSubmatch(text, -1) {
 			lang, code := m[1], m[2]
 			switch {
 			case lang == "json" && strings.Contains(code, `"steps"`):

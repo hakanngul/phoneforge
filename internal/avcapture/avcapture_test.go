@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -135,6 +136,7 @@ func streamFrames(interval time.Duration) func(io.WriteCloser) *Error {
 }
 
 func TestFanOutSharedProcessAndIdleStop(t *testing.T) {
+	requireDarwin(t)
 	f := &fakeHelper{scripts: []func(io.WriteCloser) *Error{streamFrames(5 * time.Millisecond)}}
 	m := newTestManager(f)
 	ctx := context.Background()
@@ -190,6 +192,7 @@ func TestFanOutSharedProcessAndIdleStop(t *testing.T) {
 }
 
 func TestSlowViewerGetsLatestFrame(t *testing.T) {
+	requireDarwin(t)
 	f := &fakeHelper{scripts: []func(io.WriteCloser) *Error{streamFrames(time.Millisecond)}}
 	m := newTestManager(f)
 	s, err := m.Subscribe(context.Background(), "U", Options{}, "iPhone 15")
@@ -206,6 +209,7 @@ func TestSlowViewerGetsLatestFrame(t *testing.T) {
 }
 
 func TestRestartOnCrash(t *testing.T) {
+	requireDarwin(t)
 	crash := func(w io.WriteCloser) *Error {
 		_ = WriteFrame(w, []byte{0xFF, 0xD8, 1, 0xFF, 0xD9})
 		return &Error{"HELPER_FAILED", "boom"}
@@ -236,6 +240,7 @@ func TestRestartOnCrash(t *testing.T) {
 }
 
 func TestFatalErrorFallsBackAndIsRemembered(t *testing.T) {
+	requireDarwin(t)
 	deny := func(w io.WriteCloser) *Error { return &Error{"TCC_DENIED", "camera denied"} }
 	f := &fakeHelper{scripts: []func(io.WriteCloser) *Error{deny}}
 	m := newTestManager(f)
@@ -253,6 +258,7 @@ func TestFatalErrorFallsBackAndIsRemembered(t *testing.T) {
 }
 
 func TestAvailableChecks(t *testing.T) {
+	requireDarwin(t)
 	f := &fakeHelper{scripts: []func(io.WriteCloser) *Error{streamFrames(time.Millisecond)}}
 	m := newTestManager(f)
 	if !m.Available("U", "iPhone 15") {
@@ -265,5 +271,14 @@ func TestAvailableChecks(t *testing.T) {
 	m.cacheOK = false
 	if err := m.Check(context.Background(), "U", "iPhone 15"); err == nil {
 		t.Fatal("denied TCC must fail")
+	}
+}
+
+// requireDarwin skips tests that exercise the manager's capture path, which
+// is macOS-only (CoreMediaIO helper).
+func requireDarwin(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS != "darwin" {
+		t.Skip("avcapture is macOS-only")
 	}
 }
