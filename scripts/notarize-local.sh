@@ -72,9 +72,8 @@ fi
 
 # --- sign ------------------------------------------------------------------
 echo "==> signing $APP"
-codesign --force --deep --options runtime --timestamp \
-  --entitlements desktop/entitlements.plist -s "$PF_CODESIGN_IDENTITY" "$APP"
-codesign --verify --deep --strict "$APP"
+export PF_CODESIGN_IDENTITY
+scripts/sign-macos.sh app "$APP"
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
@@ -91,9 +90,9 @@ xcrun stapler validate "$APP"
 
 # --- optional dmg ---------------------------------------------------------
 if [ "$DMG" = 1 ]; then
-  [ -f dist/PhoneForge.dmg ] || { echo "error: dist/PhoneForge.dmg not found (scripts/build-desktop.sh --dmg)" >&2; exit 1; }
-  echo "==> signing and notarizing dist/PhoneForge.dmg"
-  codesign --force --timestamp -s "$PF_CODESIGN_IDENTITY" dist/PhoneForge.dmg
+  echo "==> rebuilding dist/PhoneForge.dmg from the signed app, signing and notarizing it"
+  # Always rebuild: an existing dmg may embed an older (ad-hoc signed) copy of the app.
+  scripts/sign-macos.sh mkdmg "$APP" dist/PhoneForge.dmg
   notarize dist/PhoneForge.dmg
   xcrun stapler staple dist/PhoneForge.dmg
   xcrun stapler validate dist/PhoneForge.dmg

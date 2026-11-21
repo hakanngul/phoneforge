@@ -55,26 +55,11 @@ cp "$WORK/PhoneForge.icns" "$APP/Contents/Resources/PhoneForge.icns"
 sed "s/__VERSION__/$VERSION/g" desktop/Info.plist > "$APP/Contents/Info.plist"
 plutil -lint "$APP/Contents/Info.plist" >/dev/null
 
-# --- sign: ad-hoc by default, Developer ID when PF_CODESIGN_IDENTITY is set (camera entitlement so the native capture path can prompt) -
-SIGN_ARGS=(--force --deep -s "$IDENTITY" --entitlements desktop/entitlements.plist)
-if [ "$IDENTITY" != "-" ]; then
-  SIGN_ARGS+=(--options runtime --timestamp)
-  [ -n "${PF_KEYCHAIN:-}" ] && SIGN_ARGS+=(--keychain "$PF_KEYCHAIN")
-fi
-codesign "${SIGN_ARGS[@]}" "$APP"
-codesign --verify --deep --strict "$APP"
+# --- sign: ad-hoc by default, Developer ID (hardened runtime + timestamp) when PF_CODESIGN_IDENTITY is set ---
+PF_CODESIGN_IDENTITY=$IDENTITY scripts/sign-macos.sh app "$APP"
 echo "built $APP (version $VERSION, identity $IDENTITY)"
 
 if [ $DMG = 1 ]; then
-  rm -f dist/PhoneForge.dmg
-  STAGE="$WORK/dmg"; mkdir -p "$STAGE"
-  cp -R "$APP" "$STAGE/"
-  ln -s /Applications "$STAGE/Applications"
-  hdiutil create -volname PhoneForge -srcfolder "$STAGE" -ov -format UDZO dist/PhoneForge.dmg >/dev/null
-  if [ "$IDENTITY" != "-" ]; then
-    DMG_SIGN=(--force -s "$IDENTITY" --timestamp)
-    [ -n "${PF_KEYCHAIN:-}" ] && DMG_SIGN+=(--keychain "$PF_KEYCHAIN")
-    codesign "${DMG_SIGN[@]}" dist/PhoneForge.dmg
-  fi
+  PF_CODESIGN_IDENTITY=$IDENTITY scripts/sign-macos.sh mkdmg "$APP" dist/PhoneForge.dmg
   echo "built dist/PhoneForge.dmg"
 fi
