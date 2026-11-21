@@ -709,3 +709,20 @@ func TestRunKiroCLI(t *testing.T) {
 		t.Fatalf("no resume: %v", fe.calls[1])
 	}
 }
+
+func TestBuildCommandCodex(t *testing.T) {
+	cmd := strings.Join(buildCommand(AgentCodex, "codex", "sys", "do it", "m1", "", "", Settings{}), "\x00")
+	for _, w := range []string{"codex\x00exec", "--model\x00m1", "--skip-git-repo-check",
+		`mcp_servers.phoneforge.default_tools_approval_mode="approve"`, "--sandbox\x00workspace-write", "sys\n\nTask: do it"} {
+		if !strings.Contains(cmd, w) {
+			t.Fatalf("missing %q in %q", w, cmd)
+		}
+	}
+	if strings.Contains(cmd, "--full-auto") || strings.Contains(cmd, "bypass") {
+		t.Fatalf("unexpected flag: %q", cmd)
+	}
+	cmd = strings.Join(buildCommand(AgentCodex, "codex", "sys", "p", "", "", "", Settings{FullAccess: true}), "\x00")
+	if !strings.Contains(cmd, "--dangerously-bypass-approvals-and-sandbox") || strings.Contains(cmd, "--sandbox") {
+		t.Fatalf("bad full-access cmd: %q", cmd)
+	}
+}

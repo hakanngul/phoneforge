@@ -56,9 +56,20 @@ func (d *simDevice) Info() device.Info { return d.info }
 func (d *simDevice) Screenshot(ctx context.Context) (device.Screenshot, error) {
 	cctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	data, err := d.run(cctx, "io", d.udid, "screenshot", "--type=png", "-")
+	// Newer simctl (Xcode 27) no longer accepts "-" for stdout and writes a file literally
+	// named "-" into the cwd; always write to a temp file and fall back to stdout bytes.
+	dir, err := os.MkdirTemp("", "pf-simshot-")
 	if err != nil {
 		return device.Screenshot{}, err
+	}
+	defer os.RemoveAll(dir)
+	path := filepath.Join(dir, "shot.png")
+	data, err := d.run(cctx, "io", d.udid, "screenshot", "--type=png", path)
+	if err != nil {
+		return device.Screenshot{}, err
+	}
+	if b, rerr := os.ReadFile(path); rerr == nil && len(b) > 0 {
+		data = b
 	}
 	cfg, err := png.DecodeConfig(bytes.NewReader(data))
 	if err != nil {

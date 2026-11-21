@@ -127,7 +127,16 @@ func buildCommand(agent, bin, system, prompt, model, mcpConfig, sessionID string
 		if model != "" {
 			a = append(a, "--model", model)
 		}
-		a = append(a, "--full-auto")
+		// --full-auto was removed in codex 0.16x. In non-interactive exec an MCP tool call
+		// needs approval (policy is "never"), so approve the phoneforge server's tools
+		// explicitly; the shell sandbox stays workspace-write unless full access is on.
+		a = append(a, "--skip-git-repo-check",
+			"-c", "mcp_servers."+MCPName+`.default_tools_approval_mode="approve"`)
+		if s.FullAccess {
+			a = append(a, "--dangerously-bypass-approvals-and-sandbox")
+		} else {
+			a = append(a, "--sandbox", "workspace-write")
+		}
 		return append(a, system+"\n\nTask: "+prompt)
 	case AgentGemini:
 		// No confident equivalent of --strict-mcp-config; left unrestricted.

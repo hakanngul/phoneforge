@@ -1010,7 +1010,26 @@
   PF.loadDevices = loadDevices;
   PF.selectDevice = select;
   PF.mirrorSoon = refreshSoon;
+  // Deep link: ?device=<id | serial | name | unique prefix/substring> selects that device on load,
+  // and the URL follows the selection (history.replaceState) so it can be bookmarked or shared.
+  function selectFromUrl() {
+    var q; try { q = new URLSearchParams(location.search).get('device'); } catch (e) { return; }
+    if (!q) return;
+    q = q.toLowerCase();
+    var devs = PF.devices || [], hit = devs.filter(function (d) { return String(d.id).toLowerCase() === q || String(d.serial || '').toLowerCase() === q; });
+    if (!hit.length) hit = devs.filter(function (d) { return String(d.id).toLowerCase().indexOf(q) === 0 || String(d.name || '').toLowerCase() === q; });
+    if (!hit.length) hit = devs.filter(function (d) { return (d.id + ' ' + (d.name || '') + ' ' + (d.model || '')).toLowerCase().indexOf(q) >= 0; });
+    if (hit.length === 1) select(hit[0].id);
+    else if (hit.length > 1 && PF.toast) PF.toast('device "' + q + '" is ambiguous (' + hit.length + ' matches)', false);
+  }
+  PF.hooks.onSelect.push(function () {
+    try {
+      var u = new URL(location.href);
+      if (PF.selectedId) u.searchParams.set('device', PF.selectedId); else u.searchParams.delete('device');
+      history.replaceState(null, '', u);
+    } catch (e) { /* ignore */ }
+  });
   PF.startAutomation = function () {
-    loadDevices(); setInterval(loadDevices, 3000); connectEvents(); loadAISettings();
+    loadDevices().then(selectFromUrl); setInterval(loadDevices, 3000); connectEvents(); loadAISettings();
   };
 })();

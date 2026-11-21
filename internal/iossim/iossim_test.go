@@ -1,7 +1,11 @@
 package iossim
 
 import (
+	"bytes"
 	"context"
+	"image"
+	"image/png"
+	"os"
 	"testing"
 
 	"phoneforge/internal/device"
@@ -94,3 +98,20 @@ func TestPrepareOptsUniquePorts(t *testing.T) {
 }
 
 func iosbridgeOpts() iosbridge.Options { return iosbridge.Options{} }
+
+func TestScreenshotUsesTempFileNotStdout(t *testing.T) {
+	var buf bytes.Buffer
+	_ = png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 7, 5)))
+	run := func(_ context.Context, args ...string) ([]byte, error) {
+		last := args[len(args)-1]
+		if last == "-" {
+			t.Fatal("must not pass - (new simctl writes a file named -)")
+		}
+		return nil, os.WriteFile(last, buf.Bytes(), 0o644)
+	}
+	d := newDevice(Sim{UDID: "A", Name: "x"}, run)
+	shot, err := d.Screenshot(context.Background())
+	if err != nil || shot.Width != 7 || shot.Height != 5 {
+		t.Fatalf("shot=%dx%d err=%v", shot.Width, shot.Height, err)
+	}
+}
