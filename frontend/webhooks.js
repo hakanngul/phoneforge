@@ -61,8 +61,9 @@
           acts.appendChild(test);
           acts.appendChild(PF.btn('Edit', 'sm', function () { form(h); }));
           var del = PF.btn('Delete', 'sm danger', function () {
-            if (!window.confirm('Delete webhook "' + (h.name || h.url) + '"?')) return;
-            PF.busy(del, PF.api('DELETE', '/webhooks/' + encodeURIComponent(h.id)).then(function () { PF.toast('Deleted', true); load(); }));
+            PF.confirm('Delete webhook "' + (h.name || h.url) + '"?', function () {
+              PF.busy(del, PF.api('DELETE', '/webhooks/' + encodeURIComponent(h.id)).then(function () { PF.toast('Deleted', true); load(); }));
+            }, { title: 'Delete webhook', okLabel: 'Delete', danger: true });
           });
           acts.appendChild(del);
           return [h.name || '', h.url || '', (h.events && h.events.length) ? h.events.join(', ') : 'all',

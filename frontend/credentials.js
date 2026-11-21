@@ -36,8 +36,9 @@
         secretsBox.innerHTML = '';
         secretsBox.appendChild(PF.table(['Name', 'Value', ''], names.map(function (n) {
           var del = PF.btn('Delete', 'sm danger', function () {
-            if (!window.confirm('Delete secret ' + n + '?')) return;
-            PF.busy(del, PF.api('DELETE', '/credentials/secrets/' + encodeURIComponent(n)).then(function () { PF.toast('Deleted', true); loadSecrets(); }));
+            PF.confirm('Delete secret ' + n + '?', function () {
+              PF.busy(del, PF.api('DELETE', '/credentials/secrets/' + encodeURIComponent(n)).then(function () { PF.toast('Deleted', true); loadSecrets(); }));
+            }, { title: 'Delete secret', okLabel: 'Delete', danger: true });
           });
           return [n, '•••••• (hidden)', del];
         }), 'No secrets stored.'));
@@ -60,8 +61,9 @@
             fields.appendChild(chip); fields.appendChild(document.createTextNode(' '));
           });
           var del = PF.btn('Delete', 'sm danger', function () {
-            if (!window.confirm('Delete app card for ' + c.bundleId + '?')) return;
-            PF.busy(del, PF.api('DELETE', '/credentials/app-cards/' + encodeURIComponent(c.id)).then(function () { PF.toast('Deleted', true); loadCards(); }));
+            PF.confirm('Delete app card for ' + c.bundleId + '?', function () {
+              PF.busy(del, PF.api('DELETE', '/credentials/app-cards/' + encodeURIComponent(c.id)).then(function () { PF.toast('Deleted', true); loadCards(); }));
+            }, { title: 'Delete app card', okLabel: 'Delete', danger: true });
           });
           return [c.bundleId, c.label || '', fields, del];
         }), 'No app cards yet.'));

@@ -69,8 +69,9 @@
             acts.appendChild(dis);
           } else {
             var con = PF.btn('Connect', 'sm primary', function () {
-              if (!window.confirm('Register the PhoneForge MCP server in ' + a.label + '?' + (a.configPath ? '\nYour config (' + a.configPath + ') is backed up first.' : ''))) return;
-              PF.busy(con, PF.api('POST', '/ai/agents/' + encodeURIComponent(a.name) + '/connect').then(function () { PF.toast('Connected ' + a.label, true); return loadAgents(true); }));
+              PF.confirm('Register the PhoneForge MCP server in ' + a.label + '?' + (a.configPath ? '\nYour config (' + a.configPath + ') is backed up first.' : ''), function () {
+                PF.busy(con, PF.api('POST', '/ai/agents/' + encodeURIComponent(a.name) + '/connect').then(function () { PF.toast('Connected ' + a.label, true); return loadAgents(true); }));
+              }, { title: 'Connect agent', okLabel: 'Connect', danger: false });
             });
             acts.appendChild(con);
           }

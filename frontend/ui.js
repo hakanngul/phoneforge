@@ -28,6 +28,32 @@
   $('modal').addEventListener('mousedown', function (e) { if (e.target === this) close(); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('modal').hidden) close(); });
 
+  /* ---------- in-page confirm (window.confirm is a silent no-op in embedded webviews) ---------- */
+  // PF.confirm(message, onYes, {title, okLabel, danger}); message is plain text (line breaks preserved).
+  PF.confirm = function (message, onYes, opts) {
+    opts = opts || {};
+    var bg = document.createElement('div');
+    bg.className = 'modal-bg';
+    bg.style.zIndex = 60;
+    var box = PF.el('div', 'modal'); box.setAttribute('role', 'alertdialog'); box.setAttribute('aria-modal', 'true');
+    box.style.width = 'min(420px,92vw)';
+    var head = PF.el('div', 'modal-head'), h = PF.el('h3', '', opts.title || 'Are you sure?');
+    head.appendChild(h); box.appendChild(head);
+    var body = PF.el('div', 'modal-body'), p = PF.el('p', '', message);
+    p.style.margin = '0 0 14px'; p.style.whiteSpace = 'pre-wrap';
+    body.appendChild(p);
+    var row = PF.el('div', 'btn-row'); row.style.justifyContent = 'flex-end';
+    function close() { document.removeEventListener('keydown', onKey, true); if (bg.parentNode) bg.parentNode.removeChild(bg); }
+    function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } }
+    var cancel = PF.btn('Cancel', '', close);
+    var ok = PF.btn(opts.okLabel || 'OK', opts.danger ? 'danger' : 'primary', function () { close(); onYes(); });
+    row.appendChild(cancel); row.appendChild(ok); body.appendChild(row); box.appendChild(body); bg.appendChild(box);
+    bg.addEventListener('click', function (e) { if (e.target === bg) close(); });
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(bg);
+    cancel.focus();
+  };
+
   /* ---------- clipboard ---------- */
   PF.copyFallback = function (s) {
     var t = document.createElement('textarea'); t.value = s; document.body.appendChild(t);

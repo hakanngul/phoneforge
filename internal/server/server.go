@@ -267,10 +267,10 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 	mux.Handle("/api/", router)
 	switch {
 	case opts.WebDir != "" && dirExists(opts.WebDir):
-		mux.Handle("/", http.FileServer(http.Dir(opts.WebDir)))
+		mux.Handle("/", noCache(http.FileServer(http.Dir(opts.WebDir))))
 		log.Printf("serving web UI from %s", opts.WebDir)
 	case opts.WebFS != nil:
-		mux.Handle("/", http.FileServer(http.FS(opts.WebFS)))
+		mux.Handle("/", noCache(http.FileServer(http.FS(opts.WebFS))))
 		log.Printf("serving embedded web UI")
 	default:
 		mux.Handle("/", router)
@@ -422,4 +422,13 @@ func PhoneforgeHome() string {
 		return filepath.Join(h, ".phoneforge")
 	}
 	return ".phoneforge"
+}
+
+// noCache makes browsers revalidate static frontend assets on every load
+// (Last-Modified/ETag 304s keep that cheap) so updated JS/CSS is never stale.
+func noCache(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		h.ServeHTTP(w, r)
+	})
 }

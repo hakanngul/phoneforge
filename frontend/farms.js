@@ -54,8 +54,9 @@
         }));
       });
       var dis = PF.btn('Disable', 'sm danger', function () {
-        if (!window.confirm('Remove stored credentials and disable ' + p.title + '?')) return;
-        PF.busy(dis, PF.api('DELETE', '/farms/' + p.id).then(function () { out.innerHTML = ''; PF.toast(p.title + ' disabled', true); load(); }));
+        PF.confirm('Remove stored credentials and disable ' + p.title + '?', function () {
+          PF.busy(dis, PF.api('DELETE', '/farms/' + p.id).then(function () { out.innerHTML = ''; PF.toast(p.title + ' disabled', true); load(); }));
+        }, { title: 'Disable farm', okLabel: 'Disable', danger: true });
       });
       dis.disabled = !s.hasCredentials && !s.enabled;
       row.appendChild(save); row.appendChild(list); row.appendChild(dis);

@@ -33,10 +33,11 @@
       head.appendChild(PF.btn('Copy', 'sm', function () { if (text) PF.copyText(text, 'crash report'); }));
       if (dev && dev.platform === 'ios') {
         head.appendChild(PF.btn('Delete', 'sm', function () {
-          if (!window.confirm('Delete ' + r.name + ' from the device?')) return;
-          PF.api('DELETE', PF.dev('/crashes/' + encodeURIComponent(r.name))).then(function () {
-            PF.toast('Deleted ' + r.name, true); view.innerHTML = ''; load();
-          }).catch(function (e) { PF.toast(e.message); });
+          PF.confirm('Delete ' + r.name + ' from the device?', function () {
+            PF.api('DELETE', PF.dev('/crashes/' + encodeURIComponent(r.name))).then(function () {
+              PF.toast('Deleted ' + r.name, true); view.innerHTML = ''; load();
+            }).catch(function (e) { PF.toast(e.message); });
+          }, { title: 'Delete crash report', okLabel: 'Delete', danger: true });
         }));
       }
       view.appendChild(head); view.appendChild(pre);

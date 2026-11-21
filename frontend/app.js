@@ -36,27 +36,8 @@
 
   /* quit */
   var quit = $('quitBtn');
-  /* in-page confirm (window.confirm is a no-op in embedded webviews) */
-  function confirmQuit(onYes) {
-    var bg = document.createElement('div');
-    bg.className = 'modal-bg';
-    bg.style.zIndex = 60;
-    bg.innerHTML = '<div class="modal" role="alertdialog" aria-modal="true" aria-labelledby="qcTitle" style="width:min(420px,92vw)">' +
-      '<div class="modal-head"><h3 id="qcTitle">Quit PhoneForge?</h3></div>' +
-      '<div class="modal-body"><p style="margin:0 0 14px">This stops the server and closes the app; devices will no longer be controllable.</p>' +
-      '<div class="btn-row" style="justify-content:flex-end"><button class="btn" data-qc="cancel">Cancel</button>' +
-      '<button class="btn danger" data-qc="ok">Quit</button></div></div></div>';
-    function close() { document.removeEventListener('keydown', onKey, true); if (bg.parentNode) bg.parentNode.removeChild(bg); }
-    function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } }
-    bg.addEventListener('click', function (e) { if (e.target === bg) close(); });
-    bg.querySelector('[data-qc="cancel"]').addEventListener('click', close);
-    bg.querySelector('[data-qc="ok"]').addEventListener('click', function () { close(); onYes(); });
-    document.addEventListener('keydown', onKey, true);
-    document.body.appendChild(bg);
-    bg.querySelector('[data-qc="cancel"]').focus();
-  }
   if (quit) quit.addEventListener('click', function () {
-    confirmQuit(doQuit);
+    PF.confirm('This stops the server and closes the app; devices will no longer be controllable.', doQuit, { title: 'Quit PhoneForge?', okLabel: 'Quit', danger: true });
   });
   function doQuit() {
     quit.disabled = true;

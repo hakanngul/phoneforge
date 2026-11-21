@@ -32,10 +32,11 @@
         }).then(function () { res.textContent = results[n.id].text; res.className = 'node-res ' + (results[n.id].ok ? 'ok' : 'bad'); }));
       });
       var rm = PF.btn('Remove', 'sm', function () {
-        if (!window.confirm('Remove node "' + (n.name || n.id) + '"?')) return;
-        PF.busy(rm, PF.api('DELETE', '/nodes/' + encodeURIComponent(n.id)).then(function () {
-          delete results[n.id]; PF.toast('Node removed', true); load(); PF.loadDevices();
-        }));
+        PF.confirm('Remove node "' + (n.name || n.id) + '"?', function () {
+          PF.busy(rm, PF.api('DELETE', '/nodes/' + encodeURIComponent(n.id)).then(function () {
+            delete results[n.id]; PF.toast('Node removed', true); load(); PF.loadDevices();
+          }));
+        }, { title: 'Remove node', okLabel: 'Remove', danger: true });
       });
       acts.appendChild(test); acts.appendChild(rm); acts.appendChild(res);
       row.appendChild(acts);
