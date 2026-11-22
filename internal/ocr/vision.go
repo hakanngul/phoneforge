@@ -7,21 +7,35 @@ import (
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
 
+	"pocketlab/internal/brand"
 	"pocketlab/internal/device"
 )
 
 //go:embed helper/plocr.swift
 var swiftSource []byte
 
-var compileMu sync.Mutex
+// warmImage is a small PNG containing real text. Vision only specializes its
+// text-recognition models when it actually has text to read, so a blank image
+// is useless as a warm-up (it returns instantly and leaves the first real scan
+// to pay for the compile).
+//
+//go:embed helper/warm.png
+var warmImage []byte
+
+var (
+	compileMu sync.Mutex
+	coldMu    sync.Mutex // serializes cold (model-compiling) helper runs
+)
 
 const (
 	compileTimeout = 180 * time.Second
@@ -34,7 +48,74 @@ func sourceHash() string {
 	return hex.EncodeToString(h[:])
 }
 
+// bundledHelper returns the helper shipped inside the app bundle
+// (Pocketlab.app/Contents/Resources/bin/plocr), built and signed at release
+// time so the user's Mac needs no swiftc / Xcode CLT. "" when absent.
+func bundledHelper() string {
+	if brand.Getenv("POCKETLAB_OCR_BIN") != "" {
+		return ""
+	}
+	mu.Lock()
+	override := binPath != ""
+	mu.Unlock()
+	if override {
+		return ""
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if r, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = r
+	}
+	p := filepath.Join(filepath.Dir(exe), "..", "Resources", "bin", "plocr")
+	if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() {
+		return filepath.Clean(p)
+	}
+	return ""
+}
+
+// warmMarkerPath is where the "models are compiled" marker lives. A bundled
+// helper sits in a signed, possibly read-only bundle, so its marker goes to the
+// cache dir instead.
+func warmMarkerPath(bin string) string {
+	if b := bundledHelper(); b != "" && b == bin {
+		return filepath.Join(brand.Home(), "bin", "plocr.warm")
+	}
+	return bin + ".warm"
+}
+
+var osBuild = sync.OnceValue(func() string {
+	if runtime.GOOS != "darwin" {
+		return ""
+	}
+	out, err := exec.Command("sysctl", "-n", "kern.osversion").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+})
+
+// warmID identifies the (helper source, OS build) pair the models were
+// compiled for; a marker from another pair (OS update, new helper) is stale and
+// the next run is treated as cold again.
+func warmID() string { return sourceHash() + "|" + osBuild() }
+
+func isWarm(bin string) bool {
+	b, err := os.ReadFile(warmMarkerPath(bin))
+	return err == nil && strings.TrimSpace(string(b)) == warmID()
+}
+
+func markWarm(bin string) {
+	p := warmMarkerPath(bin)
+	_ = os.MkdirAll(filepath.Dir(p), 0o755)
+	_ = os.WriteFile(p, []byte(warmID()), 0o644)
+}
+
 func helperCompiled() bool {
+	if bundledHelper() != "" {
+		return true
+	}
 	bin := helperPath()
 	if st, err := os.Stat(bin); err != nil || st.IsDir() {
 		return false
@@ -45,6 +126,9 @@ func helperCompiled() bool {
 
 // EnsureHelper compiles the Swift helper if missing or stale and returns its path.
 func EnsureHelper(ctx context.Context) (string, error) {
+	if b := bundledHelper(); b != "" {
+		return b, nil
+	}
 	bin := helperPath()
 	if helperCompiled() {
 		return bin, nil
@@ -98,14 +182,20 @@ func recognizeVision(ctx context.Context, png []byte, o Options) ([]Result, erro
 }
 
 func runHelper(ctx context.Context, bin string, png []byte, o Options) ([]Result, error) {
-	// The first accurate-level run on a machine compiles Vision's models
-	// (can take minutes); allow a long timeout until one run has succeeded.
+	// The first accurate-level run on a machine (or after an OS update) compiles
+	// Vision's models, which can take a minute or more; allow a long timeout
+	// until a run on real text has succeeded, and run cold runs one at a time so
+	// concurrent requests don't each restart (and kill) the compile.
 	timeout := runTimeout
-	warm := bin + ".warm"
-	_, werr := os.Stat(warm)
-	cold := werr != nil && !o.Fast
+	cold := !isWarm(bin) && !o.Fast
 	if cold {
 		timeout = coldTimeout
+		coldMu.Lock()
+		defer coldMu.Unlock()
+		cold = !isWarm(bin) // another request may have warmed it while we waited
+		if !cold {
+			timeout = runTimeout
+		}
 	}
 	rctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -122,13 +212,41 @@ func runHelper(ctx context.Context, bin string, png []byte, o Options) ([]Result
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
+		if rctx.Err() == context.DeadlineExceeded {
+			return nil, fmt.Errorf("ocr: helper timed out after %s (Vision is still preparing its models; try again)", timeout)
+		}
 		return nil, fmt.Errorf("ocr: helper failed: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 	res, err := ParseVisionJSON(stdout.Bytes())
-	if err == nil && cold {
-		_ = os.WriteFile(warm, []byte("ok"), 0o644)
+	// Only a run that actually read text proves the models are compiled; a
+	// legitimately blank screen returns instantly either way.
+	if err == nil && cold && len(res) > 0 {
+		markWarm(bin)
 	}
 	return res, err
+}
+
+// Warm makes the first real scan fast: it ensures the helper exists and reads a
+// small image containing text so Vision compiles its models now, in the
+// background. Failures are returned for logging, never fatal.
+func Warm(ctx context.Context) error {
+	if runtime.GOOS != "darwin" {
+		return nil
+	}
+	compileMu.Lock()
+	bin, err := EnsureHelper(ctx)
+	compileMu.Unlock()
+	if err != nil {
+		return err
+	}
+	res, err := runHelper(ctx, bin, warmImage, Options{})
+	if err != nil {
+		return err
+	}
+	if len(res) == 0 {
+		return errors.New("ocr: warm-up image produced no text")
+	}
+	return nil
 }
 
 // ParseVisionJSON parses the helper's JSON output.

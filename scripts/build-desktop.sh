@@ -60,6 +60,24 @@ cp "$WDA_TARBALL" "$APP/Contents/Resources/$(basename "$WDA_TARBALL")"
 WDA_LICENSE=$(tar -tzf "$WDA_TARBALL" | awk '/^[^\/]+\/LICENSE$/ && !f {print; f=1}')
 [ -n "$WDA_LICENSE" ] || { echo "error: no top-level LICENSE found in $WDA_TARBALL" >&2; exit 1; }
 tar -xzOf "$WDA_TARBALL" "$WDA_LICENSE" > "$APP/Contents/Resources/WebDriverAgent-LICENSE.txt"
+# On-device helpers (Apple Vision OCR, iPhone screen capture) are Swift programs the app used to compile on
+# first use with the user's swiftc. A Mac without Xcode / Command Line Tools has none, so prebuild them here and
+# (plcapture uses macOS 14 APIs, so its deployment target is 14.0.)
+# ship them in Resources/bin (signed below); internal/ocr and internal/avcapture prefer these over the cache.
+mkdir -p "$APP/Contents/Resources/bin"
+swiftc -O -target "$(uname -m)-apple-macos13.0" internal/ocr/helper/plocr.swift -o "$APP/Contents/Resources/bin/plocr"
+PLCAPTURE_PLIST="$WORK/plcapture-info.plist"
+cat > "$PLCAPTURE_PLIST" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>dev.pocketlab.plcapture</string>
+<key>CFBundleName</key><string>plcapture</string>
+<key>NSCameraUsageDescription</key><string>Pocketlab mirrors the screen of a connected iPhone.</string>
+</dict></plist>
+PLIST
+swiftc -O -target "$(uname -m)-apple-macos14.0" internal/avcapture/helper/plcapture.swift -o "$APP/Contents/Resources/bin/plcapture" \
+  -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker "$PLCAPTURE_PLIST"
 sed "s/__VERSION__/$VERSION/g" desktop/Info.plist > "$APP/Contents/Info.plist"
 plutil -lint "$APP/Contents/Info.plist" >/dev/null
 

@@ -90,7 +90,9 @@
     var id = PF.selectedId;
     if (statusEl) statusEl.textContent = 'Reading screen...';
     var b = $('ocrBtn');
+    var slow = setTimeout(function () { if (statusEl) statusEl.textContent = 'Still reading... the first scan after an install or macOS update can take a minute while Vision prepares its models.'; }, 6000);
     PF.busy(b, PF.api('POST', '/ocr/devices/' + encodeURIComponent(id), { words: !!render.words }).then(function (data) {
+      clearTimeout(slow);
       if (id !== PF.selectedId) return;
       deviceId = id;
       results = ((data && data.results) || []).filter(function (r) { return r && String(r.text).trim(); });
@@ -98,6 +100,7 @@
       drawOverlay();
       if (!results.length) PF.toast('No text recognized', true);
     }).catch(function (e) {
+      clearTimeout(slow);
       if (statusEl) statusEl.textContent = 'OCR failed: ' + e.message;
       return PF.guardDev(Promise.reject(e));
     }));

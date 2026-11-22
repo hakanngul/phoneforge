@@ -3,11 +3,8 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"image"
-	"image/png"
 	"io"
 	"io/fs"
 	"log"
@@ -351,20 +348,14 @@ func dirExists(p string) bool {
 	return err == nil && st.IsDir()
 }
 
-// warmOCR compiles/loads the OCR helper and runs one throwaway recognition so
-// the first real request is fast. Failures are logged, never fatal.
+// warmOCR compiles/loads the OCR helper and reads a text image once so Vision's
+// models are compiled before the first real request. Failures are logged,
+// never fatal.
 func warmOCR() {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
 	defer cancel()
-	if _, err := ocr.EnsureHelper(ctx); err != nil {
-		log.Printf("ocr warm-up: helper: %v", err)
-	}
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 32, 32))); err != nil {
-		return
-	}
-	if _, err := ocr.Recognize(ctx, buf.Bytes()); err != nil {
-		log.Printf("ocr warm-up: recognize: %v", err)
+	if err := ocr.Warm(ctx); err != nil {
+		log.Printf("ocr warm-up: %v", err)
 	}
 }
 

@@ -52,6 +52,27 @@ func HelperPath() string {
 	return filepath.Join(brand.Home(), "bin", "plcapture")
 }
 
+// bundledHelper returns the plcapture shipped inside the app bundle
+// (Pocketlab.app/Contents/Resources/bin/plcapture), built and signed with the
+// camera entitlement at release time so the user's Mac needs no swiftc.
+func bundledHelper() string {
+	if brand.Getenv("POCKETLAB_AVCAPTURE_BIN") != "" {
+		return ""
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if r, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = r
+	}
+	p := filepath.Join(filepath.Dir(exe), "..", "Resources", "bin", "plcapture")
+	if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() {
+		return filepath.Clean(p)
+	}
+	return ""
+}
+
 func helperCompiled(bin string) bool {
 	if st, err := os.Stat(bin); err != nil || st.IsDir() {
 		return false
@@ -64,6 +85,9 @@ func helperCompiled(bin string) bool {
 func EnsureHelper(ctx context.Context) (string, error) {
 	compileMu.Lock()
 	defer compileMu.Unlock()
+	if b := bundledHelper(); b != "" {
+		return b, nil
+	}
 	bin := HelperPath()
 	if helperCompiled(bin) {
 		return bin, nil

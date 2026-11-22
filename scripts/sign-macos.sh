@@ -24,7 +24,12 @@ sign_app() {
     [ -L "$f" ] && continue
     if file -b "$f" | grep -q 'Mach-O'; then
       echo "  sign $f"
-      codesign "${common[@]}" "$f"
+      if [ "$(basename "$f")" = plcapture ]; then
+        # needs the camera entitlement (the hardened runtime blocks AVCaptureDevice otherwise)
+        codesign "${common[@]}" --entitlements "$ENT" "$f"
+      else
+        codesign "${common[@]}" "$f"
+      fi
     fi
   done < <(find "$app/Contents" -type f ! -path "$app/Contents/MacOS/pocketlab-desktop" | sort)
   while IFS= read -r f; do

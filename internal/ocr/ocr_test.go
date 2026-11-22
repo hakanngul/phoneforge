@@ -9,6 +9,7 @@ import (
 	"image/png"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -179,5 +180,24 @@ func TestRoutes(t *testing.T) {
 		if rec := do("POST", "/devices/d1/tap", `{"text":"zzz"}`); rec.Code != 404 {
 			t.Errorf("tap missing: %d %s", rec.Code, rec.Body)
 		}
+	}
+}
+
+func TestWarmMarkerIsKeyedAndOutsideBundle(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "plocr")
+	if isWarm(bin) {
+		t.Fatal("no marker yet, must be cold")
+	}
+	markWarm(bin)
+	if !isWarm(bin) {
+		t.Fatal("marker just written must be warm")
+	}
+	// A marker from another helper/OS build is stale.
+	if err := os.WriteFile(bin+".warm", []byte("ok"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if isWarm(bin) {
+		t.Fatal("legacy marker \"ok\" must not count as warm")
 	}
 }
