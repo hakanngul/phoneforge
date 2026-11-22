@@ -4,8 +4,8 @@
   "description": "Skills for driving Android and iOS devices with Pocketlab: device control, smoke tests, accessibility audits, store screenshots, test authoring and the pocketlab CLI.",
   "author": { "name": "hakanngul", "url": "https://github.com/hakanngul" },
   "license": "MIT",
-  "homepage": "https://github.com/hakanngul/phoneforge",
-  "repository": "https://github.com/hakanngul/phoneforge",
+  "homepage": "https://github.com/hakanngul/pocketlab",
+  "repository": "https://github.com/hakanngul/pocketlab",
   "keywords": ["mobile", "android", "ios", "automation", "testing", "mcp"],
   "skills": "./skills",
   "mcpServers": {

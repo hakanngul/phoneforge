@@ -4,9 +4,9 @@
 
 *Formerly PhoneForge.*
 
-[![CI](https://github.com/hakanngul/phoneforge/actions/workflows/ci.yml/badge.svg)](https://github.com/hakanngul/phoneforge/actions/workflows/ci.yml)
-[![Release](https://github.com/hakanngul/phoneforge/actions/workflows/release.yml/badge.svg)](https://github.com/hakanngul/phoneforge/actions/workflows/release.yml)
-[![Latest release](https://img.shields.io/github/v/release/hakanngul/phoneforge)](https://github.com/hakanngul/phoneforge/releases/latest)
+[![CI](https://github.com/hakanngul/pocketlab/actions/workflows/ci.yml/badge.svg)](https://github.com/hakanngul/pocketlab/actions/workflows/ci.yml)
+[![Release](https://github.com/hakanngul/pocketlab/actions/workflows/release.yml/badge.svg)](https://github.com/hakanngul/pocketlab/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/hakanngul/pocketlab)](https://github.com/hakanngul/pocketlab/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A local tool that lets AI coding agents and humans see and drive real iOS and Android devices, iOS simulators and web pages.
@@ -56,7 +56,7 @@ On non-macOS hosts, simulator features return "iOS simulators require macOS".
 ## Install
 
 **Desktop app (macOS).** Download `Pocketlab-<version>-macos-<arch>.dmg` (arm64 or amd64) from
-[Releases](https://github.com/hakanngul/phoneforge/releases/latest) and drag `Pocketlab.app` to Applications.
+[Releases](https://github.com/hakanngul/pocketlab/releases/latest) and drag `Pocketlab.app` to Applications.
 Release builds are signed and notarized. A `.zip` of the app is also published.
 
 **CLI and server.** Download `pocketlab_<version>_<os>_<arch>.tar.gz` (`.zip` on Windows) for macOS, Linux or Windows
@@ -106,7 +106,7 @@ claude mcp add --transport http pocketlab http://127.0.0.1:8700/mcp
 Or install the Claude Code plugin, which also registers the MCP server and loads the skills:
 
 ```
-/plugin marketplace add hakanngul/phoneforge
+/plugin marketplace add hakanngul/pocketlab
 /plugin install pocketlab
 ```
 

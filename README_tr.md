@@ -4,9 +4,9 @@
 
 *Önceki adı PhoneForge.*
 
-[![CI](https://github.com/hakanngul/phoneforge/actions/workflows/ci.yml/badge.svg)](https://github.com/hakanngul/phoneforge/actions/workflows/ci.yml)
-[![Release](https://github.com/hakanngul/phoneforge/actions/workflows/release.yml/badge.svg)](https://github.com/hakanngul/phoneforge/actions/workflows/release.yml)
-[![Latest release](https://img.shields.io/github/v/release/hakanngul/phoneforge)](https://github.com/hakanngul/phoneforge/releases/latest)
+[![CI](https://github.com/hakanngul/pocketlab/actions/workflows/ci.yml/badge.svg)](https://github.com/hakanngul/pocketlab/actions/workflows/ci.yml)
+[![Release](https://github.com/hakanngul/pocketlab/actions/workflows/release.yml/badge.svg)](https://github.com/hakanngul/pocketlab/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/hakanngul/pocketlab)](https://github.com/hakanngul/pocketlab/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Yapay zekâ kodlama ajanlarının ve insanların gerçek iOS/Android cihazları, iOS simülatörlerini ve web sayfalarını görüp
@@ -55,7 +55,7 @@ macOS dışındaki sistemlerde simülatör özellikleri "iOS simulators require 
 
 ## Kurulum
 
-**Masaüstü uygulaması (macOS).** [Releases](https://github.com/hakanngul/phoneforge/releases/latest) sayfasından
+**Masaüstü uygulaması (macOS).** [Releases](https://github.com/hakanngul/pocketlab/releases/latest) sayfasından
 `Pocketlab-<sürüm>-macos-<mimari>.dmg` dosyasını (arm64 veya amd64) indirin ve `Pocketlab.app`'i Applications klasörüne sürükleyin.
 Sürüm paketleri imzalı ve notarize edilmiştir. Uygulamanın `.zip` hali de yayınlanır.
 
@@ -104,7 +104,7 @@ claude mcp add --transport http pocketlab http://127.0.0.1:8700/mcp
 Ya da hem MCP sunucusunu kaydeden hem de skill'leri yükleyen Claude Code eklentisini kurun:
 
 ```
-/plugin marketplace add hakanngul/phoneforge
+/plugin marketplace add hakanngul/pocketlab
 /plugin install pocketlab
 ```
 

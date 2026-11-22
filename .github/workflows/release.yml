@@ -213,7 +213,7 @@ jobs:
           macOS + iPhone: keep WebDriverAgent-*.tar.gz next to pocketlabd (it is the pinned appium/WebDriverAgent
           source, BSD licence). Needs Xcode; run ./pocketlab ios build-wda or use "Build WDA" in the web UI.
 
-          Docs: https://github.com/hakanngul/phoneforge
+          Docs: https://github.com/hakanngul/pocketlab
           README
           if [ "$GOOS" = "windows" ]; then
             (cd pkg && zip -qr "../out/$NAME.zip" "$NAME")

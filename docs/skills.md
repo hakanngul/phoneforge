@@ -15,7 +15,7 @@ Claude Code plugin that also registers the MCP server.
 
 ## Install as a plugin (recommended)
 ```
-/plugin marketplace add hakanngul/phoneforge
+/plugin marketplace add hakanngul/pocketlab
 /plugin install pocketlab
 ```
 The plugin manifest (`.claude-plugin/plugin.json`) loads `skills/` and declares an MCP server named `pocketlab`

@@ -70,7 +70,7 @@ Values are read from your shell or stdin, so nothing is typed into a command lin
 (`ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_PATH` pointing at the `.p8`) must be set in your shell.
 
 ```sh
-REPO=hakanngul/phoneforge
+REPO=hakanngul/pocketlab
 
 # Notarization: App Store Connect API key (preferred)
 gh secret set ASC_KEY_ID    --repo $REPO --body "$ASC_KEY_ID"

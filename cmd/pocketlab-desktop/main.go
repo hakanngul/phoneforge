@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	repoURL = "https://github.com/hakanngul/phoneforge"
+	repoURL = "https://github.com/hakanngul/pocketlab"
 )
 
 // devBuild is set to a non-empty value via -ldflags "-X main.devBuild=1" to
