@@ -123,10 +123,11 @@ func init() {
 		{"crashes", "list crash reports", cmdCrashes},
 		{"crash", "print one crash report", cmdCrash},
 		{"bridge", "start|stop|status of the UIA2 / WDA bridge", cmdBridge},
+		{"ios", "ios build-wda: build WebDriverAgent on this Mac", cmdIOS},
 		{"sims", "list iOS simulators", cmdSims},
 		{"sim", "boot|shutdown a simulator", cmdSim},
 		{"agent", "run an AI agent on the device and stream it", cmdAgent},
-		{"server", "server status", cmdServer},
+		{"server", "server status|history|start|stop", cmdServer},
 		{"version", "print the CLI version", cmdVersion},
 		{"help", "show help", cmdHelp},
 	}

@@ -22,6 +22,7 @@ type apiError struct {
 	Status int
 	Code   string
 	Msg    string
+	Hint   string // optional "what to do" text from structured server errors
 }
 
 func (e *apiError) Error() string {
@@ -29,10 +30,16 @@ func (e *apiError) Error() string {
 	if m == "" {
 		m = http.StatusText(e.Status)
 	}
+	var out string
 	if e.Code != "" {
-		return fmt.Sprintf("%s (%s, HTTP %d)", m, e.Code, e.Status)
+		out = fmt.Sprintf("%s (%s, HTTP %d)", m, e.Code, e.Status)
+	} else {
+		out = fmt.Sprintf("%s (HTTP %d)", m, e.Status)
 	}
-	return fmt.Sprintf("%s (HTTP %d)", m, e.Status)
+	if e.Hint != "" {
+		out += "\n" + e.Hint
+	}
+	return out
 }
 
 type client struct {
@@ -93,6 +100,7 @@ func (c *client) request(ctx context.Context, method, path string, body io.Reade
 	}
 	if path == "/server/shutdown" {
 		req.Header.Set("X-PhoneForge-Action", "shutdown")
+		req.Header.Set("X-PhoneForge-Origin", "cli")
 	}
 	resp, err := c.hc.Do(req)
 	if err != nil {
@@ -108,9 +116,10 @@ func (c *client) request(ctx context.Context, method, path string, body io.Reade
 		var j struct {
 			Error string `json:"error"`
 			Code  string `json:"code"`
+			Hint  string `json:"hint"`
 		}
 		if json.Unmarshal(b, &j) == nil && (j.Error != "" || j.Code != "") {
-			ae.Msg, ae.Code = j.Error, j.Code
+			ae.Msg, ae.Code, ae.Hint = j.Error, j.Code, j.Hint
 		} else {
 			ae.Msg = strings.TrimSpace(string(b))
 			if len(ae.Msg) > 300 {

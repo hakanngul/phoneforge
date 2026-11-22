@@ -37,6 +37,18 @@ Simulators, debugger and native capture are unavailable (macOS only).
   The endpoint needs the `X-PhoneForge-Action: shutdown` header (forces a CORS preflight, which is never granted)
   and rejects a foreign `Origin` or a non-loopback/non-IP `Host` (anti-CSRF / DNS rebinding).
 - If the port is used by something else, a free port is chosen.
+- **Server menu** (also in the menu-bar icon): Start server, Stop server, Restart server, Server Status & History.
+  These control the server this app owns (an attached external server is stopped through its shutdown API, recorded
+  as origin `desktop-menu`). "Quit PhoneForge" keeps its meaning: stop the server and exit.
+- If the server shown in the window disappears (crash, `kill`, `phoneforge server stop` from a shell while the app
+  stays), the window switches to a local fallback page that states the last recorded reason and offers
+  **Start server** and **Quit PhoneForge**; it reconnects by itself when a server answers again. The fallback is
+  served by a loopback-only control listener with a random path token.
+- The web UI's **Server** button (top bar) opens the same panel as in the browser: status, uptime, and the
+  start/stop history. Every start and stop is written to `~/.phoneforge/server-events.jsonl` (last 500 events;
+  `server.state` is a 10 s heartbeat used to detect exits nobody recorded, such as `kill -9`).
+  API: `GET /api/v1/server/status`, `GET /api/v1/server/history?limit=50`; `POST /api/v1/server/shutdown` accepts an
+  optional `X-PhoneForge-Origin` header (or JSON `{"origin","reason"}`) that is stored as the reason's origin.
 - Otherwise the server starts in-process; on quit (menu, tray, Cmd+Q) it is shut down cleanly (WDA bridges, simulators, debuggers).
 - `--webdir <dir>` serves the UI from disk instead of the embedded copy (development).
   Other flags: `--adb`, `--token`, `--no-tray`. State dir: `$PHONEFORGE_HOME` (default `~/.phoneforge`).

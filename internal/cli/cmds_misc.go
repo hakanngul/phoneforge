@@ -533,44 +533,7 @@ func cmdSim(c *call) error {
 	return nil
 }
 
-// ---- server / version ----
-
-func cmdServer(c *call) error {
-	pos, err := c.parse(newFlagSet(c.name), c.args)
-	if err != nil {
-		return err
-	}
-	if len(pos) == 1 && pos[0] == "stop" {
-		ctx, cancel := c.ctxFor(10 * time.Second)
-		defer cancel()
-		if err := c.client().do(ctx, "POST", "/server/shutdown", nil, nil); err != nil {
-			return err
-		}
-		return c.actionResult("server stopping")
-	}
-	if len(pos) != 1 || pos[0] != "status" {
-		return usagef("usage: phoneforge server status|stop")
-	}
-	ctx, cancel := c.ctxFor(10 * time.Second)
-	defer cancel()
-	var raw json.RawMessage
-	if err := c.client().do(ctx, "GET", "/health", nil, &raw); err != nil {
-		return err
-	}
-	if c.g.json {
-		return c.printRaw(raw)
-	}
-	var h struct {
-		Status      string `json:"status"`
-		Version     string `json:"version"`
-		DeviceCount int    `json:"deviceCount"`
-	}
-	if err := json.Unmarshal(raw, &h); err != nil {
-		return err
-	}
-	fmt.Fprintf(c.out, "server:  %s\nstatus:  %s\nversion: %s\ndevices: %d\n", c.client().base, h.Status, h.Version, h.DeviceCount)
-	return nil
-}
+// ---- version ----
 
 func cmdVersion(c *call) error {
 	pos, err := c.parse(newFlagSet(c.name), c.args)

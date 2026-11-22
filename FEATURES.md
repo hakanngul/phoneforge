@@ -43,7 +43,7 @@ our own software, so every capability is unlocked by design.
   readable **`.mob`** format (or the JSON DSL); validate (`POST /tests/validate`), run on a device
   (`POST /tests/projects/{id}/scripts/{name}/run`) and browse run history (`GET /tests/runs`).
   `type_secret` steps resolve secret ids from the Keychain-backed credential store.
-- **iOS Simulators**: booted simulators listed as `sim-<udid>`; `/api/v1/simulators` (list, boot, shutdown, WDA start/stop/status/logs); simctl-backed screenshot/apps/install/open URL/logs; WDA (simulator build via `scripts/build-wda.sh --sim`, ports 8200+/9200+) for input and UI tree; "iOS Simulators" entry under Integrations; MCP `list_simulators`/`boot_simulator`/`shutdown_simulator`.
+- **iOS Simulators**: booted simulators listed as `sim-<udid>`; `/api/v1/simulators` (list, boot, shutdown, WDA start/stop/status/logs); simctl-backed screenshot/apps/install/open URL/logs; WDA (simulator build from the UI "Build WDA" button or `phoneforge ios build-wda --sim`, ports 8200+/9200+) for input and UI tree; "iOS Simulators" entry under Integrations; MCP `list_simulators`/`boot_simulator`/`shutdown_simulator`.
 - **Stable device list**: local Android, then iOS, then remote; by name then id.
 
 ## OCR and web automation

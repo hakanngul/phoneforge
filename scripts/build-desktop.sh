@@ -52,6 +52,13 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$WORK/phoneforge-desktop" "$APP/Contents/MacOS/phoneforge-desktop"
 cp "$WORK/PhoneForge.icns" "$APP/Contents/Resources/PhoneForge.icns"
+# Pinned appium/WebDriverAgent source (BSD): PhoneForge builds/signs the iOS helper on the user's own
+# Mac ("Build WDA" in the app), so the source ships inside the bundle; no git or network needed there.
+WDA_TARBALL=$(scripts/fetch-wda.sh)
+cp "$WDA_TARBALL" "$APP/Contents/Resources/$(basename "$WDA_TARBALL")"
+WDA_LICENSE=$(tar -tzf "$WDA_TARBALL" | awk '/^[^\/]+\/LICENSE$/ && !f {print; f=1}')
+[ -n "$WDA_LICENSE" ] || { echo "error: no top-level LICENSE found in $WDA_TARBALL" >&2; exit 1; }
+tar -xzOf "$WDA_TARBALL" "$WDA_LICENSE" > "$APP/Contents/Resources/WebDriverAgent-LICENSE.txt"
 sed "s/__VERSION__/$VERSION/g" desktop/Info.plist > "$APP/Contents/Info.plist"
 plutil -lint "$APP/Contents/Info.plist" >/dev/null
 

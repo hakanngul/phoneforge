@@ -166,6 +166,25 @@ Print one crash report (names come from 'phoneforge crashes').`,
 Control the on-device automation bridge: UiAutomator2 on Android, WebDriverAgent
 on iOS. 'start' can take a minute on iOS.`,
 
+	"ios": `Usage: phoneforge ios build-wda [--sim] [--install UDID] [--team TEAMID]
+
+Build PhoneForge's WebDriverAgent (WDA) on this Mac, with live progress. Needs Xcode.
+No repo checkout or git is needed: the pinned source ships with PhoneForge.
+
+  --sim           build the unsigned iOS Simulator runner instead of the device runner
+  --team TEAMID   10-character Apple Team ID (remembered in PhoneForge settings);
+                  without it PhoneForge looks at your Apple Development certificate,
+                  provisioning profiles and Xcode preferences
+  --install UDID  after a device build, install the runner on that iPhone
+                  (id, serial or name of a connected device)
+
+Examples:
+  phoneforge ios build-wda
+  phoneforge ios build-wda --team ABCDE12345 --install 00008110-001234567890801E
+  phoneforge ios build-wda --sim
+
+Problems (Xcode missing, no team, phone not trusted, ...) are printed with what to do.`,
+
 	"sims": `Usage: phoneforge sims [--json]
 
 List iOS simulators with state, runtime and WDA state.`,
@@ -186,11 +205,20 @@ plain lines are the agent's thoughts, "▸ tool(args)" are actions, and
   --max-steps N step limit for the built-in agent (ignored by other agents)
 With --json, raw events are printed one per line.`,
 
-	"server": `Usage: phoneforge server status|stop
+	"server": `Usage: phoneforge server status|history|start|stop
 
-status: show server URL, status, version and device count (GET /health).
-stop:   ask the server to shut down gracefully (POST /server/shutdown); a
-        desktop app attached to it quits as well.`,
+status:  server URL, pid, version, uptime, how it was started (GET /server/status;
+         falls back to /health on older servers). If the server is not running it
+         prints the last recorded start/stop event from the local log and exits 4.
+history: start/stop log with the reason for every stop (GET /server/history),
+         oldest first; unexpected exits (killed/crashed) are marked "!". Works
+         offline too by reading ~/.phoneforge/server-events.jsonl ($PHONEFORGE_HOME).
+         --limit N (default 20).
+start:   launch phoneforged detached (unless a server already answers) and wait until
+         it is healthy; its output goes to ~/.phoneforge/phoneforged.log.
+         --bin PATH (default: phoneforged next to this binary, else in PATH).
+stop:    ask the server to shut down gracefully (POST /server/shutdown, recorded as
+         origin "cli"); a desktop app attached to it quits as well.`,
 
 	"version": `Usage: phoneforge version
 

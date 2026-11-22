@@ -78,3 +78,23 @@ func TestWithGraceZeroIsPassthrough(t *testing.T) {
 		t.Fatal("zero grace must return the inner discoverer")
 	}
 }
+
+func TestWithGraceIfOnlyGracesSelected(t *testing.T) {
+	usb := fakeDev{device.Info{ID: "ios-usb"}}
+	wifi := fakeDev{device.Info{ID: "ios-wifi"}}
+	cur := []device.Device{usb, wifi}
+	inner := discFunc(func() []device.Device { return cur })
+	g := WithGraceIf(inner, time.Minute, func(d device.Device) bool { return d.Info().ID == "ios-wifi" })
+	if got, _ := g.Discover(context.Background()); len(got) != 2 {
+		t.Fatalf("got %d", len(got))
+	}
+	cur = nil
+	got, _ := g.Discover(context.Background())
+	if len(got) != 1 || got[0].Info().ID != "ios-wifi" {
+		t.Fatalf("USB must vanish immediately, Wi-Fi be graced: %v", got)
+	}
+}
+
+type discFunc func() []device.Device
+
+func (f discFunc) Discover(context.Context) ([]device.Device, error) { return f(), nil }

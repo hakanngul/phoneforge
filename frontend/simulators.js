@@ -46,7 +46,7 @@
         }
       }
       c.appendChild(row);
-      if (wda.error) c.appendChild(PF.note(wda.error, 'error'));
+      if (wda.error) c.appendChild(PF.note(wda.error, 'bad'));
       return c;
     }
 
@@ -54,11 +54,22 @@
       return PF.api('GET', '/simulators').then(function (r) {
         host.innerHTML = '';
         var built = r && r.wdaBuilt;
-        if (!built) host.appendChild(PF.note('WDA is not built for the simulator yet: run scripts/build-wda.sh --sim', 'info'));
+        if (!built) {
+          var nb = PF.note('WDA is not built for the simulator yet. PhoneForge builds it on this Mac with Xcode (no signing needed, a few minutes the first time).', 'info');
+          var bb = PF.btn('Build WDA', 'primary sm', function () {
+            PF.confirm('Build WebDriverAgent for the iOS Simulator now?\nIt needs Xcode and takes a few minutes the first time.', function () {
+              clearInterval(timer);
+              PF.wdaBuild.open({ mode: 'sim', onSuccess: function () { PF.toast('Simulator WDA built', true); PF.openSimulators(); }, onClose: PF.openSimulators });
+            }, { title: 'Build WDA?', okLabel: 'Build' });
+          });
+          bb.style.marginTop = '6px'; bb.style.display = 'block';
+          nb.appendChild(bb);
+          host.appendChild(nb);
+        }
         var list = (r && r.simulators) || [];
         if (!list.length) host.appendChild(PF.el('p', 'muted', 'No simulators found (is Xcode installed?).'));
         list.forEach(function (s) { host.appendChild(card(s, built)); });
-      }, function (e) { host.innerHTML = ''; host.appendChild(PF.note('Could not list simulators: ' + e.message, 'error')); });
+      }, function (e) { host.innerHTML = ''; host.appendChild(PF.note('Could not list simulators: ' + e.message, 'bad')); });
     }
     load();
     timer = setInterval(function () { if (!document.body.contains(host)) { clearInterval(timer); return; } load(); }, 5000);

@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"phoneforge/internal/lifecycle"
 )
 
 const (
@@ -718,5 +720,94 @@ func TestVersion(t *testing.T) {
 	code, out, _ := run(t, nil, "", "version")
 	if code != 0 || !strings.HasPrefix(out, "phoneforge ") {
 		t.Errorf("%d %q", code, out)
+	}
+}
+
+func TestIOSBuildWDA(t *testing.T) {
+	f := newFake(t)
+	f.h["POST /ios/wda/build"] = func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(202)
+		fmt.Fprint(w, `{"state":"running","mode":"device","lines":[]}`)
+	}
+	f.h["GET /ios/wda/build/stream"] = func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "event: log\ndata: \"CompileC one\"\n\nevent: status\ndata: {\"state\":\"succeeded\"}\n\n")
+	}
+	f.json("GET /ios/wda/build", `{"state":"succeeded","mode":"device","team":"ABCDE12345","runnerApp":"/x/Runner.app","lines":[]}`)
+	f.json("GET /devices", devicesJSON)
+	f.json("POST /devices/ios-BBB/iosbridge/install", `{"state":"stopped"}`)
+	code, out, errOut := run(t, f, "", "ios", "build-wda", "--team", "abcde12345", "--install", "ios-BBB")
+	if code != 0 || !strings.Contains(out, "/x/Runner.app") || !strings.Contains(errOut, "CompileC one") {
+		t.Fatalf("code=%d out=%q err=%q", code, out, errOut)
+	}
+	if r, _ := f.last("POST", "/ios/wda/build"); !strings.Contains(string(r.Body), `"teamId":"abcde12345"`) {
+		t.Errorf("body: %s", r.Body)
+	}
+	if f.count("POST", "/devices/ios-BBB/iosbridge/install") != 1 {
+		t.Error("runner not installed")
+	}
+
+	// structured server error is shown with its hint
+	f2 := newFake(t)
+	f2.h["POST /ios/wda/build"] = func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(409)
+		fmt.Fprint(w, `{"error":"No Apple development team was found","code":"TEAM_NOT_FOUND","hint":"enter your Team ID"}`)
+	}
+	code, _, errOut = run(t, f2, "", "ios", "build-wda")
+	if code == 0 || !strings.Contains(errOut, "TEAM_NOT_FOUND") || !strings.Contains(errOut, "enter your Team ID") {
+		t.Fatalf("code=%d err=%q", code, errOut)
+	}
+	if code, _, _ := run(t, f2, "", "ios", "build-wda", "--sim", "--install", "x"); code != ExitUsage {
+		t.Errorf("sim+install should be a usage error: %d", code)
+	}
+	if code, _, _ := run(t, f2, "", "ios", "nope"); code != ExitUsage {
+		t.Errorf("bad subcommand: %d", code)
+	}
+}
+
+func TestServerStatusHistoryStop(t *testing.T) {
+	f := newFake(t)
+	f.json("GET /server/status", `{"running":true,"pid":4321,"version":"9.9","addr":"127.0.0.1:8700","startedAt":"2026-01-02T03:04:05Z","uptimeSec":3700,"startedVia":"phoneforged","owner":"cli","eventsFile":"/x/server-events.jsonl"}`)
+	code, out, _ := run(t, f, "", "server", "status")
+	if code != 0 || !strings.Contains(out, "4321") || !strings.Contains(out, "phoneforged") || !strings.Contains(out, "1h1m") {
+		t.Errorf("status: %d %q", code, out)
+	}
+
+	f.json("GET /server/history", `{"events":[{"time":"2026-01-02T05:00:00Z","event":"unexpected_exit","pid":4321,"reason":"previous run ended unexpectedly"},{"time":"2026-01-02T03:04:05Z","event":"start","pid":4321,"startedVia":"phoneforged","reason":"server started"}]}`)
+	code, out, _ = run(t, f, "", "server", "history", "--limit", "5")
+	if code != 0 || !strings.Contains(out, "unexpected_exit") || strings.Index(out, "start") > strings.Index(out, "unexpected_exit") || !strings.Contains(out, "!") {
+		t.Errorf("history (oldest first, unexpected marked): %d %q", code, out)
+	}
+	if r, _ := f.last("GET", "/server/history"); r.Query != "limit=5" {
+		t.Errorf("limit query: %q", r.Query)
+	}
+
+	var origin string
+	f.h["POST /server/shutdown"] = func(w http.ResponseWriter, r *http.Request) {
+		origin = r.Header.Get("X-PhoneForge-Origin")
+		w.WriteHeader(202)
+	}
+	if code, _, _ := run(t, f, "", "server", "stop"); code != 0 || origin != "cli" {
+		t.Errorf("stop origin: code=%d origin=%q", code, origin)
+	}
+}
+
+func TestServerHistoryOffline(t *testing.T) {
+	dir := t.TempDir()
+	r := lifecycle.Begin(dir, lifecycle.Info{StartedVia: "phoneforged"})
+	r.SetStopReason("received signal terminated", "signal:SIGTERM", "SIGTERM")
+	r.Stop("x")
+	var so, se bytes.Buffer
+	env := Env{Stdout: &so, Stderr: &se, Getenv: func(k string) string { return map[string]string{"PHONEFORGE_HOME": dir}[k] }}
+	code := Main(context.Background(), []string{"--server", "http://127.0.0.1:1", "server", "history"}, env)
+	if code != 0 || !strings.Contains(so.String(), "received signal terminated") || !strings.Contains(so.String(), "server is not running") {
+		t.Errorf("offline history: %d %q %q", code, so.String(), se.String())
+	}
+	so.Reset()
+	code = Main(context.Background(), []string{"--server", "http://127.0.0.1:1", "server", "status"}, env)
+	if code != ExitUnreachable || !strings.Contains(so.String(), "Last recorded event") {
+		t.Errorf("offline status: %d %q", code, so.String())
 	}
 }

@@ -73,7 +73,7 @@ logs [-f] [--seconds N] [--grep T]       record [--seconds N] [-o file.mp4]
 crashes [--app B] [--limit N]            crash <name> [-o file]
 bridge start|stop|status      sims      sim boot|shutdown <udid|name>
 agent "prompt" [--model haiku] [--agent NAME] [--session ID] [--max-steps N]
-server status|stop           version   help [command]
+server status|history|start|stop   version   help [command]
 ```
 
 `phoneforge help <command>` (or `<command> --help`) prints concise per-command help.
@@ -101,6 +101,15 @@ server status|stop           version   help [command]
 - **agent --max-steps N** caps the number of steps for the built-in agent only (`maxSteps` in the
   `agent/run` request); other agent CLIs ignore it.
 - **ocr --case-sensitive** makes `--find` match case-sensitively (default is case-insensitive).
+
+- **server** shows and controls the server and, above all, why it stopped. `status` reads
+  `GET /server/status` (pid, version, uptime, how it was started); `history [--limit N]` prints the start/stop log
+  oldest first with the reason for each stop (shutdown API with its origin `web-ui`/`desktop`/`cli`, signal name,
+  panic message, port in use) and marks unexpected exits (kill -9, crash) with `!`. When the server is down both
+  fall back to the local log `~/.phoneforge/server-events.jsonl` (`$PHONEFORGE_HOME`) and `status` exits 4.
+  `start` launches `phoneforged` detached (next to the CLI binary, else in PATH, or `--bin`), logs to
+  `~/.phoneforge/phoneforged.log` and waits until it is healthy; `stop` sends `POST /server/shutdown` with
+  origin `cli`.
 
 ## Examples
 

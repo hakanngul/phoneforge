@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -58,12 +59,13 @@ func main() {
 		srv      *server.Server
 		uiAddr   = *addr
 		attached bool
+		ctl      *serverCtl
 	)
+	opts := server.Options{Addr: *addr, APIToken: *token, ADBPath: *adb, WebDir: *webDir, WebFS: frontend.FS(), StartedVia: "desktop", Owner: "desktop"}
 	if isPhoneForge(*addr) {
 		attached = true
 		log.Printf("attaching to the running PhoneForge server at %s", uiAddr)
 	} else {
-		opts := server.Options{Addr: *addr, APIToken: *token, ADBPath: *adb, WebDir: *webDir, WebFS: frontend.FS()}
 		var err error
 		srv, err = server.Start(context.Background(), opts)
 		if err != nil && portBusy(*addr) {
@@ -98,10 +100,8 @@ func main() {
 		},
 		OnShutdown: func() {
 			st.save()
-			if srv != nil {
-				ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-				defer cancel()
-				_ = srv.Shutdown(ctx)
+			if ctl != nil {
+				ctl.shutdownOwned("desktop app quit")
 			}
 		},
 	})
@@ -152,6 +152,29 @@ func main() {
 		})
 	}
 
+	// Server lifecycle controller: start/stop/restart, fallback page when the server vanishes.
+	ctl = newServerCtl(app, opts, uiAddr)
+	ctl.win = win
+	ctl.adopt(srv, uiAddr, attached)
+	if err := ctl.startControl(); err != nil {
+		log.Printf("fallback control server: %v", err)
+	}
+	// Tell the web UI it runs inside the desktop app (recorded as the origin of a Quit, banner wording).
+	win.OnWindowEvent(events.Mac.WebViewDidFinishNavigation, func(*application.WindowEvent) {
+		win.ExecJS(`window.PF_ORIGIN='desktop-ui'`)
+	})
+	defer func() {
+		if r := recover(); r != nil {
+			ctl.mu.Lock()
+			s := ctl.srv
+			ctl.mu.Unlock()
+			if s != nil {
+				s.RecordCrash(fmt.Sprint(r))
+			}
+			panic(r)
+		}
+	}()
+
 	// Toast after first load when attached to an existing server.
 	if attached {
 		var once sync.Once
@@ -169,41 +192,37 @@ func main() {
 		showWindow()
 		win.ExecJS(`(function(){var b=document.querySelector('[data-int="aiconfig"]');if(b)b.click();})()`)
 	}
-	buildMenu(app, win, baseURL, dev, openSettings)
+	buildMenu(app, win, ctl, dev, openSettings)
 
 	if !*noTray {
-		buildTray(app, uiAddr, attached, showWindow)
+		buildTray(app, ctl, showWindow)
 	}
-
-	// In-app Quit button (POST /api/v1/server/shutdown) means "stop everything":
-	// owned server -> quit the app (OnShutdown then stops the server); attached
-	// server -> it reports shuttingDown on /health, so quit too.
-	if srv != nil {
-		go func() {
-			select {
-			case <-srv.ShutdownRequested():
-			case <-srv.Done():
-			}
-			app.Quit()
-		}()
-	} else {
-		go func() {
-			for {
-				time.Sleep(300 * time.Millisecond)
-				if shuttingDown(uiAddr) {
-					app.Quit()
-					return
-				}
-			}
-		}()
-	}
+	go ctl.monitor()
 
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func buildMenu(app *application.App, win *application.WebviewWindow, baseURL string, dev bool, openSettings func()) {
+// serverMenuItems adds Start/Stop/Restart server entries to a menu. Actions run
+// in the background and report failures on the fallback page.
+func serverMenuItems(m *application.Menu, ctl *serverCtl) {
+	run := func(fn func() error) func(*application.Context) {
+		return func(*application.Context) {
+			go func() {
+				if err := fn(); err != nil {
+					log.Printf("server action: %v", err)
+					ctl.showFallback(err.Error())
+				}
+			}()
+		}
+	}
+	m.Add("Start server").OnClick(run(ctl.Start))
+	m.Add("Stop server").OnClick(run(ctl.Stop))
+	m.Add("Restart server").OnClick(run(ctl.Restart))
+}
+
+func buildMenu(app *application.App, win *application.WebviewWindow, ctl *serverCtl, dev bool, openSettings func()) {
 	menu := app.NewMenu()
 
 	appMenu := menu.AddSubmenu("PhoneForge")
@@ -232,16 +251,25 @@ func buildMenu(app *application.App, win *application.WebviewWindow, baseURL str
 		view.Add("Toggle DevTools").SetAccelerator("CmdOrCtrl+alt+i").OnClick(func(*application.Context) { win.OpenDevTools() })
 	}
 
+	srvMenu := menu.AddSubmenu("Server")
+	serverMenuItems(srvMenu, ctl)
+	srvMenu.AddSeparator()
+	srvMenu.Add("Server Status & History…").OnClick(func(*application.Context) {
+		win.Show()
+		win.Focus()
+		win.ExecJS(`if(window.PF&&PF.openServer){PF.openServer()}`)
+	})
+
 	menu.AddRole(application.WindowMenu)
 
 	help := menu.AddSubmenu("Help")
 	help.Add("PhoneForge Documentation").OnClick(func(*application.Context) { _ = app.Browser.OpenURL(repoURL) })
-	help.Add("Open in Browser").OnClick(func(*application.Context) { _ = app.Browser.OpenURL(baseURL) })
+	help.Add("Open in Browser").OnClick(func(*application.Context) { _ = app.Browser.OpenURL(ctl.base()) })
 
 	app.Menu.SetApplicationMenu(menu)
 }
 
-func buildTray(app *application.App, addr string, attached bool, showWindow func()) {
+func buildTray(app *application.App, ctl *serverCtl, showWindow func()) {
 	tray := app.SystemTray.New()
 	tray.SetTemplateIcon(trayIcon)
 	tray.SetTooltip("PhoneForge")
@@ -249,12 +277,9 @@ func buildTray(app *application.App, addr string, attached bool, showWindow func
 	m := app.NewMenu()
 	m.Add("Open PhoneForge").OnClick(func(*application.Context) { showWindow() })
 	m.AddSeparator()
-	label := "Server: running on " + addr
-	if attached {
-		label = "Connected to running server " + addr
-	}
-	status := m.Add(label)
+	status := m.Add("Server: checking...")
 	status.SetEnabled(false)
+	serverMenuItems(m, ctl)
 	m.AddSeparator()
 	m.Add("Quit PhoneForge").OnClick(func(*application.Context) { app.Quit() })
 	tray.SetMenu(m)
@@ -263,6 +288,9 @@ func buildTray(app *application.App, addr string, attached bool, showWindow func
 		t := time.NewTicker(5 * time.Second)
 		defer t.Stop()
 		for range t.C {
+			ctl.mu.Lock()
+			addr, attached := ctl.addr, ctl.attached
+			ctl.mu.Unlock()
 			up := isPhoneForge(addr)
 			switch {
 			case up && attached:
@@ -291,20 +319,6 @@ func isPhoneForge(addr string) bool {
 		return false
 	}
 	return body.Service == "phoneforge"
-}
-
-// shuttingDown reports whether the server at addr has accepted a shutdown request.
-func shuttingDown(addr string) bool {
-	c := &http.Client{Timeout: 1000 * time.Millisecond}
-	resp, err := c.Get("http://" + addr + "/api/v1/health")
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-	var body struct {
-		ShuttingDown bool `json:"shuttingDown"`
-	}
-	return json.NewDecoder(resp.Body).Decode(&body) == nil && body.ShuttingDown
 }
 
 // portBusy reports whether something is listening on addr (any protocol).

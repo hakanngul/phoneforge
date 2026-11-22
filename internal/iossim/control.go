@@ -35,7 +35,7 @@ const (
 )
 
 // ErrNotBuilt means the simulator WDA build is missing.
-var ErrNotBuilt = errors.New("iossim: simulator WebDriverAgent is not built: run scripts/build-wda.sh --sim")
+var ErrNotBuilt = errors.New("iossim: simulator WebDriverAgent is not built yet: use \"Build WDA\" in PhoneForge (Integrations > iOS Simulators, needs Xcode) or run `phoneforge ios build-wda --sim`")
 
 // ErrWDAStarting means WDA is still coming up; the caller should retry shortly.
 var ErrWDAStarting = errors.New("iossim: starting WDA on the simulator, retry shortly")

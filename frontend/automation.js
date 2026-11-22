@@ -1014,7 +1014,8 @@
       var sk = agentSink; agentSink = null;
       if (sk) sk.done();
     }
-    PF.api('POST', '/ai/runs', { type: 'automation', deviceId: PF.selectedId || '', prompt: task, sessionId: chatSessions[chatKey()] || '' }).then(function (r) {
+    var sentSession = chatSessions[chatKey()] || '';
+    PF.api('POST', '/ai/runs', { type: 'automation', deviceId: PF.selectedId || '', prompt: task, sessionId: sentSession }).then(function (r) {
       if (r && r.builtin) { agentSink = null; finish(); runAgent(task, sink); return; }
       run.id = r.id;
       if (run.cancelled) { PF.api('POST', '/ai/runs/' + encodeURIComponent(r.id) + '/cancel').catch(function () {}); }
@@ -1022,7 +1023,7 @@
       function data(ev) { try { return JSON.parse(ev.data).data || ''; } catch (x) { return ''; } }
       var runKey = chatKey();
       es.addEventListener('session', function (ev) { var id = data(ev); if (id) chatSessions[runKey] = id; });
-      es.addEventListener('start', function () { emit({ type: 'thought', text: lbl + ' started' }); });
+      es.addEventListener('start', function () { emit({ type: 'thought', text: sentSession ? lbl + ': continuing session' : lbl + ' started' }); });
       es.addEventListener('stdout', function (ev) {
         var raw = data(ev);
         // kiro-cli prints plain text (ANSI already stripped by the server): each line is a thought,

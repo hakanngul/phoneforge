@@ -21,6 +21,7 @@ import (
 	"phoneforge/internal/dsl"
 	"phoneforge/internal/events"
 	"phoneforge/internal/iossim"
+	"phoneforge/internal/lifecycle"
 	"phoneforge/internal/registry"
 	"phoneforge/internal/uia2"
 )
@@ -41,25 +42,28 @@ type api struct {
 
 	shutdown func()
 	stopping atomic.Bool
+	life     *lifecycle.Recorder
 }
 
 // Deps holds optional feature sub-routers mounted under /api/v1.
 // A nil handler is simply not mounted.
 type Deps struct {
-	Nodes       http.Handler  // mounted at /nodes
-	Webhooks    http.Handler  // mounted at /webhooks
-	Credentials http.Handler  // mounted at /credentials (exposes /secrets, /app-cards)
-	Farms       http.Handler  // mounted at /farms
-	Tests       http.Handler  // mounted at /tests (projects, .mob scripts, runs)
-	AI          http.Handler  // mounted at /ai (AI Configuration: agents, settings, runs)
-	OCR         http.Handler  // mounted at /ocr (on-screen text recognition)
-	Web         http.Handler  // mounted at /web (Chrome/WebView automation over CDP)
-	Debug       http.Handler  // mounted at /debug (lldb debug sessions: attach, breakpoints, step, eval)
-	Crashes     http.Handler  // mounted at /devices/{id}/crashes (crash report list/read/delete)
-	Sims        http.Handler  // mounted at /simulators (iOS Simulator boot/shutdown/WDA)
-	Bridges     *uia2.Manager // UiAutomator2 bridge manager (enables /bridge routes)
-	IOS         *IOSControl   // WebDriverAgent bridge for iOS (enables /iosbridge, /mjpeg and iOS /bridge)
-	Shutdown    func()        // enables POST /server/shutdown; called (once, asynchronously) after the 202 is sent
+	Nodes       http.Handler        // mounted at /nodes
+	Webhooks    http.Handler        // mounted at /webhooks
+	Credentials http.Handler        // mounted at /credentials (exposes /secrets, /app-cards)
+	Farms       http.Handler        // mounted at /farms
+	Tests       http.Handler        // mounted at /tests (projects, .mob scripts, runs)
+	AI          http.Handler        // mounted at /ai (AI Configuration: agents, settings, runs)
+	OCR         http.Handler        // mounted at /ocr (on-screen text recognition)
+	Web         http.Handler        // mounted at /web (Chrome/WebView automation over CDP)
+	Debug       http.Handler        // mounted at /debug (lldb debug sessions: attach, breakpoints, step, eval)
+	Crashes     http.Handler        // mounted at /devices/{id}/crashes (crash report list/read/delete)
+	Sims        http.Handler        // mounted at /simulators (iOS Simulator boot/shutdown/WDA)
+	WDABuild    http.Handler        // mounted at /ios/wda (in-app WebDriverAgent build: pre-flight, build, status, stream)
+	Bridges     *uia2.Manager       // UiAutomator2 bridge manager (enables /bridge routes)
+	IOS         *IOSControl         // WebDriverAgent bridge for iOS (enables /iosbridge, /mjpeg and iOS /bridge)
+	Lifecycle   *lifecycle.Recorder // enables GET /server/status and /server/history; records who asked for a shutdown
+	Shutdown    func()              // enables POST /server/shutdown; called (once, asynchronously) after the 202 is sent
 }
 
 // NewRouter builds the HTTP handler serving the REST API with no feature deps.
@@ -69,7 +73,7 @@ func NewRouter(reg *registry.Registry, cfg config.Config) http.Handler {
 
 // NewRouterWithDeps builds the REST API and mounts the provided feature routers.
 func NewRouterWithDeps(reg *registry.Registry, cfg config.Config, deps Deps) http.Handler {
-	a := &api{reg: reg, cfg: cfg, bridges: deps.Bridges, ios: deps.IOS, shutdown: deps.Shutdown}
+	a := &api{reg: reg, cfg: cfg, bridges: deps.Bridges, ios: deps.IOS, shutdown: deps.Shutdown, life: deps.Lifecycle}
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
 	r.Use(corsMiddleware)
@@ -82,6 +86,10 @@ func NewRouterWithDeps(reg *registry.Registry, cfg config.Config, deps Deps) htt
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware(cfg.APIToken))
 			r.Handle("/events", events.Handler())
+			if deps.Lifecycle != nil {
+				r.Get("/server/status", a.serverStatus)
+				r.Get("/server/history", a.serverHistory)
+			}
 			if deps.Nodes != nil {
 				r.Mount("/nodes", deps.Nodes)
 			}
@@ -112,6 +120,9 @@ func NewRouterWithDeps(reg *registry.Registry, cfg config.Config, deps Deps) htt
 			if deps.Sims != nil {
 				r.Mount("/simulators", deps.Sims)
 			}
+			if deps.WDABuild != nil {
+				r.Mount("/ios/wda", deps.WDABuild)
+			}
 			if deps.Bridges != nil {
 				r.Get("/bridge/assets", a.bridgeAssets)
 				r.Post("/bridge/assets/download", a.bridgeAssetsDownload)
@@ -138,6 +149,7 @@ func NewRouterWithDeps(reg *registry.Registry, cfg config.Config, deps Deps) htt
 						r.Post("/stop", a.withDevice(a.iosBridgeStop))
 						r.Get("/logs", a.withDevice(a.iosBridgeLogs))
 						r.Post("/install", a.withDevice(a.iosBridgeInstall))
+						r.Get("/readiness", a.withDevice(a.iosBridgeReadiness))
 					})
 					r.Get("/mjpeg", a.withDevice(a.mjpegStream))
 					r.Get("/mjpeg/info", a.withDevice(a.mjpegInfo))
@@ -498,6 +510,9 @@ func (a *api) serverShutdown(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusAccepted, map[string]any{"status": "shutting down"})
+	if !a.stopping.Load() {
+		a.noteShutdown(r)
+	}
 	if a.stopping.CompareAndSwap(false, true) {
 		// Delay so the response is flushed and desktop apps can observe shuttingDown.
 		go func() { time.Sleep(400 * time.Millisecond); a.shutdown() }()

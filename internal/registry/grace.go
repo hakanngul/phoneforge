@@ -23,6 +23,7 @@ type graceEntry struct {
 type graceDiscoverer struct {
 	inner Discoverer
 	grace time.Duration
+	only  func(device.Device) bool // nil: grace applies to every device
 	now   func() time.Time
 
 	mu   sync.Mutex
@@ -34,6 +35,16 @@ type graceDiscoverer struct {
 // through untouched (and do not age anything).
 func WithGrace(inner Discoverer, grace time.Duration) Discoverer {
 	return withGraceClock(inner, grace, time.Now)
+}
+
+// WithGraceIf is WithGrace restricted to devices for which only returns true
+// (e.g. Wi-Fi paired iPhones); every other device vanishes immediately.
+func WithGraceIf(inner Discoverer, grace time.Duration, only func(device.Device) bool) Discoverer {
+	d := withGraceClock(inner, grace, time.Now)
+	if g, ok := d.(*graceDiscoverer); ok {
+		g.only = only
+	}
+	return d
 }
 
 func withGraceClock(inner Discoverer, grace time.Duration, now func() time.Time) Discoverer {
@@ -55,7 +66,11 @@ func (g *graceDiscoverer) Discover(ctx context.Context) ([]device.Device, error)
 	for _, d := range devs {
 		id := d.Info().ID
 		seen[id] = true
-		g.last[id] = graceEntry{dev: d, lastSeen: now}
+		if g.only == nil || g.only(d) {
+			g.last[id] = graceEntry{dev: d, lastSeen: now}
+		} else {
+			delete(g.last, id) // USB now: no grace owed if it later vanishes
+		}
 	}
 	out := append([]device.Device(nil), devs...)
 	for id, e := range g.last {

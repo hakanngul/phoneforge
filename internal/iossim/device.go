@@ -23,7 +23,7 @@ const IDPrefix = "sim-"
 func FormatID(udid string) string { return IDPrefix + udid }
 
 func needWDA() error {
-	return fmt.Errorf("simulator UI automation needs WebDriverAgent: start it with POST /simulators/{udid}/wda/start (build it first with scripts/build-wda.sh --sim): %w", device.ErrUnsupported)
+	return fmt.Errorf("simulator UI automation needs WebDriverAgent: start it with POST /simulators/{udid}/wda/start (build it first: Integrations > iOS Simulators > Build WDA, or `phoneforge ios build-wda --sim`): %w", device.ErrUnsupported)
 }
 
 // simDevice implements device.Device (and several extras) via simctl. UI

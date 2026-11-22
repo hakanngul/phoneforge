@@ -64,8 +64,9 @@ See FEATURES.md.
 
 ## iOS live control
 
-Real iPhones are controlled through PhoneForge's own signed WebDriverAgent (WDA). Build it once with
-`scripts/build-wda.sh`, then in the UI select the iPhone and click **Install helper** (explicit, asks first),
-then **Start WDA**. Once the chip reads `WDA: running` the Live view switches to an MJPEG stream and taps, swipes,
+Real iPhones are controlled through PhoneForge's own signed WebDriverAgent (WDA). The UI builds it for you
+(needs Xcode): select the iPhone and click the bridge toggle, which reads **Build WDA** the first time (also
+`phoneforge ios build-wda`; `scripts/build-wda.sh` remains as a developer alternative). It then installs
+(explicit, asks first) and starts WDA. Once the chip reads `Bridge: running` the Live view switches to an MJPEG stream and taps, swipes,
 Home, typing, Element Picker, OCR and app launch work through WDA. Full prerequisites and troubleshooting:
 [docs/ios-setup.md](docs/ios-setup.md).

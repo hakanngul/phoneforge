@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Developer alternative: PhoneForge itself (app UI "Build WDA", or `phoneforge ios build-wda`) needs neither this script nor the repo.
 # Build and sign PhoneForge's own copy of appium/WebDriverAgent (BSD licence).
 # Usage: scripts/build-wda.sh [--install <udid>] [--sim] [--help]
 #   --sim   build the unsigned iOS Simulator runner instead (output: $PF_WDA_HOME/build-sim)

@@ -86,9 +86,11 @@ phoneforge devices
 
 Android needs `adb` in `PATH` and USB debugging enabled on the phone. Connect a device and it appears in the UI.
 
-**iOS real devices** are controlled through PhoneForge's own signed WebDriverAgent (WDA). Build and install it once with
-`scripts/build-wda.sh`, trust the developer profile on the phone, then select the device in the UI and click
-**Install helper** and **Start WDA**. Prerequisites and troubleshooting: [docs/ios-setup.md](docs/ios-setup.md).
+**iOS real devices** are controlled through PhoneForge's own signed WebDriverAgent (WDA). Everything happens inside the app (needs Xcode and an Apple ID,
+free is fine): select the iPhone and click the bridge toggle. When the helper was never built it reads **Build WDA**; PhoneForge builds it
+on your Mac with your own Apple team (the pinned source ships inside the app, no repo or terminal needed), then installs and starts it.
+Trust the developer profile on the phone when asked. Headless: `phoneforge ios build-wda [--sim] [--install <device>] [--team <id>]`.
+Prerequisites and troubleshooting: [docs/ios-setup.md](docs/ios-setup.md).
 iOS simulators on macOS are listed automatically once booted.
 
 ## Using with AI agents
@@ -135,6 +137,10 @@ phoneforge agent "open Settings and turn on Dark Mode"
 `-d` matches device id, serial, name or a unique prefix. `--json` gives machine-readable output. Exit codes: 0 ok, 1 error, 2 usage,
 3 device not found or ambiguous, 4 server unreachable. All commands: [docs/cli.md](docs/cli.md).
 
+**Server lifecycle.** Every start and stop is recorded in `~/.phoneforge/server-events.jsonl` with its reason (shutdown API and who
+asked, signal, crash, port in use, or an unexpected exit such as `kill -9`). See it with `phoneforge server history`, in the web UI's
+**Server** panel, or in the desktop app (Server menu: start, stop, restart). `phoneforge server start` launches `phoneforged` detached.
+
 ## Writing tests
 
 A `.mob` script is one statement per line:
@@ -168,7 +174,7 @@ Run it with `phoneforge run login.mob`, from a test project in the UI, or throug
 | `PF_MJPEG_FPS`, `PF_MJPEG_SCALE`, `PF_MJPEG_QUALITY` | iOS WDA MJPEG stream (defaults 60 / 25 / 50; ranges 1-60 / 1-100 / 1-100) |
 | `PF_ANDROID_AUTOBRIDGE=0` | do not start the Android UiAutomator2 bridge on first UI-tree read |
 | `PF_SIM_AUTOWDA=0` | do not start WDA lazily on simulators |
-| `PF_TEAM_ID`, `PF_BUNDLE_PREFIX` | signing overrides for `scripts/build-wda.sh` |
+| `PF_TEAM_ID`, `PF_BUNDLE_PREFIX` | signing overrides for the in-app WDA build (a Team ID entered in the UI is saved in `~/.phoneforge/settings.json`; `PF_TEAM_ID` wins); `PF_WDA_HOME`, `PF_WDA_TARBALL` relocate the WDA work dir / source tarball |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `OLLAMA_HOST`, `OLLAMA_MODEL` | built-in agent providers |
 
 `phoneforged` flags: `-addr`, `-adb`, `-token`, `-webdir`.

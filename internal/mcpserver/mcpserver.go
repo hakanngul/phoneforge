@@ -262,7 +262,7 @@ func New(apiBaseURL, version string) *server.MCPServer {
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return c.text(ctx, "GET", devPath(req, "/bridge"), "")
 		})
-	s.AddTool(mcp.NewTool("ios_install_helper", mcp.WithDescription("Install the locally built WebDriverAgent runner onto an iOS device (explicit user action; the runner must be built first with scripts/build-wda.sh)."), id),
+	s.AddTool(mcp.NewTool("ios_install_helper", mcp.WithDescription("Install the locally built WebDriverAgent runner onto an iOS device (explicit user action; the runner must be built first: in the PhoneForge UI use Build WDA, or run `phoneforge ios build-wda`)."), id),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return c.text(ctx, "POST", devPath(req, "/iosbridge/install"), "")
 		})

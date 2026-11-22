@@ -11,7 +11,9 @@
  * iOS (real devices): the same chip/row UI drives the WebDriverAgent (WDA) bridge via
  * /devices/{id}/iosbridge/{status,start,stop,logs,install}. Chip shows "WDA: stopped|starting|running|error";
  * Start/Stop in the toolbar and device row; "Install helper" appears while status.installed is false (confirm
- * first); an error opens a modal with the error text and the last runner log lines. When the state flips
+ * first); an error opens a modal with the error text and the last runner log lines.
+ * When the WDA runner was never built on this Mac the button reads "Build WDA": it opens the in-app build
+ * (frontend/wdabuild.js: phase + live log, Team ID prompt, Xcode/phone guidance), then installs and starts WDA. When the state flips
  * (start/stop) PF.iosBridgeChanged(id) makes the Live view switch between MJPEG and screenshots.
  */
 (function () {
@@ -70,13 +72,16 @@
   function refreshUI() {
     var d = selAndroid(), chip = $('bridgeChip');
     refreshIOSUI();
-    if (!d) { if (!selIOS()) chip.hidden = true; }
+    if (!d) { if (!selIOS()) { chip.hidden = true; toggle.hidden = true; } }
     else {
       var st = stateOf(d.id), s = status[d.id];
       chip.hidden = false;
       chip.className = 'bchip ' + st;
       chip.textContent = (s && s.unavailable) ? 'Bridge: unavailable' : 'Bridge: ' + (st === 'running' ? 'running' : st === 'starting' ? 'starting' : st === 'error' ? 'error' : 'stopped');
       chip.title = tipOf(d.id);
+      var on = st === 'running';
+      setToggle(st, on ? 'Stop' : 'Start', (on ? 'Stop the bridge. ' : 'Start the bridge. ') + tipOf(d.id),
+        st === 'starting' || !!stopping[d.id] || d.state !== 'connected');
     }
     if (PF.refreshDeviceRows) PF.refreshDeviceRows();
   }
@@ -216,10 +221,42 @@
     });
   }
 
+  var wdaEnv = null;    // GET /ios/wda?quick=1 env ({runnerBuilt, supported, ...}) or null
+  function runnerMissing() { return !!wdaEnv && wdaEnv.runnerBuilt === false; }
+  function installLabel() { return runnerMissing() ? 'Build WDA' : 'Install helper'; }
+  function refreshWdaEnv() { return PF.wdaBuild.env(true).then(function (e) { wdaEnv = e; refreshUI(); return e; }); }
+
+  // One consistent on/off control for the selected device (Android UiAutomator2 and iOS WDA).
+  var toggle = PF.el('button', 'btn sm bbtn'), toggleDot = PF.el('span', 'bdot stopped'), toggleLbl = PF.el('span', '', 'Start');
+  toggle.type = 'button'; toggle.id = 'bridgeToggle'; toggle.hidden = true; toggle.style.marginLeft = '6px';
+  toggle.appendChild(toggleDot); toggle.appendChild(toggleLbl);
+  toggle.dataset.action = 'start';
+  function setToggle(st, label, tip, disabled) {
+    toggle.hidden = false;
+    toggleDot.className = 'bdot ' + st;
+    toggleLbl.textContent = label;
+    toggle.title = tip; toggle.setAttribute('aria-label', tip);
+    toggle.disabled = !!disabled;
+  }
+  toggle.addEventListener('click', function () {
+    var i = selIOS(), d = selAndroid();
+    if (i) {
+      var st = iState(i.id), s = istatus[i.id] || {};
+      if (st === 'running') stopIOS(i.id);
+      else if (st === 'starting') return;
+      else if (s.installed === false) installIOS(i.id, true);
+      else startIOS(i.id);
+    } else if (d) {
+      var as = stateOf(d.id);
+      if (as === 'running') stopBridge(d.id); else if (as !== 'starting') startBridge(d.id);
+    }
+  });
+
   var wdaBtn = PF.el('button', 'btn sm'), wdaInstallBtn = PF.el('button', 'btn sm', 'Install helper');
   wdaBtn.type = 'button'; wdaInstallBtn.type = 'button';
   wdaBtn.hidden = wdaInstallBtn.hidden = true;
-  $('bridgeChip').parentNode.insertBefore(wdaBtn, $('bridgeChip').nextSibling);
+  $('bridgeChip').parentNode.insertBefore(toggle, $('bridgeChip').nextSibling);
+  $('bridgeChip').parentNode.insertBefore(wdaBtn, toggle.nextSibling);
   $('bridgeChip').parentNode.insertBefore(wdaInstallBtn, wdaBtn.nextSibling);
   wdaBtn.addEventListener('click', function () {
     var d = selIOS(); if (!d) return;
@@ -234,18 +271,19 @@
 
   function refreshIOSUI() {
     var d = selIOS(), chip = $('bridgeChip');
-    if (!d) { wdaBtn.hidden = wdaInstallBtn.hidden = true; return; }
+    wdaBtn.hidden = wdaInstallBtn.hidden = true; // superseded by the unified toggle
+    if (!d) return;
     var st = iState(d.id), s = istatus[d.id] || {};
+    var missing = s.installed === false && st !== 'running';
+    var label = s.unavailable ? 'unavailable' : (iinstalling[d.id] ? 'installing' : (missing && st !== 'starting' ? 'not installed' : st));
     chip.hidden = false;
     chip.className = 'bchip ' + st;
-    chip.textContent = s.unavailable ? 'WDA: unavailable' : 'WDA: ' + st;
+    chip.textContent = 'Bridge: ' + label;
     chip.title = iTip(d.id);
-    var conn = d.state === 'connected';
-    wdaBtn.hidden = false;
-    wdaBtn.textContent = st === 'running' ? 'Stop WDA' : 'Start WDA';
-    wdaBtn.disabled = st === 'starting' || !!istopping[d.id] || !conn;
-    wdaInstallBtn.hidden = !(s.installed === false) || st === 'running';
-    wdaInstallBtn.disabled = st === 'starting' || !conn;
+    var conn = d.state === 'connected' || !!d.simulator;
+    var action = st === 'running' ? 'Stop' : (st === 'starting' ? (iinstalling[d.id] ? 'Installing...' : 'Starting...') : (missing ? (runnerMissing() ? 'Build WDA' : 'Install') : 'Start'));
+    var tip = iTip(d.id) + (action === 'Build WDA' ? ' Click to build the helper on this Mac (needs Xcode), then install and start it.' : action === 'Install' ? ' Click to install it.' : '');
+    setToggle(st, action, tip, st === 'starting' || !!istopping[d.id] || !conn);
   }
 
   function decorateIOS(d, host) {
@@ -263,7 +301,7 @@
     });
     host.appendChild(b);
     if ((istatus[d.id] || {}).installed === false && !on) {
-      var ib = PF.el('button', 'btn sm bbtn', 'Install helper');
+      var ib = PF.el('button', 'btn sm bbtn', installLabel());
       ib.type = 'button'; ib.disabled = d.state !== 'connected' || !!iinstalling[d.id];
       ib.addEventListener('click', function (ev) { ev.stopPropagation(); installIOS(d.id); });
       host.appendChild(ib);
@@ -280,6 +318,11 @@
         return fetchIStatus(id).then(function () { installIOS(id, true); });
       }
       return fetchIStatus(id).then(function () {
+        if (e.hint) {
+          // structured problem (developer not trusted, Developer Mode off, ...): say what to do
+          PF.wdaBuild.showIssue('WDA could not start', PF.wdaBuild.issueFromErr(e), { retry: function () { startIOS(id); }, retryLabel: 'Start again' });
+          return;
+        }
         PF.toast('WDA: ' + (e.serverMessage || e.message));
         showIOSDetails(id, e.serverMessage || e.message);
       });
@@ -293,18 +336,51 @@
     }, function (e) { PF.toast(e.serverMessage || e.message); }).then(function () { istopping[id] = false; refreshUI(); });
   }
 
+  // Install flow: (1) if the runner was never built on this Mac, offer to build it in-app first
+  // (then install + start automatically); (2) check the phone (trusted, Developer Mode); (3) install.
   function installIOS(id, thenStart) {
-    confirmModal('Install helper?', [
-      'PhoneForge\'un WebDriverAgent\'ı bu iPhone\'a kurulacak.',
-      'The WDA helper was built with your own signing identity (scripts/build-wda.sh) and is installed over USB. You may need to trust the developer profile on the phone afterwards.'
-    ], 'Install', function () {
-      iinstalling[id] = true; refreshUI();
-      PF.api('POST', ipath(id, '/install'), {}).then(function (s) {
+    PF.wdaBuild.env(true).then(function (env) {
+      wdaEnv = env; refreshUI();
+      if (runnerMissing()) buildThenInstall(id);
+      else confirmInstall(id, thenStart);
+    });
+  }
+
+  function buildThenInstall(id) {
+    PF.confirm('The WebDriverAgent helper has not been built on this Mac yet.\n\n' +
+      'PhoneForge will build it now with your own Apple team (needs Xcode; a few minutes the first time), ' +
+      'install it on this iPhone over USB and start it. Nothing leaves your Mac.', function () {
+      PF.wdaBuild.open({
+        mode: 'device',
+        onSuccess: function () { wdaEnv = { runnerBuilt: true }; refreshUI(); runInstall(id, true); }
+      });
+    }, { title: 'Build WebDriverAgent?', okLabel: 'Build WDA' });
+  }
+
+  function confirmInstall(id, thenStart) {
+    PF.confirm('Install PhoneForge\'s WebDriverAgent helper on this iPhone?\n\n' +
+      'It was built on this Mac with your own signing identity and is installed over USB. ' +
+      'You may need to trust the developer profile on the phone afterwards (Settings > General > VPN & Device Management).',
+      function () { runInstall(id, thenStart); }, { title: 'Install helper?', okLabel: 'Install' });
+  }
+
+  function runInstall(id, thenStart) {
+    iinstalling[id] = true; refreshUI();
+    var retry = function () { runInstall(id, thenStart); };
+    PF.api('GET', ipath(id, '/readiness')).then(null, function () { return null; }).then(function (rd) {
+      if (rd && rd.issue && (rd.issue.code === 'DEVELOPER_MODE_OFF' || rd.issue.code === 'DEVICE_NOT_TRUSTED')) {
+        iinstalling[id] = false; refreshUI();
+        PF.wdaBuild.showIssue('The iPhone is not ready yet', rd.issue, { retry: retry, retryLabel: 'Check again' });
+        return;
+      }
+      return PF.api('POST', ipath(id, '/install'), {}).then(function (s) {
         iinstalling[id] = false; setIStatus(id, s || {});
         PF.toast('WDA helper installed', true);
         if (thenStart) startIOS(id);
       }, function (e) {
         iinstalling[id] = false; refreshUI();
+        if (e.code === 'IOSBRIDGE_RUNNER_NOT_BUILT') { wdaEnv = { runnerBuilt: false }; refreshUI(); buildThenInstall(id); return; }
+        if (e.hint) { PF.wdaBuild.showIssue('Could not install the helper', PF.wdaBuild.issueFromErr(e), { retry: retry }); return; }
         PF.toast(e.serverMessage || e.message);
       });
     });
@@ -337,7 +413,7 @@
     var d = selAndroid(), i = selIOS();
     refreshUI();
     if (d) fetchStatus(d.id);
-    if (i) fetchIStatus(i.id);
+    if (i) { fetchIStatus(i.id); if (!wdaEnv) refreshWdaEnv(); }
   }
   PF.hooks.onSelect.push(onSel);
   PF.hooks.onDevices.push(function () {

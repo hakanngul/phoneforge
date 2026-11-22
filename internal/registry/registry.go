@@ -3,9 +3,12 @@ package registry
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"phoneforge/internal/device"
 )
@@ -20,10 +23,20 @@ type Registry struct {
 	mu          sync.RWMutex
 	discoverers []Discoverer
 	byID        map[string]device.Device
+	lastGood    map[int][]device.Device // last successful result per discoverer
+
+	refreshMu sync.Mutex // serialises Refresh so scans never overlap
 }
 
+// DiscoverTimeout (a var only so tests can shorten it) bounds one discoverer's scan so a hung platform backend
+// (e.g. a locked iPhone that never answers lockdown) cannot freeze the
+// registry for every other platform.
+var DiscoverTimeout = 8 * time.Second
+
 // New returns an empty registry.
-func New() *Registry { return &Registry{byID: map[string]device.Device{}} }
+func New() *Registry {
+	return &Registry{byID: map[string]device.Device{}, lastGood: map[int][]device.Device{}}
+}
 
 // AddDiscoverer registers a platform discoverer.
 func (r *Registry) AddDiscoverer(d Discoverer) {
@@ -32,26 +45,61 @@ func (r *Registry) AddDiscoverer(d Discoverer) {
 	r.discoverers = append(r.discoverers, d)
 }
 
-// Refresh re-scans all discoverers and updates the id->device map.
+// Refresh re-scans all discoverers (concurrently, each bounded by
+// DiscoverTimeout) and updates the id->device map. A discoverer that fails or
+// times out keeps its previous devices instead of blanking the list or
+// aborting the other platforms; the joined errors are returned for logging.
 func (r *Registry) Refresh(ctx context.Context) error {
+	r.refreshMu.Lock()
+	defer r.refreshMu.Unlock()
 	r.mu.RLock()
 	ds := append([]Discoverer(nil), r.discoverers...)
 	r.mu.RUnlock()
 
+	type result struct {
+		devs []device.Device
+		err  error
+	}
+	res := make([]result, len(ds))
+	var wg sync.WaitGroup
+	for i, disc := range ds {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			cctx, cancel := context.WithTimeout(ctx, DiscoverTimeout)
+			defer cancel()
+			ch := make(chan result, 1)
+			go func() {
+				devs, err := disc.Discover(cctx)
+				ch <- result{devs, err}
+			}()
+			select {
+			case res[i] = <-ch:
+			case <-cctx.Done():
+				res[i] = result{err: fmt.Errorf("device scan timed out: %w", cctx.Err())}
+			}
+		}()
+	}
+	wg.Wait()
+
+	var errs []error
+	r.mu.Lock()
 	next := map[string]device.Device{}
-	for _, disc := range ds {
-		devs, err := disc.Discover(ctx)
-		if err != nil {
-			return err
+	for i := range ds {
+		devs := res[i].devs
+		if res[i].err != nil {
+			errs = append(errs, res[i].err)
+			devs = r.lastGood[i] // keep what we knew
+		} else {
+			r.lastGood[i] = devs
 		}
 		for _, dev := range devs {
 			next[dev.Info().ID] = dev
 		}
 	}
-	r.mu.Lock()
 	r.byID = next
 	r.mu.Unlock()
-	return nil
+	return errors.Join(errs...)
 }
 
 // List returns all known devices in a stable order (local Android, iOS,

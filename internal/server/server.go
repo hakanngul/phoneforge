@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"io"
 	"io/fs"
 	"log"
 	"net"
@@ -34,6 +35,7 @@ import (
 	"phoneforge/internal/iosbridge"
 	"phoneforge/internal/iosdrv"
 	"phoneforge/internal/iossim"
+	"phoneforge/internal/lifecycle"
 	"phoneforge/internal/mcpserver"
 	"phoneforge/internal/mobtest"
 	"phoneforge/internal/ocr"
@@ -59,6 +61,10 @@ type Options struct {
 	WebFS fs.FS
 	// StateDir overrides the state directory ($PHONEFORGE_HOME, else ~/.phoneforge).
 	StateDir string
+	// StartedVia and Owner describe who launched this server, for the lifecycle
+	// history ("phoneforged"/"desktop"/"phoneforge server start"; owner "cli"/"desktop").
+	StartedVia string
+	Owner      string
 }
 
 // Server is a running PhoneForge server.
@@ -75,7 +81,24 @@ type Server struct {
 	once     sync.Once
 	shutdown error
 	stopReq  chan struct{}
+	life     *lifecycle.Recorder
 }
+
+// logTail keeps the last log lines so crashes and unclean exits can show them.
+var (
+	logTail     = lifecycle.NewTailWriter(60)
+	logTailOnce sync.Once
+)
+
+// Lifecycle returns the start/stop recorder of this server.
+func (s *Server) Lifecycle() *lifecycle.Recorder { return s.life }
+
+// SetStopReason records why the server is about to stop (first call wins).
+// origin names the actor (e.g. "desktop", "signal:SIGTERM").
+func (s *Server) SetStopReason(reason, origin string) { s.life.SetStopReason(reason, origin, "") }
+
+// RecordCrash logs a fatal error/panic for this server and marks the run as crashed.
+func (s *Server) RecordCrash(msg string) { s.life.Crash(msg) }
 
 // ShutdownRequested is closed when a client asked the server to stop via
 // POST /api/v1/server/shutdown. The owner should then call Shutdown and exit.
@@ -98,8 +121,14 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 	adbPath := opts.ADBPath
 
 	// Bind first so a busy port fails before any subsystem is started.
+	logTailOnce.Do(func() { log.SetOutput(io.MultiWriter(log.Writer(), logTail)) })
 	ln, err := net.Listen("tcp", cfg.Addr)
 	if err != nil {
+		dir := opts.StateDir
+		if dir == "" {
+			dir = PhoneforgeHome()
+		}
+		lifecycle.RecordListenFailure(dir, lifecycle.Info{Version: cfg.Version, Addr: cfg.Addr, StartedVia: opts.StartedVia, Owner: opts.Owner}, err)
 		return nil, err
 	}
 	cfg.Addr = ln.Addr().String()
@@ -109,6 +138,9 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 		stateDir = PhoneforgeHome()
 	}
 	_ = os.MkdirAll(stateDir, 0o700)
+	life := lifecycle.Begin(stateDir, lifecycle.Info{
+		Version: cfg.Version, Addr: cfg.Addr, StartedVia: opts.StartedVia, Owner: opts.Owner, LogTail: logTail.Lines,
+	})
 
 	// Secret store (Keychain-backed) + app cards, and load provider keys into env.
 	sec, err := credentials.New(filepath.Join(stateDir, "secret-index.json"))
@@ -158,8 +190,8 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 	iosCtl := httpapi.NewIOSControl(iosMgr)
 	iosCtl.AV = avcapture.Default // macOS native USB capture for real iPhones; falls back to WDA
 	iosSup := iosCtl.Supervise()
-	// Wi-Fi paired iPhones flap in and out of usbmuxd; keep them listed for a grace period.
-	reg.AddDiscoverer(iosWDADiscoverer{inner: registry.WithGrace(iosdrv.NewDiscoverer(), registry.DefaultGrace), ctl: iosCtl})
+	// Wi-Fi paired iPhones flap in and out of usbmuxd; keep only those listed for a grace period (USB unplug is immediate).
+	reg.AddDiscoverer(iosWDADiscoverer{inner: registry.WithGraceIf(iosdrv.NewDiscoverer(), registry.DefaultGrace, iosdrv.IsNetworkDevice), ctl: iosCtl})
 	simCtl := iossim.New("")
 	simCtl.SetStatePath(filepath.Join(stateDir, "iossim-state.json"))
 	simSup := simCtl.Supervise(events.Info)
@@ -180,8 +212,6 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 	if err := reg.Refresh(bgCtx); err != nil {
 		log.Printf("initial device scan: %v", err)
 	}
-	known := map[string]string{} // id -> name, for connect/disconnect events
-	noteDevices(reg, known, false)
 	iosSup.Seen(bgCtx, iosUDIDs(reg)) // auto-start WDA for devices the user left it on for
 	go iosSup.Run(bgCtx)
 	simSup.Seen(bgCtx, simUDIDs(reg)) // restore WDA on booted simulators the user left it on for
@@ -190,26 +220,33 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 	}
 	events.Info("PhoneForge started")
 
-	// Background rescan every 5s so hot-plugged devices appear.
-	go func() {
-		t := time.NewTicker(5 * time.Second)
-		defer t.Stop()
-		for {
-			select {
-			case <-bgCtx.Done():
-				return
-			case <-t.C:
-			}
-			cctx, c := context.WithTimeout(bgCtx, 10*time.Second)
-			if err := reg.Refresh(cctx); err != nil && bgCtx.Err() == nil {
-				log.Printf("device rescan: %v", err)
-			}
-			c()
-			noteDevices(reg, known, true)
-			iosSup.Seen(bgCtx, iosUDIDs(reg))
-			simSup.Seen(bgCtx, simUDIDs(reg))
+	// Hot-plug: usbmuxd Listen events kick an immediate rescan; a periodic
+	// rescan stays on as the safety net (Android, listener down, Windows/Linux).
+	kick := make(chan struct{}, 1)
+	go iosdrv.Watch(bgCtx, iosdrv.UsbmuxdListen, func(iosdrv.HotplugEvent) {
+		select {
+		case kick <- struct{}{}:
+		default:
 		}
-	}()
+	}, iosdrv.WatchOptions{Logf: log.Printf})
+	loop := newDeviceLoop(reg, kick)
+	loop.Baseline()
+	loop.OnRemoved = func(d device.Info) {
+		// Tear down the WDA bridge/forwarders of an unplugged iPhone. "Desired"
+		// is kept, so the supervisor restarts WDA when it is plugged back in.
+		if d.Platform == device.PlatformIOS && !d.Simulator && d.Serial != "" && !strings.HasPrefix(d.ID, "remote-") {
+			go func() {
+				if err := iosMgr.Stop(d.Serial); err != nil {
+					log.Printf("stop WDA bridge for %s: %v", d.Serial, err)
+				}
+			}()
+		}
+	}
+	loop.AfterScan = func([]device.Info) {
+		iosSup.Seen(bgCtx, iosUDIDs(reg))
+		simSup.Seen(bgCtx, simUDIDs(reg))
+	}
+	go loop.Run(bgCtx)
 
 	getDevice := func(id string) (device.Device, error) { return reg.Get(id) }
 
@@ -231,11 +268,13 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 	stopReq := make(chan struct{})
 	var stopOnce sync.Once
 	deps := httpapi.Deps{
-		Shutdown: func() { stopOnce.Do(func() { close(stopReq) }) },
-		Webhooks: whMgr.Routes(), Farms: farmMgr.Routes(), Bridges: bridges, IOS: iosCtl,
+		Lifecycle: life,
+		Shutdown:  func() { stopOnce.Do(func() { close(stopReq) }) },
+		Webhooks:  whMgr.Routes(), Farms: farmMgr.Routes(), Bridges: bridges, IOS: iosCtl,
 		AI:  aiconfig.New(filepath.Join(stateDir, "aiconfig.json"), "http://"+cfg.Addr+"/mcp").Routes(),
 		OCR: ocr.Routes(getDevice),
 		Web: webauto.NewRoutes(webMgr, getSerial), Sims: simCtl.Routes(),
+		WDABuild: httpapi.WDABuildRoutes(iosbridge.NewBuilder(filepath.Join(stateDir, config.UserSettingsFile))),
 	}
 	dbgMgr := debugger.NewManager()
 	deps.Debug = debugger.Routes(dbgMgr, getDevice)
@@ -278,13 +317,14 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 
 	s := &Server{
 		addr: cfg.Addr, srv: &http.Server{Handler: mux}, cancel: cancel, done: make(chan struct{}),
-		stopReq: stopReq, bridges: bridges, iosMgr: iosMgr, dbgMgr: dbgMgr, simCtl: simCtl, webMgr: webMgr,
+		stopReq: stopReq, life: life, bridges: bridges, iosMgr: iosMgr, dbgMgr: dbgMgr, simCtl: simCtl, webMgr: webMgr,
 	}
 	go func() {
 		defer close(s.done)
 		log.Printf("PhoneForge %s listening on http://%s  (REST /api/v1, MCP /mcp)", cfg.Version, cfg.Addr)
 		if err := s.srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			log.Printf("server: %v", err)
+			s.life.Crash("http server stopped serving: " + err.Error())
 		}
 	}()
 	return s, nil
@@ -300,6 +340,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.dbgMgr.CloseAll()
 		s.simCtl.StopAll()
 		s.webMgr.CloseAll(ctx)
+		s.life.Stop("server stopped (no reason recorded)")
 	})
 	return s.shutdown
 }
@@ -386,31 +427,6 @@ func simUDIDs(reg *registry.Registry) []string {
 		}
 	}
 	return out
-}
-
-// noteDevices publishes activity events when devices appear or disappear.
-// On the first call (emit=false) it only records the baseline.
-func noteDevices(reg *registry.Registry, known map[string]string, emit bool) {
-	cur := map[string]string{}
-	for _, d := range reg.List() {
-		cur[d.ID] = d.Name
-	}
-	for id, name := range cur {
-		if _, ok := known[id]; !ok {
-			known[id] = name
-			if emit {
-				events.Success("Device connected: " + name)
-			}
-		}
-	}
-	for id, name := range known {
-		if _, ok := cur[id]; !ok {
-			delete(known, id)
-			if emit {
-				events.Info("Device disconnected: " + name)
-			}
-		}
-	}
 }
 
 // PhoneforgeHome returns the state directory ($PHONEFORGE_HOME, else ~/.phoneforge, or ./.phoneforge).

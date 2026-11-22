@@ -31,3 +31,8 @@ func KillGroup(cmd *exec.Cmd) {
 	_ = exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(cmd.Process.Pid)).Run()
 	_ = cmd.Process.Kill()
 }
+
+// Detach starts the child detached from the parent's console.
+func Detach(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: createNewProcessGroup | 0x00000008} // DETACHED_PROCESS
+}

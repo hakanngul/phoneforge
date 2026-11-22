@@ -36,6 +36,9 @@ type IOSControl struct {
 	// Install installs the WDA runner (appPath "" = default build output).
 	// Nil uses iosbridge.InstallRunner.
 	Install func(udid, appPath string) error
+	// Readiness probes pairing/Developer Mode for a udid. Nil uses
+	// iosbridge.CheckReadiness.
+	Readiness func(udid string) iosbridge.Readiness
 	// Sim, when set, makes the routes also serve simulator devices.
 	Sim *iossim.Control
 	// AV, when set, lets /mjpeg prefer macOS native USB screen capture for
@@ -205,6 +208,10 @@ func iosStartErr(w http.ResponseWriter, err error) {
 	case errors.Is(err, iosbridge.ErrTunnelUnsupported):
 		writeErr(w, "IOSBRIDGE_TUNNEL_ROOT", http.StatusConflict, err.Error())
 	default:
+		if is := iosbridge.ClassifyInstallError(err); is != nil && is.Code != iosbridge.CodeDeviceNotTrusted {
+			writeIssue(w, issueStatus(is), is)
+			return
+		}
 		writeErr(w, "IOSBRIDGE_START_FAILED", http.StatusInternalServerError, err.Error())
 	}
 }
@@ -302,7 +309,7 @@ func (a *api) iosBridgeInstall(w http.ResponseWriter, r *http.Request, dev devic
 		return
 	}
 	if a.ios.isSim(udid) {
-		writeErr(w, "IOSBRIDGE_SIM_NO_INSTALL", http.StatusConflict, "simulators need no helper install: build WDA with scripts/build-wda.sh --sim and use Start WDA")
+		writeErr(w, "IOSBRIDGE_SIM_NO_INSTALL", http.StatusConflict, "simulators need no helper install: build the simulator WDA from PhoneForge (Simulators > Build WDA) and use Start WDA")
 		return
 	}
 	install := a.ios.Install
@@ -324,7 +331,15 @@ func (a *api) iosBridgeInstall(w http.ResponseWriter, r *http.Request, dev devic
 	if err != nil {
 		events.Errorf("WDA helper install failed on %s: %v", name, err)
 		if errors.Is(err, iosbridge.ErrRunnerNotBuilt) {
-			writeErr(w, "IOSBRIDGE_RUNNER_NOT_BUILT", http.StatusConflict, "WebDriverAgent runner has not been built yet: run scripts/build-wda.sh, then try again")
+			writeJSON(w, http.StatusConflict, map[string]any{
+				"error": "WebDriverAgent runner has not been built yet: use \"Build WDA\" in PhoneForge, then try again",
+				"code":  "IOSBRIDGE_RUNNER_NOT_BUILT",
+				"hint":  "PhoneForge builds WebDriverAgent on this Mac with your own Apple team (needs Xcode).",
+			})
+			return
+		}
+		if is := issueFromErr(err); is != nil {
+			writeIssue(w, issueStatus(is), is)
 			return
 		}
 		writeErr(w, "IOSBRIDGE_INSTALL_FAILED", http.StatusInternalServerError, err.Error())

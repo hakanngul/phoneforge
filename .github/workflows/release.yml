@@ -191,6 +191,14 @@ jobs:
           if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
           go build $GO_FLAGS -ldflags "$LDFLAGS" -o "pkg/$NAME/phoneforged$EXT" ./cmd/phoneforged
           go build $GO_FLAGS -ldflags "$LDFLAGS" -o "pkg/$NAME/phoneforge$EXT" ./cmd/phoneforge
+          if [ "$GOOS" = "darwin" ]; then
+            # Pinned WebDriverAgent source: "Build WDA" extracts it on the user's Mac (no git or network).
+            WDA_TARBALL=$(scripts/fetch-wda.sh)
+            cp "$WDA_TARBALL" "pkg/$NAME/"
+            WDA_LICENSE=$(tar -tzf "$WDA_TARBALL" | awk '/^[^\/]+\/LICENSE$/ && !f {print; f=1}')
+            [ -n "$WDA_LICENSE" ] || { echo "error: no top-level LICENSE found in $WDA_TARBALL" >&2; exit 1; }
+            tar -xzOf "$WDA_TARBALL" "$WDA_LICENSE" > "pkg/$NAME/WebDriverAgent-LICENSE.txt"
+          fi
           cat > "pkg/$NAME/README.txt" <<README
           PhoneForge ${VERSION} (${GOOS}/${GOARCH})
 
@@ -201,6 +209,9 @@ jobs:
             ./phoneforged &            # needs adb in PATH for Android devices
             ./phoneforge devices
             ./phoneforge version
+
+          macOS + iPhone: keep WebDriverAgent-*.tar.gz next to phoneforged (it is the pinned appium/WebDriverAgent
+          source, BSD licence). Needs Xcode; run ./phoneforge ios build-wda or use "Build WDA" in the web UI.
 
           Docs: https://github.com/hakanngul/phoneforge
           README

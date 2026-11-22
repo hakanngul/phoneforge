@@ -86,8 +86,9 @@ phoneforge devices
 
 Android için `PATH` içinde `adb` olmalı ve telefonda USB hata ayıklama açık olmalı. Cihazı bağlayın, arayüzde görünür.
 
-**Gerçek iOS cihazlar** PhoneForge'un kendi imzalı WebDriverAgent'ı (WDA) ile yönetilir. `scripts/build-wda.sh` ile bir kez derleyip
-kurun, telefonda geliştirici profiline güvenin, ardından arayüzde cihazı seçip **Install helper** ve **Start WDA** düğmelerine tıklayın.
+**Gerçek iOS cihazlar** PhoneForge'un kendi imzalı WebDriverAgent'ı (WDA) ile yönetilir. Her şey uygulamanın içinde olur (Xcode ve bir Apple ID gerekir, ücretsiz olabilir): iPhone'u seçip bridge anahtarına tıklayın.
+Yardımcı hiç derlenmediyse anahtar **Build WDA** yazar; PhoneForge onu Mac'inizde kendi Apple takımınızla derler (sabitlenmiş kaynak uygulamanın içinde gelir, repo
+veya terminal gerekmez), sonra kurar ve başlatır. İstendiğinde telefonda geliştirici profiline güvenin. Arayüzsüz: `phoneforge ios build-wda [--sim] [--install <cihaz>] [--team <id>]`.
 Gereksinimler ve sorun giderme: [docs/ios-setup.md](docs/ios-setup.md). macOS'ta açılmış iOS simülatörleri otomatik listelenir.
 
 ## AI ajanlarıyla kullanım
@@ -134,6 +135,11 @@ phoneforge agent "open Settings and turn on Dark Mode"
 `-d`, cihaz kimliği, seri numarası, ad veya benzersiz bir önekle eşleşir. `--json` makine tarafından okunabilir çıktı verir. Çıkış kodları:
 0 başarılı, 1 hata, 2 kullanım hatası, 3 cihaz bulunamadı veya belirsiz, 4 sunucuya ulaşılamadı. Tüm komutlar: [docs/cli.md](docs/cli.md).
 
+**Sunucu yaşam döngüsü.** Her başlatma ve durdurma, nedeniyle birlikte `~/.phoneforge/server-events.jsonl` dosyasına yazılır (kapatma API'si ve
+isteyen taraf, sinyal, çökme, port kullanımda ya da `kill -9` gibi beklenmeyen çıkış). `phoneforge server history` ile, web arayüzündeki
+**Server** panelinde veya masaüstü uygulamasında (Server menüsü: başlat, durdur, yeniden başlat) görebilirsiniz. `phoneforge server start`,
+`phoneforged`'i arka planda başlatır.
+
 ## Test yazma
 
 Bir `.mob` betiğinde her satır bir ifadedir:
@@ -167,7 +173,7 @@ Betiği `phoneforge run login.mob` ile, arayüzdeki bir test projesinden veya MC
 | `PF_MJPEG_FPS`, `PF_MJPEG_SCALE`, `PF_MJPEG_QUALITY` | iOS WDA MJPEG akışı (varsayılanlar 60 / 25 / 50; aralıklar 1-60 / 1-100 / 1-100) |
 | `PF_ANDROID_AUTOBRIDGE=0` | ilk UI ağacı okumasında Android UiAutomator2 köprüsünü başlatma |
 | `PF_SIM_AUTOWDA=0` | simülatörlerde WDA'yı ihtiyaç anında başlatma |
-| `PF_TEAM_ID`, `PF_BUNDLE_PREFIX` | `scripts/build-wda.sh` için imzalama ayarları |
+| `PF_TEAM_ID`, `PF_BUNDLE_PREFIX` | uygulama içi WDA derlemesi için imzalama ayarları (arayüzde girilen Team ID `~/.phoneforge/settings.json` içine kaydedilir; `PF_TEAM_ID` önceliklidir); `PF_WDA_HOME`, `PF_WDA_TARBALL` WDA çalışma klasörünü / kaynak arşivini değiştirir |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `OLLAMA_HOST`, `OLLAMA_MODEL` | yerleşik ajanın sağlayıcıları |
 
 `phoneforged` bayrakları: `-addr`, `-adb`, `-token`, `-webdir`.

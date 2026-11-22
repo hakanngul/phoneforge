@@ -33,7 +33,7 @@
         return res.text().then(function (t) {
           var e = new Error(method + ' ' + path + ' -> ' + PF.errMsg(res, t));
           e.status = res.status;
-          try { var j = JSON.parse(t); e.code = j.code; e.serverMessage = j.error || j.message; } catch (x) { /* plain text */ }
+          try { var j = JSON.parse(t); e.code = j.code; e.serverMessage = j.error || j.message; e.hint = j.hint; e.lines = j.lines; } catch (x) { /* plain text */ }
           throw e;
         });
       }

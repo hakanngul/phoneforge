@@ -12,15 +12,12 @@ import (
 
 // ErrRunnerNotBuilt means the signed WebDriverAgent runner .app does not exist
 // on this machine yet.
-var ErrRunnerNotBuilt = errors.New("iosbridge: WebDriverAgent runner app has not been built; run scripts/build-wda.sh")
+var ErrRunnerNotBuilt = errors.New("iosbridge: WebDriverAgent runner app has not been built yet; use \"Build WDA\" in PhoneForge (or `phoneforge ios build-wda`)")
 
-// DefaultRunnerAppPath is where scripts/build-wda.sh leaves the signed runner.
+// DefaultRunnerAppPath is where the WDA build leaves the signed runner
+// ($PF_WDA_HOME or ~/.phoneforge/wda, then build/Build/Products/...).
 func DefaultRunnerAppPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		home = "."
-	}
-	return filepath.Join(home, ".phoneforge", "wda", "build", "Build", "Products", "Debug-iphoneos", "WebDriverAgentRunner-Runner.app")
+	return filepath.Join(WDAHome(), "build", "Build", "Products", "Debug-iphoneos", "WebDriverAgentRunner-Runner.app")
 }
 
 // InstallApp installs a signed .app (or .ipa) onto the device with the given
