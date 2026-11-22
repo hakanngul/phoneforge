@@ -60,7 +60,7 @@ func helperPath() string {
 	if p := brand.Getenv("POCKETLAB_OCR_BIN"); p != "" {
 		return p
 	}
-	return filepath.Join(brand.DataDir(), "bin", "plocr")
+	return filepath.Join(brand.Home(), "bin", "plocr")
 }
 
 // Available reports which engine would be used.

@@ -37,7 +37,7 @@ func WDAHome() string {
 	if v := brand.Getenv("PL_WDA_HOME"); v != "" {
 		return v
 	}
-	return filepath.Join(brand.DataDir(), "wda")
+	return filepath.Join(brand.Home(), "wda")
 }
 
 // TarballCandidates lists, in priority order, where the WDA source tarball may

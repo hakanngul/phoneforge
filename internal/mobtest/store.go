@@ -66,7 +66,7 @@ func DefaultRoot() (string, error) {
 	if _, err := os.UserHomeDir(); err != nil {
 		return "", err
 	}
-	return filepath.Join(brand.DataDir(), "tests"), nil
+	return filepath.Join(brand.Home(), "tests"), nil
 }
 
 // NewStore opens (creating if needed) a store rooted at dir.

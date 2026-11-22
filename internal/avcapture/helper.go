@@ -49,7 +49,7 @@ func HelperPath() string {
 	if p := brand.Getenv("POCKETLAB_AVCAPTURE_BIN"); p != "" {
 		return p
 	}
-	return filepath.Join(brand.DataDir(), "bin", "plcapture")
+	return filepath.Join(brand.Home(), "bin", "plcapture")
 }
 
 func helperCompiled(bin string) bool {

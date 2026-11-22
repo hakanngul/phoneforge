@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -67,20 +68,23 @@ const HomeEnv = "POCKETLAB_HOME"
 // logw receives the one-time migration message.
 var logw io.Writer = os.Stderr
 
-var (
-	defaultOnce sync.Once
-	defaultDir  string
-)
+var migrated sync.Map // userHome -> struct{}: migration attempted this process
 
-// Migrate moves the legacy state directory oldDir to newDir when newDir does not
-// exist and oldDir does: it renames, and copies the tree if the rename fails
-// (for example across volumes). It reports whether a migration happened. When
-// both exist, newDir wins and oldDir is left untouched. When neither exists,
-// nothing is created here.
+// Migrate moves the legacy state directory oldDir to newDir. It reports whether
+// anything was migrated.
+//
+//   - newDir missing, oldDir present: oldDir is renamed to newDir (copied if the
+//     rename fails, e.g. across volumes).
+//   - both present: the trees are merged. Every legacy entry that is absent from
+//     newDir is moved over; an entry that is an empty/auto-created tree in newDir
+//     (empty directories) is replaced by the legacy one; the helper cache bin/
+//     prefers the legacy files; server-events.jsonl history is prepended. For any
+//     other conflict newDir wins and the legacy file stays behind. What is left
+//     of oldDir is renamed to <oldDir>.migrated-<timestamp> (never deleted), or
+//     removed if it ended up empty.
+//
+// A lock file next to oldDir keeps two starting processes from merging at once.
 func Migrate(oldDir, newDir string) (bool, error) {
-	if _, err := os.Stat(newDir); err == nil {
-		return false, nil
-	}
 	st, err := os.Stat(oldDir)
 	if err != nil || !st.IsDir() {
 		return false, nil
@@ -88,16 +92,171 @@ func Migrate(oldDir, newDir string) (bool, error) {
 	if err := os.MkdirAll(filepath.Dir(newDir), 0o755); err != nil {
 		return false, err
 	}
-	if err := os.Rename(oldDir, newDir); err == nil {
-		fmt.Fprintf(logw, "%s: migrated state directory %s -> %s\n", Name, oldDir, newDir)
+	unlock, ok := lockMigration(oldDir + ".migrate.lock")
+	if !ok {
+		return false, nil // another process is migrating; it will finish the job
+	}
+	defer unlock()
+	// Re-check under the lock: the other process may have finished meanwhile.
+	if st, err := os.Stat(oldDir); err != nil || !st.IsDir() {
+		return false, nil
+	}
+	if _, err := os.Stat(newDir); err != nil {
+		if err := os.Rename(oldDir, newDir); err == nil {
+			fmt.Fprintf(logw, "%s: migrated state directory %s -> %s\n", Name, oldDir, newDir)
+			return true, nil
+		}
+		if err := copyTree(oldDir, newDir); err != nil {
+			_ = os.RemoveAll(newDir)
+			return false, fmt.Errorf("migrate %s: %w", oldDir, err)
+		}
+		fmt.Fprintf(logw, "%s: migrated state directory %s -> %s (copied; the old directory was left in place)\n", Name, oldDir, newDir)
 		return true, nil
 	}
-	if err := copyTree(oldDir, newDir); err != nil {
-		_ = os.RemoveAll(newDir)
-		return false, fmt.Errorf("migrate %s: %w", oldDir, err)
+	moved, kept, err := mergeDirs(oldDir, newDir, true)
+	if err != nil {
+		return moved > 0, fmt.Errorf("merge %s into %s: %w", oldDir, newDir, err)
 	}
-	fmt.Fprintf(logw, "%s: migrated state directory %s -> %s (copied; the old directory was left in place)\n", Name, oldDir, newDir)
-	return true, nil
+	if left, _ := os.ReadDir(oldDir); len(left) == 0 {
+		_ = os.Remove(oldDir)
+	} else {
+		dst := fmt.Sprintf("%s.migrated-%s", oldDir, time.Now().Format("20060102-150405"))
+		if err := os.Rename(oldDir, dst); err != nil {
+			fmt.Fprintf(logw, "%s: could not archive leftover %s: %v\n", Name, oldDir, err)
+		} else {
+			fmt.Fprintf(logw, "%s: %d conflicting entr(ies) kept from the new directory; legacy leftovers archived in %s\n", Name, kept, dst)
+		}
+	}
+	if moved > 0 {
+		fmt.Fprintf(logw, "%s: merged %d entr(ies) from %s into %s\n", Name, moved, oldDir, newDir)
+	}
+	return moved > 0, nil
+}
+
+// lockMigration takes an exclusive lock file; a stale one (older than a
+// minute) is broken. It waits up to ~10s for a live holder.
+func lockMigration(path string) (func(), bool) {
+	for i := 0; i < 100; i++ {
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if err == nil {
+			fmt.Fprintf(f, "%d\n", os.Getpid())
+			f.Close()
+			return func() { _ = os.Remove(path) }, true
+		}
+		if st, serr := os.Stat(path); serr == nil && time.Since(st.ModTime()) > time.Minute {
+			_ = os.Remove(path)
+			continue
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return func() {}, false
+}
+
+// hasFiles reports whether the tree under dir holds anything but directories.
+func hasFiles(dir string) bool {
+	found := false
+	_ = filepath.Walk(dir, func(p string, info os.FileInfo, err error) error {
+		if err == nil && !info.IsDir() {
+			found = true
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return found
+}
+
+// moveEntry renames src to dst, falling back to copy + remove across volumes.
+func moveEntry(src, dst string) error {
+	if err := os.Rename(src, dst); err == nil {
+		return nil
+	}
+	if err := copyTree(src, dst); err != nil {
+		_ = os.RemoveAll(dst)
+		return err
+	}
+	return os.RemoveAll(src)
+}
+
+// mergeDirs moves entries of src into dst (see Migrate). It returns how many
+// entries were moved and how many conflicts were left in src.
+func mergeDirs(src, dst string, top bool) (moved, kept int, err error) {
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return 0, 0, err
+	}
+	for _, e := range entries {
+		name := e.Name()
+		s, d := filepath.Join(src, name), filepath.Join(dst, name)
+		dinfo, derr := os.Lstat(d)
+		if derr != nil { // absent in dst
+			if err := moveEntry(s, d); err != nil {
+				return moved, kept, err
+			}
+			moved++
+			continue
+		}
+		sinfo, serr := os.Lstat(s)
+		if serr != nil {
+			continue
+		}
+		switch {
+		case top && name == "server-events.jsonl" && sinfo.Mode().IsRegular() && dinfo.Mode().IsRegular():
+			// Keep the whole history: legacy lines first, then the new ones.
+			ob, e1 := os.ReadFile(s)
+			nb, e2 := os.ReadFile(d)
+			if e1 != nil || e2 != nil {
+				kept++
+				continue
+			}
+			if len(ob) > 0 && ob[len(ob)-1] != '\n' {
+				ob = append(ob, '\n')
+			}
+			tmp := d + ".merge-tmp"
+			if err := os.WriteFile(tmp, append(ob, nb...), dinfo.Mode().Perm()); err != nil {
+				return moved, kept, err
+			}
+			if err := os.Rename(tmp, d); err != nil {
+				return moved, kept, err
+			}
+			_ = os.Remove(s)
+			moved++
+		case top && name == "server.state":
+			// Live process state of the running (new) server: never overwrite.
+			kept++
+		case sinfo.IsDir() && dinfo.IsDir() && !hasFiles(d):
+			// New side is only auto-created empty directories: legacy wins.
+			if err := os.RemoveAll(d); err != nil {
+				return moved, kept, err
+			}
+			if err := moveEntry(s, d); err != nil {
+				return moved, kept, err
+			}
+			moved++
+		case top && name == "bin" && sinfo.IsDir() && dinfo.IsDir():
+			// Regenerable helper caches (plocr, plocr.sha, plocr.warm ...):
+			// prefer the legacy copies, keep the pair consistent.
+			bes, _ := os.ReadDir(s)
+			for _, be := range bes {
+				bs, bd := filepath.Join(s, be.Name()), filepath.Join(d, be.Name())
+				_ = os.RemoveAll(bd)
+				if err := moveEntry(bs, bd); err != nil {
+					return moved, kept, err
+				}
+				moved++
+			}
+		case sinfo.IsDir() && dinfo.IsDir():
+			m, k, err := mergeDirs(s, d, false)
+			moved += m
+			kept += k
+			if err != nil {
+				return moved, kept, err
+			}
+			_ = os.Remove(s) // only succeeds when emptied
+		default:
+			kept++ // same name, new side has real content: new wins
+		}
+	}
+	return moved, kept, nil
 }
 
 func copyTree(src, dst string) error {
@@ -141,26 +300,23 @@ func DataDirUnder(userHome string) string {
 }
 
 // DataDir returns ~/.pocketlab (or ./.pocketlab without a home directory),
-// running the legacy migration once per process (skipped while POCKETLAB_HOME /
-// PHONEFORGE_HOME is set). It ignores the override for its result; use Home for
-// the server state directory.
+// running the legacy migration once per home per process (skipped while
+// POCKETLAB_HOME / PHONEFORGE_HOME is set). It ignores the override for its
+// result, so state code must use Home/HomeFrom instead.
 func DataDir() string {
+	h, err := os.UserHomeDir()
+	if err != nil {
+		return DirName
+	}
 	if Getenv(HomeEnv) != "" {
 		// An explicit state-dir override (a second instance, tests) must not
 		// move the user's real ~/.phoneforge as a side effect.
-		if h, err := os.UserHomeDir(); err == nil {
-			return filepath.Join(h, DirName)
-		}
-		return DirName
+		return filepath.Join(h, DirName)
 	}
-	defaultOnce.Do(func() {
-		if h, err := os.UserHomeDir(); err == nil {
-			defaultDir = DataDirUnder(h)
-		} else {
-			defaultDir = DirName
-		}
-	})
-	return defaultDir
+	if _, loaded := migrated.LoadOrStore(h, struct{}{}); !loaded {
+		return DataDirUnder(h)
+	}
+	return filepath.Join(h, DirName)
 }
 
 // HomeFrom resolves the state directory through get: $POCKETLAB_HOME (or the
