@@ -43,8 +43,8 @@ const (
 	hintTrustDeveloper = "On the iPhone open Settings > General > VPN & Device Management, tap your Apple Development profile and choose Trust."
 	hintTrustComputer  = "Unlock the iPhone and tap \"Trust\" on the \"Trust This Computer?\" prompt, then try again."
 	hintProvisioning   = "Open Xcode > Settings > Accounts and make sure your Apple ID is signed in, then connect the iPhone once with a cable (unlocked, tapped Trust) so Xcode registers it with your team."
-	hintAppIDLimit     = "Free Apple accounts can only create a few app IDs per week. Wait a few days, or use a paid Apple Developer account. Setting PF_BUNDLE_PREFIX to a bundle id you already used earlier also works."
-	hintLicense        = "Run `sudo xcodebuild -license accept` in Terminal (it needs your password, so PhoneForge cannot do it for you), then retry."
+	hintAppIDLimit     = "Free Apple accounts can only create a few app IDs per week. Wait a few days, or use a paid Apple Developer account. Setting PL_BUNDLE_PREFIX to a bundle id you already used earlier also works."
+	hintLicense        = "Run `sudo xcodebuild -license accept` in Terminal (it needs your password, so Pocketlab cannot do it for you), then retry."
 )
 
 type rule struct {
@@ -122,7 +122,7 @@ func ClassifyBuildLog(lines []string) *Issue {
 	return &Issue{
 		Code:    CodeBuildFailed,
 		Message: "The WebDriverAgent build failed.",
-		Hint:    "See the log lines below and the full log file in ~/.phoneforge/wda. Make sure Xcode is fully installed and signed in under Xcode > Settings > Accounts.",
+		Hint:    "See the log lines below and the full log file in ~/.pocketlab/wda. Make sure Xcode is fully installed and signed in under Xcode > Settings > Accounts.",
 		Lines:   dedupTail(errs, 10),
 	}
 }

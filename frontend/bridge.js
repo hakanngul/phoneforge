@@ -118,7 +118,7 @@
   function startBridge(id) {
     if (hasConsent(id)) { doStart(id); return; }
     confirmModal('Start bridge?', [
-      'This starts the UiAutomator2 helper app on the device. If the helper is not installed, PhoneForge will install it.'
+      'This starts the UiAutomator2 helper app on the device. If the helper is not installed, Pocketlab will install it.'
     ], 'Start', function () { setConsent(id); doStart(id); });
   }
 
@@ -348,7 +348,7 @@
 
   function buildThenInstall(id) {
     PF.confirm('The WebDriverAgent helper has not been built on this Mac yet.\n\n' +
-      'PhoneForge will build it now with your own Apple team (needs Xcode; a few minutes the first time), ' +
+      'Pocketlab will build it now with your own Apple team (needs Xcode; a few minutes the first time), ' +
       'install it on this iPhone over USB and start it. Nothing leaves your Mac.', function () {
       PF.wdaBuild.open({
         mode: 'device',
@@ -358,7 +358,7 @@
   }
 
   function confirmInstall(id, thenStart) {
-    PF.confirm('Install PhoneForge\'s WebDriverAgent helper on this iPhone?\n\n' +
+    PF.confirm('Install Pocketlab\'s WebDriverAgent helper on this iPhone?\n\n' +
       'It was built on this Mac with your own signing identity and is installed over USB. ' +
       'You may need to trust the developer profile on the phone afterwards (Settings > General > VPN & Device Management).',
       function () { runInstall(id, thenStart); }, { title: 'Install helper?', okLabel: 'Install' });

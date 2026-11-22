@@ -12,8 +12,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"phoneforge/internal/dsl"
-	"phoneforge/internal/mobtest"
+	"pocketlab/internal/dsl"
+	"pocketlab/internal/mobtest"
 )
 
 func repoRoot(t *testing.T) string {
@@ -87,8 +87,8 @@ func TestSkillFrontmatter(t *testing.T) {
 			if strings.TrimSpace(body) == "" {
 				t.Error("skill body is empty")
 			}
-			if !strings.HasPrefix(folder, "phoneforge-") {
-				t.Errorf("skill folder %q should start with phoneforge-", folder)
+			if !strings.HasPrefix(folder, "pocketlab-") {
+				t.Errorf("skill folder %q should start with pocketlab-", folder)
 			}
 		})
 	}
@@ -125,13 +125,13 @@ func TestPluginManifests(t *testing.T) {
 		MCPServers map[string]map[string]string `json:"mcpServers"`
 	}
 	read(".claude-plugin/plugin.json", &plugin)
-	if plugin.Name != "phoneforge" {
+	if plugin.Name != "pocketlab" {
 		t.Errorf("plugin name = %q", plugin.Name)
 	}
 	if _, err := os.Stat(filepath.Join(root, plugin.Skills)); err != nil {
 		t.Errorf("plugin skills path %q: %v", plugin.Skills, err)
 	}
-	if got := plugin.MCPServers["phoneforge"]["url"]; got != "http://127.0.0.1:8700/mcp" {
+	if got := plugin.MCPServers["pocketlab"]["url"]; got != "http://127.0.0.1:8700/mcp" {
 		t.Errorf("mcp url = %q", got)
 	}
 	var mk struct {
@@ -142,7 +142,7 @@ func TestPluginManifests(t *testing.T) {
 		} `json:"plugins"`
 	}
 	read(".claude-plugin/marketplace.json", &mk)
-	if mk.Name == "" || len(mk.Plugins) != 1 || mk.Plugins[0].Name != "phoneforge" || mk.Plugins[0].Source == "" {
+	if mk.Name == "" || len(mk.Plugins) != 1 || mk.Plugins[0].Name != "pocketlab" || mk.Plugins[0].Source == "" {
 		t.Errorf("unexpected marketplace manifest: %+v", mk)
 	}
 }
@@ -152,7 +152,7 @@ var fenceRe = regexp.MustCompile("(?s)```([a-z]*)\n(.*?)```")
 // TestAuthoringExamples makes sure the script examples documented in the
 // test-authoring skill are accepted by the real parsers.
 func TestAuthoringExamples(t *testing.T) {
-	dir := filepath.Join(repoRoot(t), "skills", "phoneforge-test-authoring")
+	dir := filepath.Join(repoRoot(t), "skills", "pocketlab-test-authoring")
 	files := []string{"SKILL.md", "references/dsl-actions.md", "references/mob-syntax.md"}
 	jsonN, mobN := 0, 0
 	for _, f := range files {

@@ -113,7 +113,7 @@ func newRig(inst fakeInst) *rig {
 			if b, _ := r.bundle.Load().(string); b != "" {
 				return b, nil
 			}
-			return "com.phoneforge.WebDriverAgentRunner", nil
+			return "com.pocketlab.WebDriverAgentRunner", nil
 		},
 		Shutdown: func(_ context.Context, u string) {
 			r.mu.Lock()
@@ -421,7 +421,7 @@ func TestPortRetryOnAddressInUse(t *testing.T) {
 		if !strings.Contains(u, fmt.Sprintf(":%d/", r.launched.Load())) {
 			return "", errors.New("down")
 		}
-		return "com.phoneforge.WebDriverAgentRunner", nil
+		return "com.pocketlab.WebDriverAgentRunner", nil
 	}
 	st, err := r.m.Start(context.Background(), udid, Options{})
 	if err != nil {

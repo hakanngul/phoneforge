@@ -1,22 +1,23 @@
 #!/usr/bin/env bash
-# Developer alternative: PhoneForge itself (app UI "Build WDA", or `phoneforge ios build-wda`) needs neither this script nor the repo.
-# Build and sign PhoneForge's own copy of appium/WebDriverAgent (BSD licence).
+# Developer alternative: Pocketlab itself (app UI "Build WDA", or `pocketlab ios build-wda`) needs neither this script nor the repo.
+# Build and sign Pocketlab's own copy of appium/WebDriverAgent (BSD licence).
 # Usage: scripts/build-wda.sh [--install <udid>] [--sim] [--help]
-#   --sim   build the unsigned iOS Simulator runner instead (output: $PF_WDA_HOME/build-sim)
-# Env:   PF_TEAM_ID, PF_BUNDLE_PREFIX (default com.phoneforge), PF_WDA_HOME (default ~/.phoneforge/wda)
+#   --sim   build the unsigned iOS Simulator runner instead (output: $PL_WDA_HOME/build-sim)
+# Env:   PL_TEAM_ID, PL_BUNDLE_PREFIX (default com.pocketlab), PL_WDA_HOME (default ~/.pocketlab/wda)
 set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$ROOT/scripts/_env-compat.sh"
 
 WDA_TAG="v16.15.3"   # pinned: latest tag from `git ls-remote --tags` at authoring time
 WDA_REPO="https://github.com/appium/WebDriverAgent"
-HOME_DIR="${PF_WDA_HOME:-$HOME/.phoneforge/wda}"
+HOME_DIR="${PL_WDA_HOME:-$HOME/.pocketlab/wda}"
 SRC="$HOME_DIR/src"
 BUILD="$HOME_DIR/build"
 BUILD_SIM="$HOME_DIR/build-sim"
 SIM=0
-PREFIX="${PF_BUNDLE_PREFIX:-com.phoneforge}"
+PREFIX="${PL_BUNDLE_PREFIX:-com.pocketlab}"
 RUNNER_ID="$PREFIX.WebDriverAgentRunner"
 LIB_ID="$PREFIX.WebDriverAgentLib"
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 INSTALL_UDID=""
 while [ $# -gt 0 ]; do
@@ -93,12 +94,12 @@ team_from_xcode() {
     awk -F'"' '/teamID/{print $2; exit} /teamID *=/{gsub(/[ ;]/,"",$0); sub(/teamID=/,"",$0); print; exit}'
 }
 
-TEAM="${PF_TEAM_ID:-}"
-SRCNOTE="PF_TEAM_ID"
+TEAM="${PL_TEAM_ID:-}"
+SRCNOTE="PL_TEAM_ID"
 [ -n "$TEAM" ] || { TEAM="$(team_from_cert || true)"; SRCNOTE="signing certificate"; }
 [ -n "$TEAM" ] || { TEAM="$(team_from_profiles || true)"; SRCNOTE="provisioning profile"; }
 [ -n "$TEAM" ] || { TEAM="$(team_from_xcode || true)"; SRCNOTE="Xcode preferences"; }
-[ -n "$TEAM" ] || die "no development team found. Open Xcode > Settings > Accounts, sign in with your Apple ID, create an 'Apple Development' certificate, or set PF_TEAM_ID=<10-char team id>."
+[ -n "$TEAM" ] || die "no development team found. Open Xcode > Settings > Accounts, sign in with your Apple ID, create an 'Apple Development' certificate, or set PL_TEAM_ID=<10-char team id>."
 echo "==> Using development team $TEAM (from $SRCNOTE)"
 echo "==> Runner bundle id: $RUNNER_ID"
 
@@ -127,10 +128,10 @@ Build failed (full log: $LOG). Common causes:
   * Provisioning failure: free accounts need the phone registered with your team.
     Open Xcode > Settings > Accounts (sign in), then connect the iPhone once with
     a cable, unlock it, tap "Trust", and let Xcode finish "Preparing device".
-    Free accounts also limit the number of app ids per week; try another PF_BUNDLE_PREFIX.
+    Free accounts also limit the number of app ids per week; try another PL_BUNDLE_PREFIX.
   * Developer Mode off on the phone: Settings > Privacy & Security > Developer Mode > On (reboots).
   * Untrusted developer when launching later: Settings > General > VPN & Device Management > trust your Apple Development profile.
-  * No team / no certificate: see Xcode > Settings > Accounts, or set PF_TEAM_ID.
+  * No team / no certificate: see Xcode > Settings > Accounts, or set PL_TEAM_ID.
 MSG
   exit 1
 fi
@@ -145,6 +146,6 @@ echo "XCTESTRUN=${XCTESTRUN:-<none>}"
 # 4. Optional install
 if [ -n "$INSTALL_UDID" ]; then
   echo "==> Installing on device $INSTALL_UDID"
-  ( cd "$ROOT" && go run ./cmd/pf-ios-install "$INSTALL_UDID" "$APP" ) || die "install failed. Ensure the phone is unlocked, trusted, and Developer Mode is on; then trust the developer under Settings > General > VPN & Device Management."
+  ( cd "$ROOT" && go run ./cmd/pl-ios-install "$INSTALL_UDID" "$APP" ) || die "install failed. Ensure the phone is unlocked, trusted, and Developer Mode is on; then trust the developer under Settings > General > VPN & Device Management."
   echo "Installed. If launching fails with an untrusted developer error, trust it in Settings > General > VPN & Device Management."
 fi

@@ -12,7 +12,7 @@ import (
 	"github.com/danielpaulus/go-ios/ios/afc"
 	gocrash "github.com/danielpaulus/go-ios/ios/crashreport"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 const (

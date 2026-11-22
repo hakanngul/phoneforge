@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"phoneforge/internal/device"
-	"phoneforge/internal/uitree"
+	"pocketlab/internal/device"
+	"pocketlab/internal/uitree"
 )
 
 func cmdDevices(c *call) error {
@@ -45,7 +45,7 @@ func cmdDevice(c *call) error {
 		return err
 	}
 	if len(pos) != 1 || pos[0] != "info" {
-		return usagef("usage: phoneforge device info")
+		return usagef("usage: pocketlab device info")
 	}
 	ctx, cancel := c.ctxFor(30 * time.Second)
 	defer cancel()
@@ -207,7 +207,7 @@ func cmdTap(c *call) error {
 	}
 	if *text == "" && *rid == "" {
 		if len(pos) != 2 {
-			return usagef("usage: phoneforge tap X Y | tap --text TEXT [--ocr] | tap --id RESOURCE_ID")
+			return usagef("usage: pocketlab tap X Y | tap --text TEXT [--ocr] | tap --id RESOURCE_ID")
 		}
 		xy, err := atoiArgs(c, []string{"X", "Y"}, pos)
 		if err != nil {
@@ -293,7 +293,7 @@ func cmdLongPress(c *call) error {
 		return err
 	}
 	if len(pos) != 2 {
-		return usagef("usage: phoneforge longpress X Y [--ms N]")
+		return usagef("usage: pocketlab longpress X Y [--ms N]")
 	}
 	xy, err := atoiArgs(c, []string{"X", "Y"}, pos)
 	if err != nil {
@@ -357,7 +357,7 @@ func cmdSwipe(c *call) error {
 		}
 		return swipeTo(c, ctx, id, v[0], v[1], v[2], v[3], *ms, "")
 	}
-	return usagef("usage: phoneforge swipe X1 Y1 X2 Y2 [--ms N] | swipe up|down|left|right")
+	return usagef("usage: pocketlab swipe X1 Y1 X2 Y2 [--ms N] | swipe up|down|left|right")
 }
 
 func swipeTo(c *call, ctx context.Context, id string, x1, y1, x2, y2, ms int, label string) error {
@@ -398,7 +398,7 @@ func cmdType(c *call) error {
 		return err
 	}
 	if len(pos) == 0 {
-		return usagef("usage: phoneforge type \"text\"")
+		return usagef("usage: pocketlab type \"text\"")
 	}
 	text := strings.Join(pos, " ")
 	return c.post("/type", map[string]string{"text": text}, 60*time.Second, fmt.Sprintf("typed %d characters", len([]rune(text))))
@@ -410,7 +410,7 @@ func cmdKey(c *call) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return usagef("usage: phoneforge key home|back|enter|delete|volume_up|volume_down|...")
+		return usagef("usage: pocketlab key home|back|enter|delete|volume_up|volume_down|...")
 	}
 	key := strings.ToLower(strings.TrimSpace(pos[0]))
 	return c.post("/press-key", map[string]string{"key": key}, 30*time.Second, "pressed "+key)

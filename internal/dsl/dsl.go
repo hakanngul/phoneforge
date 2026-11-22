@@ -1,4 +1,4 @@
-// Package dsl implements PhoneForge's JSON scripting engine, compatible with
+// Package dsl implements Pocketlab's JSON scripting engine, compatible with
 // the publicly documented MobAI automation DSL (version 0.2). A script is a
 // list of steps executed against a device.Device; predicates are resolved
 // against the live UI tree.
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // Supported script versions. An empty version is treated as the current one.
@@ -97,7 +97,7 @@ type Selector struct {
 	BoundsHint string    `json:"boundsHint,omitempty"`
 	ParentOf   *Selector `json:"parentOf,omitempty"`
 	Index      int       `json:"index,omitempty"`
-	// CSSSelector targets web contexts, which PhoneForge does not support yet.
+	// CSSSelector targets web contexts, which Pocketlab does not support yet.
 	CSSSelector string `json:"cssSelector,omitempty"`
 }
 
@@ -190,7 +190,7 @@ type Step struct {
 	FromCoords *Coords     `json:"fromCoords,omitempty"`
 	ToCoords   *Coords     `json:"toCoords,omitempty"`
 	ToElement  *ElementRef `json:"toElement,omitempty"`
-	// ToSelector is the drag destination (PhoneForge spelling of to_element).
+	// ToSelector is the drag destination (Pocketlab spelling of to_element).
 	ToSelector *Selector `json:"toSelector,omitempty"`
 
 	// Path is a local file path on the server (install_app).

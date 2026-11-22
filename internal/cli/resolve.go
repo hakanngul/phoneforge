@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // resolveDevice picks the target device. With an empty want it returns the only
@@ -35,7 +35,7 @@ func pickDevice(devs []device.Info, want string) (device.Info, error) {
 		case 1:
 			return conn[0], nil
 		}
-		return device.Info{}, deviceErrf("%d devices connected; choose one with --device (or PHONEFORGE_DEVICE):\n%s", len(conn), listCandidates(conn))
+		return device.Info{}, deviceErrf("%d devices connected; choose one with --device (or POCKETLAB_DEVICE):\n%s", len(conn), listCandidates(conn))
 	}
 	lw := strings.ToLower(want)
 	fields := func(d device.Info) []string {

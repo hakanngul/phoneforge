@@ -1,4 +1,4 @@
-// Package iosdrv is PhoneForge's iOS driver built on go-ios. Without
+// Package iosdrv is Pocketlab's iOS driver built on go-ios. Without
 // WebDriverAgent it supports discovery, device info and app listing; UI
 // automation returns device.ErrUnsupported and screenshots need the iOS 17+
 // device tunnel.
@@ -12,8 +12,8 @@ import (
 
 	"github.com/danielpaulus/go-ios/ios"
 
-	"phoneforge/internal/device"
-	"phoneforge/internal/registry"
+	"pocketlab/internal/device"
+	"pocketlab/internal/registry"
 )
 
 type discoverer struct{}
@@ -117,7 +117,7 @@ func str(v interface{}) string {
 	return s
 }
 
-// FormatID builds the PhoneForge device id for an iOS udid: "ios-" plus the
+// FormatID builds the Pocketlab device id for an iOS udid: "ios-" plus the
 // udid with whitespace trimmed and characters outside [A-Za-z0-9-] removed.
 func FormatID(udid string) string {
 	var b strings.Builder

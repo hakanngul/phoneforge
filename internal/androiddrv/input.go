@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 const inputTimeout = 15 * time.Second

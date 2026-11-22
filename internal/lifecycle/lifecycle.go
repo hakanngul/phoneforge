@@ -1,4 +1,4 @@
-// Package lifecycle keeps a persistent record of why the PhoneForge server
+// Package lifecycle keeps a persistent record of why the Pocketlab server
 // started and stopped: a capped JSON-lines event log (server-events.jsonl) and
 // a heartbeat state file (server.state) used to detect exits nobody recorded
 // (kill -9, power loss, a crash in a non-main goroutine).
@@ -74,7 +74,7 @@ func (e Event) Unexpected() bool {
 type Info struct {
 	Version    string
 	Addr       string
-	StartedVia string // e.g. "phoneforged", "desktop", "phoneforge server start"
+	StartedVia string // e.g. "pocketlabd", "desktop", "pocketlab server start"
 	Owner      string // "cli" or "desktop"
 	// LogTail returns the most recent log lines (optional).
 	LogTail func() []string

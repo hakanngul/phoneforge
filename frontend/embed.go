@@ -1,4 +1,4 @@
-// Package frontend embeds the PhoneForge web UI so the server and the desktop
+// Package frontend embeds the Pocketlab web UI so the server and the desktop
 // app can serve it without a frontend/ directory on disk.
 package frontend
 

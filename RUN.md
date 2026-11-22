@@ -1,9 +1,9 @@
-# Running PhoneForge (MVP)
+# Running Pocketlab (MVP)
 
 ## Headless server (REST + MCP)
 ```bash
-cd phoneforge
-go run ./cmd/phoneforged -addr 127.0.0.1:8700
+cd pocketlab
+go run ./cmd/pocketlabd -addr 127.0.0.1:8700
 ```
 - Web UI:  http://127.0.0.1:8700/
 - REST:    http://127.0.0.1:8700/api/v1/health
@@ -19,7 +19,7 @@ Flags: `-addr` listen addr, `-token` require X-API-Key/Bearer for non-loopback, 
 ## Wire into Claude Code (MCP)
 Add to your MCP client config:
 ```json
-{ "mcpServers": { "phoneforge": { "type": "http", "url": "http://127.0.0.1:8700/mcp" } } }
+{ "mcpServers": { "pocketlab": { "type": "http", "url": "http://127.0.0.1:8700/mcp" } } }
 ```
 Tools: list_devices, get_device, get_screenshot, ui_tree, tap, swipe, type_text, press_key,
 launch_app, stop_app, execute_dsl, double_tap, long_press, drag, open_url, dismiss_keyboard,
@@ -37,12 +37,12 @@ Optional, off by default. `POST /api/v1/devices/{id}/bridge/start` launches the 
 phone and routes UI tree + gestures through it; `.../bridge/stop` returns to plain adb; `GET .../bridge`
 reports `{supported, running, port, sessionId, since, lastError, installed}`. If the two
 `io.appium.uiautomator2.server[.test]` packages are already on the phone they are used as-is. If not, the
-APKs must be in `~/.phoneforge/uia2` (`GET /api/v1/bridge/assets`); `POST /api/v1/bridge/assets/download`
+APKs must be in `~/.pocketlab/uia2` (`GET /api/v1/bridge/assets`); `POST /api/v1/bridge/assets/download`
 fetches them from GitHub (explicit action only), otherwise start answers `409 BRIDGE_ASSETS_MISSING`.
 MCP: `start_bridge`, `stop_bridge`, `bridge_status`.
 
 ## Test projects and `.mob` scripts (`/api/v1/tests`)
-Data lives in `~/.phoneforge/tests/<project>/`. `GET|POST /tests/projects`, `GET|PUT|DELETE
+Data lives in `~/.pocketlab/tests/<project>/`. `GET|POST /tests/projects`, `GET|PUT|DELETE
 /tests/projects/{id}/scripts/{name}` (`.mob` or `.json`), `POST /tests/validate[?projectId=]`,
 `POST /tests/projects/{id}/scripts/{name}/run` with `{"deviceId":"..."}`, `GET /tests/runs[?projectId=&limit=]`,
 `GET /tests/runs/{id}`. `type_secret` ids come from the credential store. MCP: `test_list_projects`,
@@ -64,9 +64,9 @@ See FEATURES.md.
 
 ## iOS live control
 
-Real iPhones are controlled through PhoneForge's own signed WebDriverAgent (WDA). The UI builds it for you
+Real iPhones are controlled through Pocketlab's own signed WebDriverAgent (WDA). The UI builds it for you
 (needs Xcode): select the iPhone and click the bridge toggle, which reads **Build WDA** the first time (also
-`phoneforge ios build-wda`; `scripts/build-wda.sh` remains as a developer alternative). It then installs
+`pocketlab ios build-wda`; `scripts/build-wda.sh` remains as a developer alternative). It then installs
 (explicit, asks first) and starts WDA. Once the chip reads `Bridge: running` the Live view switches to an MJPEG stream and taps, swipes,
 Home, typing, Element Picker, OCR and app launch work through WDA. Full prerequisites and troubleshooting:
 [docs/ios-setup.md](docs/ios-setup.md).

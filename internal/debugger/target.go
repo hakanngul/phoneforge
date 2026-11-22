@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // ErrNotSupported is returned for platforms without debugger support.

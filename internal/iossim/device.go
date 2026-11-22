@@ -13,17 +13,17 @@ import (
 	"syscall"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // IDPrefix is the device id prefix for simulators ("sim-<udid>").
 const IDPrefix = "sim-"
 
-// FormatID builds the PhoneForge device id for a simulator udid.
+// FormatID builds the Pocketlab device id for a simulator udid.
 func FormatID(udid string) string { return IDPrefix + udid }
 
 func needWDA() error {
-	return fmt.Errorf("simulator UI automation needs WebDriverAgent: start it with POST /simulators/{udid}/wda/start (build it first: Integrations > iOS Simulators > Build WDA, or `phoneforge ios build-wda --sim`): %w", device.ErrUnsupported)
+	return fmt.Errorf("simulator UI automation needs WebDriverAgent: start it with POST /simulators/{udid}/wda/start (build it first: Integrations > iOS Simulators > Build WDA, or `pocketlab ios build-wda --sim`): %w", device.ErrUnsupported)
 }
 
 // simDevice implements device.Device (and several extras) via simctl. UI

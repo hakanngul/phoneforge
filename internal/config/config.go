@@ -1,7 +1,7 @@
-// Package config holds PhoneForge runtime configuration.
+// Package config holds Pocketlab runtime configuration.
 package config
 
-import "phoneforge/internal/version"
+import "pocketlab/internal/version"
 
 // Config is the server configuration.
 type Config struct {

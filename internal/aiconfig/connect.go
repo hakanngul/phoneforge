@@ -60,6 +60,10 @@ func (m *Manager) Connect(ctx context.Context, agent string) error {
 		}
 		cctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 		defer cancel()
+		// Drop an entry registered under the pre-rename server name (best effort).
+		for _, scope := range []string{"user", "local"} {
+			_, _ = m.exec.Output(cctx, path, "mcp", "remove", LegacyMCPName, "-s", scope)
+		}
 		if b, err := m.exec.Output(cctx, path, "mcp", "add", "--scope", "user", "--transport", "http", MCPName, m.mcpURL); err != nil {
 			return fmt.Errorf("claude mcp add: %v: %s", err, strings.TrimSpace(string(b)))
 		}
@@ -104,17 +108,19 @@ func (m *Manager) Disconnect(ctx context.Context, agent string) error {
 		defer m.invalidateDetect()
 		var firstErr error
 		removed := false
-		for _, scope := range []string{"user", "local"} {
-			b, err := m.exec.Output(cctx, path, "mcp", "remove", MCPName, "-s", scope)
-			if err == nil {
-				removed = true
-				continue
-			}
-			if strings.Contains(strings.ToLower(string(b)), "not found") || strings.Contains(strings.ToLower(string(b)), "no mcp server") {
-				continue
-			}
-			if firstErr == nil {
-				firstErr = fmt.Errorf("claude mcp remove -s %s: %v: %s", scope, err, strings.TrimSpace(string(b)))
+		for _, name := range []string{MCPName, LegacyMCPName} {
+			for _, scope := range []string{"user", "local"} {
+				b, err := m.exec.Output(cctx, path, "mcp", "remove", name, "-s", scope)
+				if err == nil {
+					removed = true
+					continue
+				}
+				if strings.Contains(strings.ToLower(string(b)), "not found") || strings.Contains(strings.ToLower(string(b)), "no mcp server") {
+					continue
+				}
+				if firstErr == nil && name == MCPName {
+					firstErr = fmt.Errorf("claude mcp remove -s %s: %v: %s", scope, err, strings.TrimSpace(string(b)))
+				}
 			}
 		}
 		if firstErr != nil && !removed {
@@ -130,7 +136,7 @@ func (m *Manager) Disconnect(ctx context.Context, agent string) error {
 	}
 }
 
-// editFile backs the file up to <file>.phoneforge-bak (when it exists) and
+// editFile backs the file up to <file>.pocketlab-bak (when it exists) and
 // atomically rewrites it with fn's result.
 func (m *Manager) editFile(agent string, fn func([]byte) ([]byte, error)) error {
 	p := m.configPath(agent)
@@ -147,9 +153,9 @@ func (m *Manager) editFile(agent string, fn func([]byte) ([]byte, error)) error 
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			return err
 		}
-	} else if _, serr := os.Stat(p + ".phoneforge-bak"); os.IsNotExist(serr) {
+	} else if _, serr := os.Stat(p + ".pocketlab-bak"); os.IsNotExist(serr) {
 		// Keep the backup of the original: never overwrite an earlier one.
-		if err := os.WriteFile(p+".phoneforge-bak", old, 0o600); err != nil {
+		if err := os.WriteFile(p+".pocketlab-bak", old, 0o600); err != nil {
 			return fmt.Errorf("backup: %w", err)
 		}
 	}
@@ -157,7 +163,7 @@ func (m *Manager) editFile(agent string, fn func([]byte) ([]byte, error)) error 
 	if st, err := os.Stat(p); err == nil {
 		mode = st.Mode().Perm()
 	}
-	tmp := p + ".phoneforge-tmp"
+	tmp := p + ".pocketlab-tmp"
 	if err := os.WriteFile(tmp, out, mode); err != nil {
 		return err
 	}
@@ -202,6 +208,7 @@ func jsonSetServer(old []byte, entry map[string]any) ([]byte, error) {
 		return nil, err
 	}
 	e, _ := json.Marshal(entry)
+	delete(servers, LegacyMCPName) // replace a pre-rename entry
 	servers[MCPName] = e
 	return jsonEncode(top, servers)
 }
@@ -211,13 +218,16 @@ func jsonRemoveServer(old []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, ok := servers[MCPName]; !ok {
+	_, hasNew := servers[MCPName]
+	_, hasOld := servers[LegacyMCPName]
+	if !hasNew && !hasOld {
 		if len(bytes.TrimSpace(old)) == 0 {
 			return old, nil
 		}
 		return old, nil // nothing to remove; leave bytes untouched
 	}
 	delete(servers, MCPName)
+	delete(servers, LegacyMCPName)
 	return jsonEncode(top, servers)
 }
 
@@ -226,15 +236,20 @@ func jsonRemoveServer(old []byte) ([]byte, error) {
 var tomlHeader = regexp.MustCompile(`^\s*\[\[?\s*([^\]]+?)\s*\]\]?\s*(#.*)?$`)
 
 // tomlIsOurs reports whether a header key is our table or one of its subtables.
-func tomlIsOurs(key string) bool {
+func tomlIsName(key, name string) bool {
 	key = strings.ReplaceAll(key, `"`, "")
 	key = strings.ReplaceAll(key, " ", "")
-	return key == "mcp_servers."+MCPName || strings.HasPrefix(key, "mcp_servers."+MCPName+".")
+	return key == "mcp_servers."+name || strings.HasPrefix(key, "mcp_servers."+name+".")
+}
+
+// tomlIsOurs also matches the pre-rename table so it gets replaced/removed.
+func tomlIsOurs(key string) bool {
+	return tomlIsName(key, MCPName) || tomlIsName(key, LegacyMCPName)
 }
 
 func tomlHasServer(s string) bool {
 	for _, ln := range strings.Split(s, "\n") {
-		if mm := tomlHeader.FindStringSubmatch(strings.TrimRight(ln, "\r")); mm != nil && tomlIsOurs(mm[1]) {
+		if mm := tomlHeader.FindStringSubmatch(strings.TrimRight(ln, "\r")); mm != nil && tomlIsName(mm[1], MCPName) {
 			return true
 		}
 	}

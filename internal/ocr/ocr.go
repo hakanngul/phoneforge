@@ -6,12 +6,13 @@ package ocr
 import (
 	"context"
 	"errors"
-	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"sync"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/brand"
+	"pocketlab/internal/device"
 )
 
 // Result is one recognized piece of text. Bounds are in screenshot pixels
@@ -43,7 +44,7 @@ var (
 )
 
 // SetHelperPath overrides where the compiled Swift helper is cached
-// (default ~/.phoneforge/bin/pfocr, or $PHONEFORGE_OCR_BIN).
+// (default ~/.pocketlab/bin/plocr, or $POCKETLAB_OCR_BIN).
 func SetHelperPath(p string) {
 	mu.Lock()
 	binPath = p
@@ -56,14 +57,10 @@ func helperPath() string {
 	if binPath != "" {
 		return binPath
 	}
-	if p := os.Getenv("PHONEFORGE_OCR_BIN"); p != "" {
+	if p := brand.Getenv("POCKETLAB_OCR_BIN"); p != "" {
 		return p
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		home = os.TempDir()
-	}
-	return home + "/.phoneforge/bin/pfocr"
+	return filepath.Join(brand.DataDir(), "bin", "plocr")
 }
 
 // Available reports which engine would be used.

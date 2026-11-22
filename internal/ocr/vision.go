@@ -15,10 +15,10 @@ import (
 	"sync"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
-//go:embed helper/pfocr.swift
+//go:embed helper/plocr.swift
 var swiftSource []byte
 
 var compileMu sync.Mutex
@@ -57,7 +57,7 @@ func EnsureHelper(ctx context.Context) (string, error) {
 		return "", err
 	}
 	// Per-process unique temp names so concurrent processes don't collide.
-	src, err := os.CreateTemp(filepath.Dir(bin), "pfocr-*.swift")
+	src, err := os.CreateTemp(filepath.Dir(bin), "plocr-*.swift")
 	if err != nil {
 		return "", err
 	}

@@ -1,4 +1,4 @@
-// Command phoneforged runs the PhoneForge headless server: the local REST API
+// Command pocketlabd runs the Pocketlab headless server: the local REST API
 // (/api/v1) and the embedded MCP server (/mcp) that an AI agent connects to.
 package main
 
@@ -13,16 +13,18 @@ import (
 	"syscall"
 	"time"
 
-	"phoneforge/frontend"
-	"phoneforge/internal/config"
-	"phoneforge/internal/server"
+	"pocketlab/frontend"
+	"pocketlab/internal/brand"
+	"pocketlab/internal/config"
+	"pocketlab/internal/server"
 )
 
 func main() {
+	brand.DataDir() // migrate ~/.phoneforge -> ~/.pocketlab (logged once) before anything reads the state dir
 	cfg := config.Default()
-	opts := server.Options{WebFS: frontend.FS(), Owner: "cli", StartedVia: "phoneforged"}
-	if v := os.Getenv("PHONEFORGE_STARTED_VIA"); v != "" {
-		opts.StartedVia = v // set by `phoneforge server start`
+	opts := server.Options{WebFS: frontend.FS(), Owner: "cli", StartedVia: "pocketlabd"}
+	if v := brand.Getenv("POCKETLAB_STARTED_VIA"); v != "" {
+		opts.StartedVia = v // set by `pocketlab server start`
 	}
 	flag.StringVar(&opts.Addr, "addr", cfg.Addr, "listen address")
 	flag.StringVar(&opts.APIToken, "token", "", "optional API token required for non-loopback requests")
@@ -32,7 +34,7 @@ func main() {
 
 	srv, err := server.Start(context.Background(), opts)
 	if err != nil {
-		log.Fatalf("server: %v (the failure is recorded in %s)", err, server.PhoneforgeHome())
+		log.Fatalf("server: %v (the failure is recorded in %s)", err, server.PocketlabHome())
 	}
 	// A panic on the main goroutine is recorded (with the log tail and stack) before exiting.
 	defer func() {

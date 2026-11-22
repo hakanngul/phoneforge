@@ -1,5 +1,5 @@
 /*
- * In-app WebDriverAgent build. PhoneForge builds WDA on the user's own Mac (it must be signed with
+ * In-app WebDriverAgent build. Pocketlab builds WDA on the user's own Mac (it must be signed with
  * the user's Apple team), so everything happens here instead of a terminal script.
  *
  *   PF.wdaBuild.open({mode: 'device'|'sim', onSuccess(status), onClose()})
@@ -74,7 +74,7 @@
       renderIssue(body, is);
       var inp = PF.input('text', 'ABCDE12345');
       inp.maxLength = 10; inp.style.textTransform = 'uppercase';
-      body.appendChild(PF.row('Apple Team ID', inp, '10 letters/digits. Xcode > Settings > Accounts > your team. It is saved in PhoneForge settings.'));
+      body.appendChild(PF.row('Apple Team ID', inp, '10 letters/digits. Xcode > Settings > Accounts > your team. It is saved in Pocketlab settings.'));
       var err = PF.el('div', 'muted'); body.appendChild(err);
       var go = PF.btn('Save and build', 'primary', function () {
         var v = inp.value.trim().toUpperCase();

@@ -2,11 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>PhoneForge</string>
-  <key>CFBundleDisplayName</key><string>PhoneForge</string>
-  <key>CFBundleIdentifier</key><string>com.phoneforge.desktop</string>
-  <key>CFBundleExecutable</key><string>phoneforge-desktop</string>
-  <key>CFBundleIconFile</key><string>PhoneForge</string>
+  <key>CFBundleName</key><string>Pocketlab</string>
+  <key>CFBundleDisplayName</key><string>Pocketlab</string>
+  <key>CFBundleIdentifier</key><string>com.pocketlab.desktop</string>
+  <key>CFBundleExecutable</key><string>pocketlab-desktop</string>
+  <key>CFBundleIconFile</key><string>Pocketlab</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>CFBundleShortVersionString</key><string>__VERSION__</string>
@@ -16,9 +16,9 @@
   <key>NSHighResolutionCapable</key><true/>
   <key>NSPrincipalClass</key><string>NSApplication</string>
   <key>NSCameraUsageDescription</key>
-  <string>PhoneForge uses screen capture of connected iPhones for live mirroring</string>
+  <string>Pocketlab uses screen capture of connected iPhones for live mirroring</string>
   <key>NSLocalNetworkUsageDescription</key>
-  <string>PhoneForge talks to devices, WebDriverAgent bridges and other PhoneForge nodes on your local network.</string>
+  <string>Pocketlab talks to devices, WebDriverAgent bridges and other Pocketlab nodes on your local network.</string>
   <key>NSBonjourServices</key>
   <array><string>_apple-mobdev2._tcp</string><string>_remotepairing._tcp</string></array>
   <key>NSAppTransportSecurity</key>

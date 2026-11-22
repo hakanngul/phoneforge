@@ -1,5 +1,5 @@
-// Package remotenode lets a PhoneForge node control devices that are attached
-// to other PhoneForge nodes, addressed by URL (LAN, Tailscale, etc.).
+// Package remotenode lets a Pocketlab node control devices that are attached
+// to other Pocketlab nodes, addressed by URL (LAN, Tailscale, etc.).
 package remotenode
 
 import (
@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-// Node is a remote PhoneForge node. Addr is the base URL without /api/v1.
+// Node is a remote Pocketlab node. Addr is the base URL without /api/v1.
 type Node struct {
 	ID      string    `json:"id"`
 	Name    string    `json:"name"`

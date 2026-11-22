@@ -1,5 +1,5 @@
-// Package cli implements the phoneforge command-line client: argument parsing,
-// device resolution, HTTP calls to a PhoneForge server and output formatting.
+// Package cli implements the pocketlab command-line client: argument parsing,
+// device resolution, HTTP calls to a Pocketlab server and output formatting.
 package cli
 
 import (
@@ -13,9 +13,11 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"pocketlab/internal/brand"
 )
 
-// DefaultServer is used when neither --server nor PHONEFORGE_URL is set.
+// DefaultServer is used when neither --server nor POCKETLAB_URL is set.
 const DefaultServer = "http://127.0.0.1:8700"
 
 // Exit codes.
@@ -39,7 +41,7 @@ func (e Env) getenv(k string) string {
 	if e.Getenv == nil {
 		return ""
 	}
-	return e.Getenv(k)
+	return brand.Lookup(e.Getenv, k)
 }
 
 // exitError carries a specific exit code.
@@ -151,13 +153,13 @@ func Main(ctx context.Context, args []string, env Env) int {
 		env.Stderr = io.Discard
 	}
 	g := &globals{server: DefaultServer}
-	if v := env.getenv("PHONEFORGE_URL"); v != "" {
+	if v := env.getenv("POCKETLAB_URL"); v != "" {
 		g.server = v
 	}
-	g.device = env.getenv("PHONEFORGE_DEVICE")
+	g.device = env.getenv("POCKETLAB_DEVICE")
 
 	// Global flags before the command.
-	fs := newFlagSet("phoneforge")
+	fs := newFlagSet("pocketlab")
 	g.bind(fs)
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -178,7 +180,7 @@ func Main(ctx context.Context, args []string, env Env) int {
 	}
 	cmd := findCommand(name)
 	if cmd == nil {
-		return report(env, g, usagef("unknown command %q (try 'phoneforge help')", name))
+		return report(env, g, usagef("unknown command %q (try 'pocketlab help')", name))
 	}
 	c := &call{ctx: ctx, g: g, env: env, out: env.Stdout, errw: env.Stderr, name: name, args: rest[1:]}
 	err := cmd.run(c)
@@ -206,9 +208,9 @@ func report(env Env, g *globals, err error) int {
 		b, _ := json.Marshal(map[string]any{"error": err.Error(), "exitCode": code})
 		fmt.Fprintln(env.Stderr, string(b))
 	} else {
-		fmt.Fprintf(env.Stderr, "phoneforge: %s\n", err)
+		fmt.Fprintf(env.Stderr, "pocketlab: %s\n", err)
 		if code == ExitUsage {
-			fmt.Fprintln(env.Stderr, "Run 'phoneforge help' for usage.")
+			fmt.Fprintln(env.Stderr, "Run 'pocketlab help' for usage.")
 		}
 	}
 	return code
@@ -265,7 +267,7 @@ func (c *call) ctxFor(def time.Duration) (context.Context, context.CancelFunc) {
 
 func (c *call) client() *client {
 	if c.cl == nil {
-		c.cl = newClient(c.g.server, c.env.getenv("PHONEFORGE_TOKEN"))
+		c.cl = newClient(c.g.server, c.env.getenv("POCKETLAB_TOKEN"))
 	}
 	return c.cl
 }

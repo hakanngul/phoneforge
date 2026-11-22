@@ -1,4 +1,4 @@
-# PhoneForge Backlog
+# Pocketlab Backlog
 
 Last updated: 2026-11-21
 
@@ -6,7 +6,7 @@ Last updated: 2026-11-21
 
 Legend: ✅ done & verified, 🟡 code exists but not fully verified, 🔨 in progress, ❌ missing, ? unknown for MobAI.
 
-| Area | MobAI | PhoneForge | Notes |
+| Area | MobAI | Pocketlab | Notes |
 |---|---|---|---|
 | **Devices** | | | |
 | Android device discovery and info | ✅ | ✅ | |
@@ -17,7 +17,7 @@ Legend: ✅ done & verified, 🟡 code exists but not fully verified, 🔨 in pr
 | **Mirroring and control** | | | |
 | Android live view | ✅ | ✅ | H.264, 540p, max 3 Mbps; decodes in WebKit (Safari 80 fps while swiping); not checked inside the desktop app itself |
 | iPhone live view | ✅ | ✅ | ~24–28 fps (WDA); desktop app ~22 fps with the WebKit raw-MJPEG fix |
-| iPhone 60 fps mirroring | ? | 🟡 | Camera permission granted to PhoneForge.app, device found, but no frames within 15 s |
+| iPhone 60 fps mirroring | ? | 🟡 | Camera permission granted to Pocketlab.app, device found, but no frames within 15 s |
 | Mouse tap and swipe | ✅ | ✅ | |
 | Element Picker, UI tree | ✅ | ✅ | |
 | Live FPS indicator | ? | ✅ | |
@@ -51,8 +51,8 @@ Legend: ✅ done & verified, 🟡 code exists but not fully verified, 🔨 in pr
 | App builder | ✅ | ❌ | |
 | **Platform** | | | |
 | REST API | ✅ | ✅ | |
-| CLI | ✅ (mobai) | ✅ (phoneforge) | State-changing commands (launch, tap --text, type, key, swipe, stop, wait) verified on Android, iPhone, simulator |
-| Desktop app | ✅ | ✅ | Wails v3 `PhoneForge.app` (ad-hoc signed; notarization workflow + `scripts/notarize-local.sh` ready, needs Developer ID cert + GitHub secrets; auto-update open) |
+| CLI | ✅ (mobai) | ✅ (pocketlab) | State-changing commands (launch, tap --text, type, key, swipe, stop, wait) verified on Android, iPhone, simulator |
+| Desktop app | ✅ | ✅ | Wails v3 `Pocketlab.app` (ad-hoc signed; notarization workflow + `scripts/notarize-local.sh` ready, needs Developer ID cert + GitHub secrets; auto-update open) |
 | Remote devices (Tailscale, sharing) | ✅ | 🟡 | Code exists |
 | Cloud relay | ✅ | ❌ | |
 | AWS Device Farm | ✅ | 🟡 | Settings screen only |
@@ -71,15 +71,15 @@ Items already tracked in the sections below (Wails notarization/auto-update, DSL
 
 ### Implemented but unverified on device
 
-- [ ] Kiro IDE connect and kiro-cli runs (needs KIRO_API_KEY; verify `--trust-tools=@phoneforge`, `--resume`, `--require-mcp-startup`), Cursor and Gemini runs, and the built-in agent with a real model (API key or Ollama)
+- [ ] Kiro IDE connect and kiro-cli runs (needs KIRO_API_KEY; verify `--trust-tools=@pocketlab`, `--resume`, `--require-mcp-startup`), Cursor and Gemini runs, and the built-in agent with a real model (API key or Ollama)
 - [ ] Agent replan / ask-user loop
 - [ ] Remote devices / Tailscale
 - [ ] Webhooks, secrets, integrations
 
 ## Live mirroring
 
-- **iOS native 60 fps capture (parked).** Code exists: `internal/avcapture` (Swift helper `internal/avcapture/helper/pfcapture.swift` → `~/.phoneforge/bin/pfcapture`, gate in `internal/httpapi/avgate.go`).
-  - Status: Camera permission is now granted to PhoneForge.app; the device is found but no frames arrive within 15 s. Earlier (Claude app/Terminal context) a first test streamed frames (1180x2556); after stopping it with SIGINT, `pfcapture list` returned no devices.
+- **iOS native 60 fps capture (parked).** Code exists: `internal/avcapture` (Swift helper `internal/avcapture/helper/plcapture.swift` → `~/.pocketlab/bin/plcapture`, gate in `internal/httpapi/avgate.go`).
+  - Status: Camera permission is now granted to Pocketlab.app; the device is found but no frames arrive within 15 s. Earlier (Claude app/Terminal context) a first test streamed frames (1180x2556); after stopping it with SIGINT, `plcapture list` returned no devices.
   - Suspects: device left claimed after SIGINT (the helper should stop the AVCaptureSession on SIGINT/SIGTERM); MobAI.app holding the CMIO device; discovery needing AVCaptureDeviceWasConnected notifications or a longer wait.
   - Also: the TCC permission belongs to the launching app, so the server must be started from a context that has Camera permission.
   - Next: add a `diag` subcommand (CMIO + AVFoundation device list), add graceful signal handling, retest with MobAI closed.
@@ -97,12 +97,12 @@ Items already tracked in the sections below (Wails notarization/auto-update, DSL
 ## Fixed 2026-11-21
 
 - Codex flags (Codex 0.169), simctl screenshot temp file, device deep link `?device=`.
-- Android `tree`/`wait`/`assert` speed (commit e6188d0): ~2.2 s on the Galaxy (SM-G780G) → 0.1–0.2 s via lazy UiAutomator2 bridge auto-start (`PF_ANDROID_AUTOBRIDGE=0` disables), `waitForIdleTimeout=0`, 250 ms polling.
-- Simulator WDA auto-restart (commit e6188d0): simulators are now supervised like real iPhones (desired state in `~/.phoneforge/iossim-state.json`, restored on server restart and sim reboot, lazy start on first input/tree; `PF_SIM_AUTOWDA=0` disables).
+- Android `tree`/`wait`/`assert` speed (commit e6188d0): ~2.2 s on the Galaxy (SM-G780G) → 0.1–0.2 s via lazy UiAutomator2 bridge auto-start (`PL_ANDROID_AUTOBRIDGE=0` disables), `waitForIdleTimeout=0`, 250 ms polling.
+- Simulator WDA auto-restart (commit e6188d0): simulators are now supervised like real iPhones (desired state in `~/.pocketlab/iossim-state.json`, restored on server restart and sim reboot, lazy start on first input/tree; `PL_SIM_AUTOWDA=0` disables).
 
 ## Remaining parity features
 
-- Wails v3 native desktop shell: 🟡 done (`cmd/phoneforge-desktop`, `scripts/build-desktop.sh`); remaining: Developer ID certificate + GitHub secrets (workflow and local script ready, see docs/release.md), auto-update, Windows/Linux builds
+- Wails v3 native desktop shell: 🟡 done (`cmd/pocketlab-desktop`, `scripts/build-desktop.sh`); remaining: Developer ID certificate + GitHub secrets (workflow and local script ready, see docs/release.md), auto-update, Windows/Linux builds
 - GitHub Actions Node 20 deprecation: ✅ done (checkout v7.0.1, setup-go v7.1.0, upload-artifact v7.0.2, download-artifact v8.0.2, action-gh-release v3.0.4, all Node 24, SHA-pinned)
 - Screen recording + performance metrics (CPU/memory/FPS) from DSL
 - DSL JavaScript steps

@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 const (
 	captureTimeout = 30 * time.Second
-	dumpPath       = "/sdcard/pf_dump.xml"
+	dumpPath       = "/sdcard/pl_dump.xml"
 )
 
 // Screenshot captures the screen as PNG via `exec-out screencap -p`.

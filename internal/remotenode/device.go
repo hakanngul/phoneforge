@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // httpClient is shared by all remote calls.

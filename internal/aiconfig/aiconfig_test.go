@@ -80,14 +80,14 @@ func newTestMgr(t *testing.T, fe *fakeExec, bins ...string) *Manager {
 func TestDetect(t *testing.T) {
 	fe := &fakeExec{
 		outputs:  map[string]string{"--version": "1.2.3 (Claude Code)\nextra"},
-		failures: map[string]bool{"mcp get phoneforge": true},
+		failures: map[string]bool{"mcp get pocketlab": true},
 	}
 	m := newTestMgr(t, fe, "claude", "codex")
 	// codex registered via TOML
 	cp := m.configPath(AgentCodex)
 	os.MkdirAll(filepath.Dir(cp), 0o755)
-	os.WriteFile(cp, []byte("[mcp_servers.phoneforge]\nurl = \"x\"\n"), 0o600)
-	fe.outputs["mcp list"] = "other: http://x\nphoneforge: http://127.0.0.1:8700/mcp (HTTP)\n"
+	os.WriteFile(cp, []byte("[mcp_servers.pocketlab]\nurl = \"x\"\n"), 0o600)
+	fe.outputs["mcp list"] = "other: http://x\npocketlab: http://127.0.0.1:8700/mcp (HTTP)\n"
 
 	got := map[string]AgentStatus{}
 	for _, a := range m.Detect(context.Background()) {
@@ -127,14 +127,14 @@ func TestCodexConnectDisconnectPreserves(t *testing.T) {
 	m := newTestMgr(t, &fakeExec{}, "codex")
 	cp := m.configPath(AgentCodex)
 	os.MkdirAll(filepath.Dir(cp), 0o755)
-	orig := "model = \"o3\"\n\n[mcp_servers.other]\ncommand = \"x\"\n\n[mcp_servers.phoneforge]\nurl = \"old\"\n\n[mcp_servers.phoneforge.env]\nA = \"1\"\n\n[profiles.p]\nk = 1\n"
+	orig := "model = \"o3\"\n\n[mcp_servers.other]\ncommand = \"x\"\n\n[mcp_servers.pocketlab]\nurl = \"old\"\n\n[mcp_servers.pocketlab.env]\nA = \"1\"\n\n[profiles.p]\nk = 1\n"
 	os.WriteFile(cp, []byte(orig), 0o600)
 	if err := m.Connect(context.Background(), AgentCodex); err != nil {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(cp)
 	s := string(b)
-	if strings.Count(s, "[mcp_servers.phoneforge]") != 1 || strings.Contains(s, "old") || strings.Contains(s, "A = \"1\"") {
+	if strings.Count(s, "[mcp_servers.pocketlab]") != 1 || strings.Contains(s, "old") || strings.Contains(s, "A = \"1\"") {
 		t.Fatalf("bad:\n%s", s)
 	}
 	for _, keep := range []string{"model = \"o3\"", "[mcp_servers.other]", "[profiles.p]", "http://127.0.0.1:8700/mcp"} {
@@ -142,7 +142,7 @@ func TestCodexConnectDisconnectPreserves(t *testing.T) {
 			t.Fatalf("lost %q:\n%s", keep, s)
 		}
 	}
-	bak, err := os.ReadFile(cp + ".phoneforge-bak")
+	bak, err := os.ReadFile(cp + ".pocketlab-bak")
 	if err != nil || string(bak) != orig {
 		t.Fatal("backup wrong")
 	}
@@ -150,7 +150,7 @@ func TestCodexConnectDisconnectPreserves(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, _ = os.ReadFile(cp)
-	if strings.Contains(string(b), "phoneforge") || !strings.Contains(string(b), "[profiles.p]") || !strings.Contains(string(b), "[mcp_servers.other]") {
+	if strings.Contains(string(b), "pocketlab") || !strings.Contains(string(b), "[profiles.p]") || !strings.Contains(string(b), "[mcp_servers.other]") {
 		t.Fatalf("after disconnect:\n%s", b)
 	}
 }
@@ -181,7 +181,7 @@ func TestGeminiJSON(t *testing.T) {
 		t.Fatal("lost theme")
 	}
 	json.Unmarshal(b, &v)
-	if v["mcpServers"]["x"] == nil || v["mcpServers"]["phoneforge"] == nil {
+	if v["mcpServers"]["x"] == nil || v["mcpServers"]["pocketlab"] == nil {
 		t.Fatalf("servers: %s", b)
 	}
 	if !m.isRegisteredFile(AgentGemini) {
@@ -222,19 +222,64 @@ func TestClaudeConnectCommands(t *testing.T) {
 	if err := m.Disconnect(context.Background(), AgentClaude); err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.Join(fe.calls[0], " "); got != "/fake/bin/claude mcp add --scope user --transport http phoneforge http://127.0.0.1:8700/mcp" {
-		t.Fatal(got)
+	want := []string{
+		"/fake/bin/claude mcp remove phoneforge -s user", // pre-rename entry replaced first
+		"/fake/bin/claude mcp remove phoneforge -s local",
+		"/fake/bin/claude mcp add --scope user --transport http pocketlab http://127.0.0.1:8700/mcp",
+		"/fake/bin/claude mcp remove pocketlab -s user",
+		"/fake/bin/claude mcp remove pocketlab -s local",
+		"/fake/bin/claude mcp remove phoneforge -s user",
+		"/fake/bin/claude mcp remove phoneforge -s local",
 	}
-	if got := strings.Join(fe.calls[1], " "); got != "/fake/bin/claude mcp remove phoneforge -s user" {
-		t.Fatal(got)
+	if len(fe.calls) != len(want) {
+		t.Fatalf("calls = %v", fe.calls)
 	}
-	if got := strings.Join(fe.calls[2], " "); got != "/fake/bin/claude mcp remove phoneforge -s local" {
-		t.Fatal(got)
+	for i, w := range want {
+		if got := strings.Join(fe.calls[i], " "); got != w {
+			t.Fatalf("call %d = %q, want %q", i, got, w)
+		}
+	}
+}
+
+func TestLegacyEntryReplacedInFileConfigs(t *testing.T) {
+	// JSON agents: an old "phoneforge" server is replaced by "pocketlab".
+	m := newTestMgr(t, &fakeExec{}, "cursor")
+	cp := m.configPath(AgentCursor)
+	os.MkdirAll(filepath.Dir(cp), 0o755)
+	os.WriteFile(cp, []byte(`{"mcpServers":{"phoneforge":{"url":"http://old"},"x":{"url":"u"}}}`), 0o600)
+	if err := m.Connect(context.Background(), AgentCursor); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(cp)
+	if strings.Contains(string(b), "phoneforge") || !strings.Contains(string(b), `"pocketlab"`) || !strings.Contains(string(b), `"x"`) {
+		t.Fatalf("json: %s", b)
+	}
+	// Disconnect removes a leftover legacy entry too.
+	os.WriteFile(cp, []byte(`{"mcpServers":{"phoneforge":{"url":"http://old"},"x":{"url":"u"}}}`), 0o600)
+	if err := m.Disconnect(context.Background(), AgentCursor); err != nil {
+		t.Fatal(err)
+	}
+	b, _ = os.ReadFile(cp)
+	if strings.Contains(string(b), "phoneforge") || !strings.Contains(string(b), `"x"`) {
+		t.Fatalf("json disconnect: %s", b)
+	}
+
+	// TOML (codex): the old table is dropped, unrelated tables survive.
+	mc := newTestMgr(t, &fakeExec{}, "codex")
+	tp := mc.configPath(AgentCodex)
+	os.MkdirAll(filepath.Dir(tp), 0o755)
+	os.WriteFile(tp, []byte("[profiles.p]\nmodel = \"m\"\n\n[mcp_servers.phoneforge]\nurl = \"http://old\"\n\n[mcp_servers.other]\ncommand = \"npx\"\n"), 0o600)
+	if err := mc.Connect(context.Background(), AgentCodex); err != nil {
+		t.Fatal(err)
+	}
+	b, _ = os.ReadFile(tp)
+	if strings.Contains(string(b), "phoneforge") || !strings.Contains(string(b), "[mcp_servers.pocketlab]") || !strings.Contains(string(b), "[mcp_servers.other]") || !strings.Contains(string(b), "[profiles.p]") {
+		t.Fatalf("toml: %s", b)
 	}
 }
 
 func TestClaudeDisconnectIgnoresNotFound(t *testing.T) {
-	fe := &fakeExec{failures: map[string]bool{"mcp remove phoneforge -s local": true}}
+	fe := &fakeExec{failures: map[string]bool{"mcp remove pocketlab -s local": true}}
 	m := newTestMgr(t, fe, "claude")
 	if err := m.Disconnect(context.Background(), AgentClaude); err != nil {
 		t.Fatal(err)
@@ -243,8 +288,8 @@ func TestClaudeDisconnectIgnoresNotFound(t *testing.T) {
 
 func TestDetectCacheAndRefresh(t *testing.T) {
 	fe := &fakeExec{outputs: map[string]string{
-		"--version":          "1.0",
-		"mcp get phoneforge": "phoneforge:\n  Scope: User config (available in all your projects)\n",
+		"--version":         "1.0",
+		"mcp get pocketlab": "pocketlab:\n  Scope: User config (available in all your projects)\n",
 	}}
 	m := newTestMgr(t, fe, "claude")
 	count := func() int {
@@ -362,7 +407,7 @@ func TestRunClaude(t *testing.T) {
 		t.Fatalf("%+v", evs)
 	}
 	args := strings.Join(fe.calls[0], "\x00")
-	for _, w := range []string{"-p\x00open settings", "stream-json", "--mcp-config", "--strict-mcp-config", "--model\x00sonnet", "mcp__phoneforge", "dev1", "be brief"} {
+	for _, w := range []string{"-p\x00open settings", "stream-json", "--mcp-config", "--strict-mcp-config", "--model\x00sonnet", "mcp__pocketlab", "dev1", "be brief"} {
 		if !strings.Contains(args, w) {
 			t.Fatalf("missing %q in %q", w, args)
 		}
@@ -413,7 +458,7 @@ func TestCancel(t *testing.T) {
 }
 
 func TestHTTP(t *testing.T) {
-	fe := &fakeExec{lines: []string{"line1"}, outputs: map[string]string{"--version": "9.9"}, failures: map[string]bool{"mcp get phoneforge": true, "mcp list": true}}
+	fe := &fakeExec{lines: []string{"line1"}, outputs: map[string]string{"--version": "9.9"}, failures: map[string]bool{"mcp get pocketlab": true, "mcp list": true}}
 	m := newTestMgr(t, fe, "codex")
 	srv := httptest.NewServer(m.Routes())
 	defer srv.Close()
@@ -470,11 +515,11 @@ func TestHTTP(t *testing.T) {
 }
 
 func TestAllowedTools(t *testing.T) {
-	if got := AllowedTools(Settings{}); len(got) != 1 || got[0] != "mcp__phoneforge" {
+	if got := AllowedTools(Settings{}); len(got) != 1 || got[0] != "mcp__pocketlab" {
 		t.Fatalf("allowed: %v", got)
 	}
 	cmd := strings.Join(buildCommand(AgentClaude, "claude", "sys", "p", "", "/tmp/x.json", "", Settings{MaxSteps: 5}), "\x00")
-	if !strings.Contains(cmd, "--allowedTools\x00mcp__phoneforge") || strings.Contains(cmd, "--max-turns") || strings.Contains(cmd, "--dangerously-skip-permissions") {
+	if !strings.Contains(cmd, "--allowedTools\x00mcp__pocketlab") || strings.Contains(cmd, "--max-turns") || strings.Contains(cmd, "--dangerously-skip-permissions") {
 		t.Fatalf("bad default command: %q", cmd)
 	}
 	cmd = strings.Join(buildCommand(AgentClaude, "claude", "sys", "p", "", "/tmp/x.json", "", Settings{FullAccess: true}), "\x00")
@@ -485,7 +530,7 @@ func TestAllowedTools(t *testing.T) {
 
 func TestBuildCommandModelResume(t *testing.T) {
 	cmd := strings.Join(buildCommand(AgentClaude, "claude", "sys", "p", "haiku", "/tmp/x.json", "sess-1", Settings{}), "\x00")
-	for _, w := range []string{"--model\x00haiku", "--resume\x00sess-1", "--allowedTools\x00mcp__phoneforge"} {
+	for _, w := range []string{"--model\x00haiku", "--resume\x00sess-1", "--allowedTools\x00mcp__pocketlab"} {
 		if !strings.Contains(cmd, w) {
 			t.Fatalf("missing %q in %q", w, cmd)
 		}
@@ -606,24 +651,24 @@ func TestKiroConnectDisconnectPreserves(t *testing.T) {
 	if err := json.Unmarshal(b, &cfg); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.MCPServers["phoneforge"]["url"] != DefaultMCPURL || cfg.MCPServers["other"]["command"] != "npx" || cfg.Extra != 1 {
+	if cfg.MCPServers["pocketlab"]["url"] != DefaultMCPURL || cfg.MCPServers["other"]["command"] != "npx" || cfg.Extra != 1 {
 		t.Fatalf("bad merge:\n%s", b)
 	}
-	if bak, _ := os.ReadFile(cp + ".phoneforge-bak"); string(bak) != orig {
+	if bak, _ := os.ReadFile(cp + ".pocketlab-bak"); string(bak) != orig {
 		t.Fatal("backup wrong")
 	}
 	// second connect (via kiro-cli) must not overwrite the original backup
 	if err := m.Connect(ctx, AgentKiroCLI); err != nil {
 		t.Fatal(err)
 	}
-	if bak, _ := os.ReadFile(cp + ".phoneforge-bak"); string(bak) != orig {
+	if bak, _ := os.ReadFile(cp + ".pocketlab-bak"); string(bak) != orig {
 		t.Fatal("backup overwritten")
 	}
 	if err := m.Disconnect(ctx, AgentKiroCLI); err != nil {
 		t.Fatal(err)
 	}
 	b, _ = os.ReadFile(cp)
-	if strings.Contains(string(b), "phoneforge") || !strings.Contains(string(b), `"other"`) || !strings.Contains(string(b), `"extra"`) {
+	if strings.Contains(string(b), "pocketlab") || !strings.Contains(string(b), `"other"`) || !strings.Contains(string(b), `"extra"`) {
 		t.Fatalf("after disconnect:\n%s", b)
 	}
 	// connect creating the file from scratch
@@ -638,7 +683,7 @@ func TestKiroConnectDisconnectPreserves(t *testing.T) {
 
 func TestBuildCommandKiroCLI(t *testing.T) {
 	cmd := strings.Join(buildCommand(AgentKiroCLI, "kiro-cli", "sys", "do it", "claude-sonnet-4", "", "last", Settings{}), "\x00")
-	for _, w := range []string{"kiro-cli\x00chat\x00--no-interactive", "--trust-tools=@phoneforge", "--model\x00claude-sonnet-4", "--resume", "--require-mcp-startup", "sys\n\nTask: do it"} {
+	for _, w := range []string{"kiro-cli\x00chat\x00--no-interactive", "--trust-tools=@pocketlab", "--model\x00claude-sonnet-4", "--resume", "--require-mcp-startup", "sys\n\nTask: do it"} {
 		if !strings.Contains(cmd, w) {
 			t.Fatalf("missing %q in %q", w, cmd)
 		}
@@ -717,7 +762,7 @@ func TestRunKiroCLI(t *testing.T) {
 func TestBuildCommandCodex(t *testing.T) {
 	cmd := strings.Join(buildCommand(AgentCodex, "codex", "sys", "do it", "m1", "", "", Settings{}), "\x00")
 	for _, w := range []string{"codex\x00exec", "--model\x00m1", "--skip-git-repo-check",
-		`mcp_servers.phoneforge.default_tools_approval_mode="approve"`, "--sandbox\x00workspace-write", "sys\n\nTask: do it"} {
+		`mcp_servers.pocketlab.default_tools_approval_mode="approve"`, "--sandbox\x00workspace-write", "sys\n\nTask: do it"} {
 		if !strings.Contains(cmd, w) {
 			t.Fatalf("missing %q in %q", w, cmd)
 		}

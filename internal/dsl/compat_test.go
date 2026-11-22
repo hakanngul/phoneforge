@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 func run(t *testing.T, dev device.Device, script string) Result {

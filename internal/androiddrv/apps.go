@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 const appsTimeout = 30 * time.Second

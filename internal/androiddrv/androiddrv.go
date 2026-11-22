@@ -1,4 +1,4 @@
-// Package androiddrv implements the PhoneForge device contract for Android
+// Package androiddrv implements the Pocketlab device contract for Android
 // by shelling out to the adb command-line tool. No on-device agent is used.
 package androiddrv
 
@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"phoneforge/internal/device"
-	"phoneforge/internal/registry"
+	"pocketlab/internal/device"
+	"pocketlab/internal/registry"
 )
 
 const (

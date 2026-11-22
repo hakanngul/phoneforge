@@ -12,7 +12,7 @@ import (
 
 	"github.com/danielpaulus/go-ios/ios"
 
-	"phoneforge/internal/iosbridge"
+	"pocketlab/internal/iosbridge"
 )
 
 type fakeRunner struct {
@@ -99,7 +99,7 @@ func TestEnsureWDAConcurrentCallersShareOneStart(t *testing.T) {
 }
 
 func TestEnsureWDADisabledByEnv(t *testing.T) {
-	t.Setenv("PF_SIM_AUTOWDA", "0")
+	t.Setenv("PL_SIM_AUTOWDA", "0")
 	c, fr := fakeControl(t, true, 0)
 	if err := c.EnsureWDA(context.Background(), "A"); err != nil || fr.runs.Load() != 0 {
 		t.Fatalf("err=%v runs=%d", err, fr.runs.Load())

@@ -1,12 +1,12 @@
-# phoneforge CLI
+# pocketlab CLI
 
-`phoneforge` is a single-binary command-line client for a running PhoneForge server
-(`phoneforged`, default `http://127.0.0.1:8700`). It uses only the REST API under `/api/v1`.
+`pocketlab` is a single-binary command-line client for a running Pocketlab server
+(`pocketlabd`, default `http://127.0.0.1:8700`). It uses only the REST API under `/api/v1`.
 
 ## Build and install
 
 ```sh
-go build -o bin/phoneforge ./cmd/phoneforge   # build only
+go build -o bin/pocketlab ./cmd/pocketlab   # build only
 scripts/install-cli.sh                        # build + symlink into ~/.local/bin or /usr/local/bin
 scripts/install-cli.sh --copy                 # copy instead of symlink
 ```
@@ -16,7 +16,7 @@ what it did.
 
 ### Windows
 
-`phoneforge.exe` and `phoneforged.exe` ship as a `.zip` (amd64, arm64). Android works with `adb.exe` in `PATH`. iOS real devices need
+`pocketlab.exe` and `pocketlabd.exe` ship as a `.zip` (amd64, arm64). Android works with `adb.exe` in `PATH`. iOS real devices need
 Apple Devices or iTunes installed (USB driver) and WDA installed once from a Mac. Simulators, the lldb debugger and native
 capture are macOS-only and report a clear error elsewhere.
 
@@ -24,11 +24,11 @@ capture are macOS-only and report a clear error elsewhere.
 
 | Flag | Env | Meaning |
 |---|---|---|
-| `--server URL` | `PHONEFORGE_URL` | server base URL (default `http://127.0.0.1:8700`) |
-| `-d`, `--device ID` | `PHONEFORGE_DEVICE` | target device |
+| `--server URL` | `POCKETLAB_URL` | server base URL (default `http://127.0.0.1:8700`) |
+| `-d`, `--device ID` | `POCKETLAB_DEVICE` | target device |
 | `--json` | | machine-readable output (raw server JSON where there is one) |
 | `--timeout DUR` | | operation timeout, e.g. `30s` (each command has a sensible default) |
-| | `PHONEFORGE_TOKEN` | API token, sent as `X-API-Key` when the server requires one |
+| | `POCKETLAB_TOKEN` | API token, sent as `X-API-Key` when the server requires one |
 
 Flags may appear before or after the command; use `--` before positional text that starts with `-`.
 
@@ -42,7 +42,7 @@ simulator are both connected; the error lists the candidates, and you use a long
 ### Coordinates
 
 Tap, long-press and swipe coordinates are in the units of the server's tap endpoint: **iOS points,
-Android pixels**. `phoneforge tree` prints tap centers as `@(x,y)` in the same units.
+Android pixels**. `pocketlab tree` prints tap centers as `@(x,y)` in the same units.
 
 ### Exit codes
 
@@ -52,7 +52,7 @@ Android pixels**. `phoneforge tree` prints tap centers as `@(x,y)` in the same u
 | 1 | error (command failed, wait timed out, DSL/test did not pass, ...) |
 | 2 | usage error |
 | 3 | device not found or ambiguous |
-| 4 | server unreachable (start `phoneforged`) |
+| 4 | server unreachable (start `pocketlabd`) |
 
 ## Commands
 
@@ -76,7 +76,7 @@ agent "prompt" [--model haiku] [--agent NAME] [--session ID] [--max-steps N]
 server status|history|start|stop   version   help [command]
 ```
 
-`phoneforge help <command>` (or `<command> --help`) prints concise per-command help.
+`pocketlab help <command>` (or `<command> --help`) prints concise per-command help.
 
 ### Notes
 
@@ -106,19 +106,19 @@ server status|history|start|stop   version   help [command]
   `GET /server/status` (pid, version, uptime, how it was started); `history [--limit N]` prints the start/stop log
   oldest first with the reason for each stop (shutdown API with its origin `web-ui`/`desktop`/`cli`, signal name,
   panic message, port in use) and marks unexpected exits (kill -9, crash) with `!`. When the server is down both
-  fall back to the local log `~/.phoneforge/server-events.jsonl` (`$PHONEFORGE_HOME`) and `status` exits 4.
-  `start` launches `phoneforged` detached (next to the CLI binary, else in PATH, or `--bin`), logs to
-  `~/.phoneforge/phoneforged.log` and waits until it is healthy; `stop` sends `POST /server/shutdown` with
+  fall back to the local log `~/.pocketlab/server-events.jsonl` (`$POCKETLAB_HOME`) and `status` exits 4.
+  `start` launches `pocketlabd` detached (next to the CLI binary, else in PATH, or `--bin`), logs to
+  `~/.pocketlab/pocketlabd.log` and waits until it is healthy; `stop` sends `POST /server/shutdown` with
   origin `cli`.
 
 ## Examples
 
 ```sh
-phoneforge devices
-phoneforge -d iphone15 tree --filter "Giriş"
-phoneforge -d sm-g tap --text "Ayarlar" --ocr
-phoneforge -d android-RF8RB1B8NNY swipe up && phoneforge -d android-RF8RB1B8NNY screenshot -o home.png
-phoneforge -d ios-... wait --text "Welcome" --timeout 20s && echo ready
-echo '{"actions":[{"action":"tap","text":"OK"}]}' | phoneforge -d sm-g dsl -
-phoneforge -d sm-g agent "open Settings and turn on dark mode" --model haiku
+pocketlab devices
+pocketlab -d iphone15 tree --filter "Giriş"
+pocketlab -d sm-g tap --text "Ayarlar" --ocr
+pocketlab -d android-RF8RB1B8NNY swipe up && pocketlab -d android-RF8RB1B8NNY screenshot -o home.png
+pocketlab -d ios-... wait --text "Welcome" --timeout 20s && echo ready
+echo '{"actions":[{"action":"tap","text":"OK"}]}' | pocketlab -d sm-g dsl -
+pocketlab -d sm-g agent "open Settings and turn on dark mode" --model haiku
 ```

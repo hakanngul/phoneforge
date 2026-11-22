@@ -3,7 +3,7 @@ package cli
 import (
 	"strings"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // elemQuery selects elements of a UI tree.

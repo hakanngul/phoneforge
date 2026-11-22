@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
-# Sign dist/PhoneForge.app with a Developer ID Application identity, notarize it with an
+# Sign dist/Pocketlab.app with a Developer ID Application identity, notarize it with an
 # App Store Connect API key, staple the ticket and verify with spctl.
 #
 # Usage:
-#   PF_CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" scripts/notarize-local.sh [--dmg]
+#   PL_CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" scripts/notarize-local.sh [--dmg]
 #
 # Environment (read from your shell; values are never printed):
-#   PF_CODESIGN_IDENTITY  Developer ID Application identity (name or SHA-1)
+#   PL_CODESIGN_IDENTITY  Developer ID Application identity (name or SHA-1)
 #   ASC_KEY_ID            App Store Connect API key id
 #   ASC_ISSUER_ID         issuer id
 #   ASC_KEY_PATH          path to the AuthKey_XXXX.p8 file (read at runtime by notarytool)
 #
-# --dmg  also notarize and staple dist/PhoneForge.dmg (build it first: scripts/build-desktop.sh --dmg).
+# --dmg  also notarize and staple dist/Pocketlab.dmg (build it first: scripts/build-desktop.sh --dmg).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+. scripts/_env-compat.sh
 
 DMG=0
 for a in "$@"; do
@@ -24,7 +25,7 @@ for a in "$@"; do
   esac
 done
 
-APP=dist/PhoneForge.app
+APP=dist/Pocketlab.app
 [ -d "$APP" ] || { echo "error: $APP not found. Build it first: scripts/build-desktop.sh" >&2; exit 1; }
 
 # --- Developer ID certificate check ---------------------------------------
@@ -42,18 +43,18 @@ notarized. Create a Developer ID Application certificate (requires the Account H
      Export... > .p12 (set a password), then see docs/release.md for the `gh secret set` commands.
 
 Then re-run with:
-  PF_CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" scripts/notarize-local.sh
+  PL_CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" scripts/notarize-local.sh
 MSG
   exit 1
 fi
 
-if [ -z "${PF_CODESIGN_IDENTITY:-}" ]; then
-  echo "error: set PF_CODESIGN_IDENTITY to one of these identities:" >&2
+if [ -z "${PL_CODESIGN_IDENTITY:-}" ]; then
+  echo "error: set PL_CODESIGN_IDENTITY to one of these identities:" >&2
   security find-identity -v -p codesigning | grep "Developer ID Application" >&2
   exit 1
 fi
-if ! security find-identity -v -p codesigning | grep "Developer ID Application" | grep -qF "$PF_CODESIGN_IDENTITY"; then
-  echo "error: PF_CODESIGN_IDENTITY does not match a Developer ID Application identity. Available:" >&2
+if ! security find-identity -v -p codesigning | grep "Developer ID Application" | grep -qF "$PL_CODESIGN_IDENTITY"; then
+  echo "error: PL_CODESIGN_IDENTITY does not match a Developer ID Application identity. Available:" >&2
   security find-identity -v -p codesigning | grep "Developer ID Application" >&2
   exit 1
 fi
@@ -72,7 +73,7 @@ fi
 
 # --- sign ------------------------------------------------------------------
 echo "==> signing $APP"
-export PF_CODESIGN_IDENTITY
+export PL_CODESIGN_IDENTITY
 scripts/sign-macos.sh app "$APP"
 
 WORK=$(mktemp -d)
@@ -83,19 +84,19 @@ notarize() { # <file> ; --key is read by notarytool at runtime
 
 # --- notarize + staple the app --------------------------------------------
 echo "==> notarizing app (this can take a few minutes)"
-ditto -c -k --keepParent "$APP" "$WORK/PhoneForge.zip"
-notarize "$WORK/PhoneForge.zip"
+ditto -c -k --keepParent "$APP" "$WORK/Pocketlab.zip"
+notarize "$WORK/Pocketlab.zip"
 xcrun stapler staple "$APP"
 xcrun stapler validate "$APP"
 
 # --- optional dmg ---------------------------------------------------------
 if [ "$DMG" = 1 ]; then
-  echo "==> rebuilding dist/PhoneForge.dmg from the signed app, signing and notarizing it"
+  echo "==> rebuilding dist/Pocketlab.dmg from the signed app, signing and notarizing it"
   # Always rebuild: an existing dmg may embed an older (ad-hoc signed) copy of the app.
-  scripts/sign-macos.sh mkdmg "$APP" dist/PhoneForge.dmg
-  notarize dist/PhoneForge.dmg
-  xcrun stapler staple dist/PhoneForge.dmg
-  xcrun stapler validate dist/PhoneForge.dmg
+  scripts/sign-macos.sh mkdmg "$APP" dist/Pocketlab.dmg
+  notarize dist/Pocketlab.dmg
+  xcrun stapler staple dist/Pocketlab.dmg
+  xcrun stapler validate dist/Pocketlab.dmg
 fi
 
 # --- verify ---------------------------------------------------------------

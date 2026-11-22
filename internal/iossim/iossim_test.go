@@ -8,8 +8,8 @@ import (
 	"os"
 	"testing"
 
-	"phoneforge/internal/device"
-	"phoneforge/internal/iosbridge"
+	"pocketlab/internal/device"
+	"pocketlab/internal/iosbridge"
 )
 
 const listJSON = `{"devices":{

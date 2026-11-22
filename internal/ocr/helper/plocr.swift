@@ -1,4 +1,4 @@
-// pfocr: reads a PNG (path arg, or stdin when no path / "-") and prints a JSON
+// plocr: reads a PNG (path arg, or stdin when no path / "-") and prints a JSON
 // array of {text,x,y,w,h,confidence} in top-left-origin pixel coordinates.
 // Flags: --words (word-level boxes instead of lines), --fast (fast recognition).
 import Foundation

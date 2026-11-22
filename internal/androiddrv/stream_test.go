@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 var _ device.VideoStreamer = (*androidDevice)(nil)
@@ -70,7 +70,7 @@ func TestStreamBitRateEnv(t *testing.T) {
 		{"500000", 500000}, {"20000000", 20000000}, {" 8000000 ", 8000000},
 	}
 	for _, c := range cases {
-		t.Setenv("PF_ANDROID_BITRATE", c.env)
+		t.Setenv("PL_ANDROID_BITRATE", c.env)
 		if got := streamBitRate(); got != c.want {
 			t.Errorf("bitrate(%q) = %d want %d", c.env, got, c.want)
 		}
@@ -85,7 +85,7 @@ func TestStreamScaleEnv(t *testing.T) {
 		{"", 50}, {"x", 50}, {"24", 50}, {"101", 50}, {"25", 25}, {"100", 100}, {"75", 75},
 	}
 	for _, c := range cases {
-		t.Setenv("PF_ANDROID_SCALE", c.env)
+		t.Setenv("PL_ANDROID_SCALE", c.env)
 		if got := streamScale(); got != c.want {
 			t.Errorf("scale(%q) = %d want %d", c.env, got, c.want)
 		}

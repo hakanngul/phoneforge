@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 func fakeNode(t *testing.T, gotKey *string, gotTap *string) *httptest.Server {

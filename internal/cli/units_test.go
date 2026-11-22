@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 func infos() []device.Info {
@@ -130,7 +130,7 @@ func TestAgentRenderer(t *testing.T) {
 	if !strings.Contains(out, "! tap failed") || strings.Contains(out, "fine") || !strings.Contains(out, "plain text from another agent") || !strings.Contains(out, "✗ nope") {
 		t.Errorf("render:\n%s", out)
 	}
-	if got := formatToolCall("mcp__phoneforge__launch_app", map[string]any{"bundleId": "com.x", "deviceId": "d"}); got != `launch_app(bundleId="com.x")` {
+	if got := formatToolCall("mcp__pocketlab__launch_app", map[string]any{"bundleId": "com.x", "deviceId": "d"}); got != `launch_app(bundleId="com.x")` {
 		t.Errorf("tool call=%q", got)
 	}
 }

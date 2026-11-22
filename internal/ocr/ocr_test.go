@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 var fixtureResults = []Result{
@@ -118,7 +118,7 @@ func TestVisionHelperIntegration(t *testing.T) {
 	if _, err := exec.LookPath("swiftc"); err != nil {
 		t.Skip("swiftc not found")
 	}
-	SetHelperPath(filepath.Join(t.TempDir(), "pfocr"))
+	SetHelperPath(filepath.Join(t.TempDir(), "plocr"))
 	defer SetHelperPath("")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()

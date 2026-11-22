@@ -12,9 +12,11 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"pocketlab/internal/brand"
 )
 
-// WDATag is the pinned appium/WebDriverAgent release PhoneForge builds. Change
+// WDATag is the pinned appium/WebDriverAgent release Pocketlab builds. Change
 // it together with scripts/fetch-wda.sh (the packaging script reads this value).
 const WDATag = "v16.15.3"
 
@@ -30,24 +32,20 @@ const srcMarkerName = ".pf-wda-version"
 // maxExtractBytes caps the total size extracted from a source tarball.
 const maxExtractBytes = 1 << 30
 
-// WDAHome returns the WDA working directory: $PF_WDA_HOME or ~/.phoneforge/wda.
+// WDAHome returns the WDA working directory: $PL_WDA_HOME or ~/.pocketlab/wda.
 func WDAHome() string {
-	if v := os.Getenv("PF_WDA_HOME"); v != "" {
+	if v := brand.Getenv("PL_WDA_HOME"); v != "" {
 		return v
 	}
-	h, err := os.UserHomeDir()
-	if err != nil {
-		h = "."
-	}
-	return filepath.Join(h, ".phoneforge", "wda")
+	return filepath.Join(brand.DataDir(), "wda")
 }
 
 // TarballCandidates lists, in priority order, where the WDA source tarball may
-// be: $PF_WDA_TARBALL, <exe dir>/../Resources/ (inside PhoneForge.app),
+// be: $PL_WDA_TARBALL, <exe dir>/../Resources/ (inside Pocketlab.app),
 // <exe dir>/, and <wdaHome>/.
 func TarballCandidates(wdaHome string) []string {
 	var out []string
-	if v := os.Getenv("PF_WDA_TARBALL"); v != "" {
+	if v := brand.Getenv("PL_WDA_TARBALL"); v != "" {
 		out = append(out, v)
 	}
 	if exe, err := os.Executable(); err == nil {
@@ -242,8 +240,8 @@ func PrepareSource(ctx context.Context, wdaHome string, note func(string)) error
 		if err != nil {
 			return &Issue{
 				Code:    CodeSourceMissing,
-				Message: "The WebDriverAgent source was not found next to PhoneForge and could not be downloaded: " + err.Error(),
-				Hint:    "Reinstall PhoneForge from the official release (it ships the source), connect to the internet and retry, or set PF_WDA_TARBALL to a " + WDATarballName + " file.",
+				Message: "The WebDriverAgent source was not found next to Pocketlab and could not be downloaded: " + err.Error(),
+				Hint:    "Reinstall Pocketlab from the official release (it ships the source), connect to the internet and retry, or set PL_WDA_TARBALL to a " + WDATarballName + " file.",
 			}
 		}
 		tb = p
@@ -257,11 +255,11 @@ func PrepareSource(ctx context.Context, wdaHome string, note func(string)) error
 	_ = os.RemoveAll(tmp)
 	if err := ExtractTarball(tb, tmp); err != nil {
 		_ = os.RemoveAll(tmp)
-		return &Issue{Code: CodeSourceMissing, Message: "Could not extract " + tb + ": " + err.Error(), Hint: "The tarball looks damaged. Reinstall PhoneForge or delete it and retry."}
+		return &Issue{Code: CodeSourceMissing, Message: "Could not extract " + tb + ": " + err.Error(), Hint: "The tarball looks damaged. Reinstall Pocketlab or delete it and retry."}
 	}
 	if _, err := os.Stat(filepath.Join(tmp, "WebDriverAgent.xcodeproj")); err != nil {
 		_ = os.RemoveAll(tmp)
-		return &Issue{Code: CodeSourceMissing, Message: "The tarball " + tb + " does not contain WebDriverAgent.xcodeproj.", Hint: "Use the " + WDATarballName + " that ships with PhoneForge."}
+		return &Issue{Code: CodeSourceMissing, Message: "The tarball " + tb + " does not contain WebDriverAgent.xcodeproj.", Hint: "Use the " + WDATarballName + " that ships with Pocketlab."}
 	}
 	if err := os.WriteFile(filepath.Join(tmp, srcMarkerName), []byte(WDATag+"\n"), 0o644); err != nil {
 		_ = os.RemoveAll(tmp)

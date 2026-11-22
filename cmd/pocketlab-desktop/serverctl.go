@@ -15,11 +15,12 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
-	"phoneforge/internal/lifecycle"
-	"phoneforge/internal/server"
+	"pocketlab/internal/brand"
+	"pocketlab/internal/lifecycle"
+	"pocketlab/internal/server"
 )
 
-// serverCtl owns the desktop app's relationship with the PhoneForge server:
+// serverCtl owns the desktop app's relationship with the Pocketlab server:
 // it can start/stop/restart an in-process server, notices when the server it
 // shows (owned or attached) disappears, and then switches the window to a local
 // fallback page with a Start button. The fallback page is served by a tiny
@@ -115,7 +116,7 @@ func (c *serverCtl) Start() error {
 	addr := c.addr
 	owned := c.srv != nil
 	c.mu.Unlock()
-	if owned || isPhoneForge(addr) {
+	if owned || isPocketlab(addr) {
 		c.showUI()
 		return nil
 	}
@@ -149,11 +150,11 @@ func (c *serverCtl) Stop() error {
 	c.mu.Unlock()
 	if owned {
 		c.shutdownOwned("stopped from the desktop app (Server menu)")
-	} else if isPhoneForge(addr) {
+	} else if isPocketlab(addr) {
 		if err := requestShutdown(addr, "desktop-menu"); err != nil {
 			return err
 		}
-		for i := 0; i < 50 && isPhoneForge(addr); i++ {
+		for i := 0; i < 50 && isPocketlab(addr); i++ {
 			time.Sleep(200 * time.Millisecond)
 		}
 	}
@@ -207,7 +208,7 @@ func (c *serverCtl) monitor() {
 			return
 		}
 		if fb {
-			if isPhoneForge(addr) { // someone (CLI, another app) started a server: reconnect
+			if isPocketlab(addr) { // someone (CLI, another app) started a server: reconnect
 				c.mu.Lock()
 				c.attached, c.expectStop, c.lastErr = !owned, false, ""
 				c.mu.Unlock()
@@ -252,7 +253,7 @@ func probeHealth(addr string) (up, shuttingDown bool) {
 		Service      string `json:"service"`
 		ShuttingDown bool   `json:"shuttingDown"`
 	}
-	if json.NewDecoder(resp.Body).Decode(&body) != nil || body.Service != "phoneforge" {
+	if json.NewDecoder(resp.Body).Decode(&body) != nil || (body.Service != "pocketlab" && body.Service != "phoneforge") {
 		return false, false
 	}
 	return true, body.ShuttingDown
@@ -260,8 +261,11 @@ func probeHealth(addr string) (up, shuttingDown bool) {
 
 func requestShutdown(addr, origin string) error {
 	req, _ := http.NewRequest("POST", "http://"+addr+"/api/v1/server/shutdown", nil)
-	req.Header.Set("X-PhoneForge-Action", "shutdown")
-	req.Header.Set("X-PhoneForge-Origin", origin)
+	req.Header.Set("X-Pocketlab-Action", "shutdown")
+	req.Header.Set("X-Pocketlab-Origin", origin)
+	// Older servers only know the pre-rename header names.
+	req.Header.Set(brand.LegacyActionHeader, "shutdown")
+	req.Header.Set(brand.LegacyOriginHeader, origin)
 	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
 	if err != nil {
 		return err
@@ -333,9 +337,9 @@ func (c *serverCtl) startControl() error {
 		c.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"up": isPhoneForge(addr), "addr": addr, "owned": owned, "attached": attached,
+			"up": isPocketlab(addr), "addr": addr, "owned": owned, "attached": attached,
 			"message": lastErr, "baseURL": "http://" + addr + "/",
-			"events": lifecycle.ReadHistory(server.PhoneforgeHome(), 15),
+			"events": lifecycle.ReadHistory(server.PocketlabHome(), 15),
 		})
 	}))
 	mux.HandleFunc(p+"start", action(c.Start))
@@ -350,7 +354,7 @@ func (c *serverCtl) startControl() error {
 	return nil
 }
 
-const fallbackPage = `<!doctype html><html><head><meta charset="utf-8"><title>PhoneForge</title>
+const fallbackPage = `<!doctype html><html><head><meta charset="utf-8"><title>Pocketlab</title>
 <style>
 :root{--bg:#0e0d14;--panel:#16151f;--line:#2a2839;--fg:#e8e6f2;--mut:#8b87a3;--acc:#8b5cf6;--ok:#34d399;--bad:#f87171}
 body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -367,10 +371,10 @@ tr.bad td{background:rgba(248,113,113,.09)} .tag{font-size:11px;border-radius:10
 .tag.bad{background:#4c1d1d;color:var(--bad)} .tag.ok{background:#064e3b;color:var(--ok)} .mut{color:var(--mut)}
 pre{margin:4px 0 0;font:11px/1.4 ui-monospace,Menlo,monospace;background:#0b0a10;padding:6px;border-radius:6px;white-space:pre-wrap;max-height:140px;overflow:auto}
 </style></head><body><div class="wrap">
-<h1>PhoneForge server is not running</h1>
+<h1>Pocketlab server is not running</h1>
 <p class="sub" id="sub">Devices cannot be controlled until a server is started.</p>
 <div id="msg" class="msg" hidden></div>
-<div><button class="p" id="start">Start server</button><button id="quit">Quit PhoneForge</button></div>
+<div><button class="p" id="start">Start server</button><button id="quit">Quit Pocketlab</button></div>
 <table><thead><tr><th>Time</th><th>Event</th><th>PID</th><th>Reason</th></tr></thead><tbody id="rows"></tbody></table>
 <script>
 var BAD={unexpected_exit:1,crash:1,listen_failed:1},LAB={start:'started',stop:'stopped',unexpected_exit:'unexpected exit',crash:'crashed',listen_failed:'listen failed'};

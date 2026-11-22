@@ -9,8 +9,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"phoneforge/internal/device"
-	"phoneforge/internal/iosbridge"
+	"pocketlab/internal/device"
+	"pocketlab/internal/iosbridge"
 )
 
 // SimStatus is the REST shape of one simulator.

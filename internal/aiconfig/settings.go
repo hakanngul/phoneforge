@@ -21,14 +21,14 @@ type Settings struct {
 	ExtraInstructions string       `json:"extraInstructions"`
 	MaxSteps          int          `json:"maxSteps"`
 	// FullAccess runs Claude Code with --dangerously-skip-permissions so it can also use
-	// its own non-PhoneForge tools (Bash, files) without prompts. Off by default.
+	// its own non-Pocketlab tools (Bash, files) without prompts. Off by default.
 	FullAccess bool `json:"fullAccess"`
 	// Version is the settings schema version (see settingsVersion).
 	Version int `json:"version"`
 }
 
 // settingsVersion 3: the old autoApprove/read-only mode is gone (agents always get all
-// PhoneForge tools); a leftover "autoApprove" key in older files is ignored.
+// Pocketlab tools); a leftover "autoApprove" key in older files is ignored.
 const settingsVersion = 3
 
 // DefaultClaudeModel is the model used for Claude automation runs when none is set.

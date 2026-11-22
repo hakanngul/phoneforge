@@ -1,4 +1,4 @@
-# PhoneForge — Features
+# Pocketlab — Features
 
 Original, clean-room tool (Go + vanilla web UI). No third-party branding/code. No paid tier — it is
 our own software, so every capability is unlocked by design.
@@ -9,7 +9,7 @@ our own software, so every capability is unlocked by design.
 - **iOS live control (WDA bridge)**: in-process WebDriverAgent runner (userspace tunnel for iOS 17.4+, no root), `WDA: stopped/starting/running/error` chip, Start/Stop, "Install helper" button, MJPEG live view (`/devices/{id}/mjpeg`), WDA-backed screenshot/UI tree/tap/swipe/type/keys/app launch, MCP `start_bridge`/`stop_bridge`/`bridge_status`/`ios_install_helper`. See docs/ios-setup.md.
   Live screen + UI automation (tap/UI-tree) require the **WebDriverAgent bridge** (Xcode signing) —
   the UI shows an honest notice; Apps + info work today.
-- **Remote devices**: "Add node by address" (any network incl. Tailscale) → another PhoneForge node's
+- **Remote devices**: "Add node by address" (any network incl. Tailscale) → another Pocketlab node's
   devices appear locally and are fully controllable. No Pro gating.
 
 ## Automation console
@@ -30,7 +30,7 @@ our own software, so every capability is unlocked by design.
   UiAutomator2 server on the phone; if a call fails it falls back to plain adb. Stopped = unchanged behaviour.
 - If `io.appium.uiautomator2.server` and `.server.test` are already installed on the phone they are used
   as they are (no install, no version check, nothing downloaded). Only when a package is missing are the
-  APKs needed locally (`~/.phoneforge/uia2`): `GET /bridge/assets`, and `POST /bridge/assets/download`
+  APKs needed locally (`~/.pocketlab/uia2`): `GET /bridge/assets`, and `POST /bridge/assets/download`
   fetches them from GitHub on explicit request only (otherwise `409 BRIDGE_ASSETS_MISSING`).
 - Bridges are stopped on server shutdown. Never started automatically.
 
@@ -39,11 +39,11 @@ our own software, so every capability is unlocked by design.
 - **Testing**: JSON DSL editor + run → per-step pass/fail/skip chips, run history. New DSL actions:
   double_tap, drag, open_url, dismiss_keyboard, set_clipboard, install_app, uninstall_app,
   grant_permission, revoke_permission, wait_for, scroll_until_visible.
-- **Test projects** (`/api/v1/tests`, stored in `~/.phoneforge/tests`): projects hold scripts written in the
+- **Test projects** (`/api/v1/tests`, stored in `~/.pocketlab/tests`): projects hold scripts written in the
   readable **`.mob`** format (or the JSON DSL); validate (`POST /tests/validate`), run on a device
   (`POST /tests/projects/{id}/scripts/{name}/run`) and browse run history (`GET /tests/runs`).
   `type_secret` steps resolve secret ids from the Keychain-backed credential store.
-- **iOS Simulators**: booted simulators listed as `sim-<udid>`; `/api/v1/simulators` (list, boot, shutdown, WDA start/stop/status/logs); simctl-backed screenshot/apps/install/open URL/logs; WDA (simulator build from the UI "Build WDA" button or `phoneforge ios build-wda --sim`, ports 8200+/9200+) for input and UI tree; "iOS Simulators" entry under Integrations; MCP `list_simulators`/`boot_simulator`/`shutdown_simulator`.
+- **iOS Simulators**: booted simulators listed as `sim-<udid>`; `/api/v1/simulators` (list, boot, shutdown, WDA start/stop/status/logs); simctl-backed screenshot/apps/install/open URL/logs; WDA (simulator build from the UI "Build WDA" button or `pocketlab ios build-wda --sim`, ports 8200+/9200+) for input and UI tree; "iOS Simulators" entry under Integrations; MCP `list_simulators`/`boot_simulator`/`shutdown_simulator`.
 - **Stable device list**: local Android, then iOS, then remote; by name then id.
 
 ## OCR and web automation
@@ -61,12 +61,12 @@ our own software, so every capability is unlocked by design.
 - **MCP tools**: `ocr_screen`, `ocr_tap`, `web_targets`, `web_navigate`, `web_eval`, `web_click`, `web_type`.
 
 ## Integrations (all working)
-- **AI Configuration** (`/api/v1/ai`): detect external coding-agent CLIs, connect/disconnect PhoneForge's MCP server in
+- **AI Configuration** (`/api/v1/ai`): detect external coding-agent CLIs, connect/disconnect Pocketlab's MCP server in
   their configs, per-task agent type settings, and a run console (external agents stream over SSE; the built-in agent
   runs through the existing agent endpoint).
-  - **Kiro / kiro-cli** (🟡 implemented from docs, not live-tested; neither is installed here): Connect writes a `phoneforge`
-    `url` entry to the shared `~/.kiro/settings/mcp.json` (backed up once as `.phoneforge-bak`). The Kiro IDE is connect-only;
-    `kiro-cli` is also a selectable run agent (`kiro-cli chat --no-interactive --trust-tools=@phoneforge`, `--trust-all-tools`
+  - **Kiro / kiro-cli** (🟡 implemented from docs, not live-tested; neither is installed here): Connect writes a `pocketlab`
+    `url` entry to the shared `~/.kiro/settings/mcp.json` (backed up once as `.pocketlab-bak`). The Kiro IDE is connect-only;
+    `kiro-cli` is also a selectable run agent (`kiro-cli chat --no-interactive --trust-tools=@pocketlab`, `--trust-all-tools`
     with Full access, free-text `--model`, `--resume` for chat memory in a dedicated work dir with its own workspace MCP config).
     Headless runs need `KIRO_API_KEY` (paid Kiro plans). Output is plain text: ANSI stripped, lines shown as thoughts.
 - **AI Tools**: manage LLM provider keys (Keychain; never shown). Agent uses them after restart.
@@ -96,14 +96,14 @@ our own software, so every capability is unlocked by design.
 ## Platform / API
 - Single Go server: REST `/api/v1` (~55 routes plus `/ai`, `/ocr`, `/web`), embedded **MCP server** `/mcp` (36 tools: devices, gestures incl. pinch, bridge start/stop/status, test projects/scripts/run/runs, OCR, web) for
   Claude Code, SSE `/events`, agent SSE.
-- **`phoneforge` CLI** (`cmd/phoneforge`, `scripts/install-cli.sh`): terminal client for the REST API - devices, screenshot, compact UI tree, tap by coords/text/id/OCR, swipe, type, apps/install, OCR, wait, DSL/test run, logs, record, crashes, bridge, simulators, streamed AI `agent`; `--json`, exit codes 0-4. See docs/cli.md.
+- **`pocketlab` CLI** (`cmd/pocketlab`, `scripts/install-cli.sh`): terminal client for the REST API - devices, screenshot, compact UI tree, tap by coords/text/id/OCR, swipe, type, apps/install, OCR, wait, DSL/test run, logs, record, crashes, bridge, simulators, streamed AI `agent`; `--json`, exit codes 0-4. See docs/cli.md.
 - **Hardened security**: CORS does not reflect arbitrary Origins; no Allow-Private-Network; optional
   `-token` for non-loopback; all secrets in the OS Keychain.
 
 ## Honest limits / next
 - iOS live control beyond the WDA bridge: Wi-Fi-only devices, iOS 17.0-17.3 (root kernel tunnel).
 - AWS Device Farm live listing (AWS SDK), cloud device live streaming, Cloud Agents (CI).
-- Desktop app (Wails v3, `PhoneForge.app`): built and verified standalone/attach on this Mac; ad-hoc signed only (no notarization), tray/menu verified by menu-bar inspection only.
+- Desktop app (Wails v3, `Pocketlab.app`): built and verified standalone/attach on this Mac; ad-hoc signed only (no notarization), tray/menu verified by menu-bar inspection only.
 - Agent not yet run against a real LLM here (no key set); unit-tested with a fake client.
 - lldb debugging is unit-tested against a fake lldb and the real lldb's static commands; attaching to a live process was not verified on the
   build Mac (Developer mode disabled there) and real-device attach needs a development-signed app. Android debugging is not implemented.

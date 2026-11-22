@@ -3,7 +3,7 @@ package androiddrv
 import (
 	"fmt"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // parseBounds parses a uiautomator bounds string "[x1,y1][x2,y2]".

@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"phoneforge/internal/registry"
+	"pocketlab/internal/registry"
 
-	"phoneforge/internal/config"
+	"pocketlab/internal/config"
 )
 
 // syncRec is a ResponseRecorder safe to read while the handler writes.
@@ -134,7 +134,7 @@ func TestServeMJPEGStreamErrorBeforeAnyFrame(t *testing.T) {
 func TestServeMJPEGRawFormatHeaders(t *testing.T) {
 	for _, tc := range []struct{ name, url, accept string }{
 		{"query", "/mjpeg?format=raw", ""},
-		{"accept", "/mjpeg", "application/x-pf-mjpeg"},
+		{"accept", "/mjpeg", "application/x-pl-mjpeg"},
 	} {
 		rec := newSyncRec()
 		req := httptest.NewRequest(http.MethodGet, tc.url, nil)

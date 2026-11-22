@@ -1,13 +1,13 @@
 ---
-name: phoneforge-accessibility-audit
-description: Audit a mobile app's accessibility on a real device or simulator with PhoneForge by inspecting the UI tree on every key screen - missing labels, unlabeled buttons, small tap targets (under 44pt iOS / 48dp Android), unnamed inputs - and report findings with severity. Use for "accessibility audit", "a11y check", "VoiceOver/TalkBack review", "tap target size", or in Turkish "erişilebilirlik denetimi", "erişilebilirlik kontrolü", "etiketi eksik butonlar", "dokunma alanı küçük mü".
+name: pocketlab-accessibility-audit
+description: Audit a mobile app's accessibility on a real device or simulator with Pocketlab by inspecting the UI tree on every key screen - missing labels, unlabeled buttons, small tap targets (under 44pt iOS / 48dp Android), unnamed inputs - and report findings with severity. Use for "accessibility audit", "a11y check", "VoiceOver/TalkBack review", "tap target size", or in Turkish "erişilebilirlik denetimi", "erişilebilirlik kontrolü", "etiketi eksik butonlar", "dokunma alanı küçük mü".
 ---
 
-# PhoneForge accessibility audit
+# Pocketlab accessibility audit
 
-PhoneForge exposes the platform accessibility tree, so most structural issues can be found without a screen reader.
+Pocketlab exposes the platform accessibility tree, so most structural issues can be found without a screen reader.
 It does not measure color contrast or simulate VoiceOver/TalkBack focus order; say so in the report and
-recommend a manual pass for those. Observation tools: see `phoneforge-device-control`.
+recommend a manual pass for those. Observation tools: see `pocketlab-device-control`.
 
 ## Get the units right
 `ui_tree` prints `screen WxH px` (Android) or `pt` (iOS) and each node as `@(cx,cy) WxH`.

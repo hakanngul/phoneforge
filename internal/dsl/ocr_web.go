@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"phoneforge/internal/device"
-	"phoneforge/internal/ocr"
-	"phoneforge/internal/webauto"
+	"pocketlab/internal/device"
+	"pocketlab/internal/ocr"
+	"pocketlab/internal/webauto"
 )
 
 // ---- OCR actions ----

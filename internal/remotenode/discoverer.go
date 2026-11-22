@@ -6,8 +6,8 @@ import (
 	"log"
 	"net/http"
 
-	"phoneforge/internal/device"
-	"phoneforge/internal/registry"
+	"pocketlab/internal/device"
+	"pocketlab/internal/registry"
 )
 
 type discoverer struct{ store *Store }

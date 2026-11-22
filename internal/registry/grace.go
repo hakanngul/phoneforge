@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // DefaultGrace is how long a flapping (e.g. Wi-Fi paired iOS) device is kept

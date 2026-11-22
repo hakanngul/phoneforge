@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 const (
@@ -396,7 +396,7 @@ func (r *runner) do(ctx context.Context, canon string, st Step, oc *outcome) err
 	case "extract":
 		return r.doExtract(ctx, st, oc)
 	case "eval_script", "run_script":
-		return unsupported(canon, "scripting needs a JavaScript runtime, which PhoneForge does not embed")
+		return unsupported(canon, "scripting needs a JavaScript runtime, which Pocketlab does not embed")
 	case "request_user_input":
 		return codeErr(CodeExecutionError, "request_user_input always fails inside scripts")
 	case "select_web_context", "execute_js":

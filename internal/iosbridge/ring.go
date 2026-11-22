@@ -33,7 +33,7 @@ func (r *ring) Write(p []byte) (int, error) {
 func (r *ring) logf(line string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.add(time.Now().Format("15:04:05") + " [phoneforge] " + line)
+	r.add(time.Now().Format("15:04:05") + " [pocketlab] " + line)
 }
 
 func (r *ring) add(l string) {

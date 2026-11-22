@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 func recognizeTesseract(ctx context.Context, png []byte, o Options) ([]Result, error) {

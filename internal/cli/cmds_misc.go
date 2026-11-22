@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"phoneforge/internal/dsl"
+	"pocketlab/internal/dsl"
 
-	"phoneforge/internal/version"
+	"pocketlab/internal/version"
 )
 
 // ---- dsl / run ----
@@ -83,7 +83,7 @@ func cmdDSL(c *call) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return usagef("usage: phoneforge dsl <file.json|->")
+		return usagef("usage: pocketlab dsl <file.json|->")
 	}
 	body, err := readInput(c, pos[0])
 	if err != nil {
@@ -119,7 +119,7 @@ func cmdRun(c *call) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return usagef("usage: phoneforge run <file.mob|file.json> [--project NAME]")
+		return usagef("usage: pocketlab run <file.mob|file.json> [--project NAME]")
 	}
 	ext := strings.ToLower(filepath.Ext(pos[0]))
 	if ext != ".mob" && ext != ".json" {
@@ -330,7 +330,7 @@ func cmdCrash(c *call) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return usagef("usage: phoneforge crash <name> [-o file]")
+		return usagef("usage: pocketlab crash <name> [-o file]")
 	}
 	ctx, cancel := c.ctxFor(60 * time.Second)
 	defer cancel()
@@ -363,7 +363,7 @@ func cmdBridge(c *call) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return usagef("usage: phoneforge bridge start|stop|status")
+		return usagef("usage: pocketlab bridge start|stop|status")
 	}
 	method, suffix, def := "GET", "/bridge", 20*time.Second
 	switch pos[0] {
@@ -499,7 +499,7 @@ func pickSim(sims []simRow, want string) (simRow, error) {
 			return simRow{}, deviceErrf("%q matches %d simulators; use the UDID:\n%s", want, len(hit), strings.Join(names, "\n"))
 		}
 	}
-	return simRow{}, deviceErrf("simulator %q not found (see 'phoneforge sims')", want)
+	return simRow{}, deviceErrf("simulator %q not found (see 'pocketlab sims')", want)
 }
 
 func cmdSim(c *call) error {
@@ -508,7 +508,7 @@ func cmdSim(c *call) error {
 		return err
 	}
 	if len(pos) != 2 || (pos[0] != "boot" && pos[0] != "shutdown") {
-		return usagef("usage: phoneforge sim boot|shutdown <udid|name>")
+		return usagef("usage: pocketlab sim boot|shutdown <udid|name>")
 	}
 	ctx, cancel := c.ctxFor(3 * time.Minute)
 	defer cancel()
@@ -546,7 +546,7 @@ func cmdVersion(c *call) error {
 	if c.g.json {
 		return c.printJSON(map[string]string{"version": version.Version})
 	}
-	fmt.Fprintf(c.out, "phoneforge %s\n", version.Version)
+	fmt.Fprintf(c.out, "pocketlab %s\n", version.Version)
 	return nil
 }
 

@@ -1,4 +1,4 @@
-// Package uia2 bridges PhoneForge to the open-source Appium UiAutomator2
+// Package uia2 bridges Pocketlab to the open-source Appium UiAutomator2
 // server (Apache-2.0, github.com/appium/appium-uiautomator2-server) running
 // on an Android device. The server APKs are never bundled: the user must
 // trigger Assets.Download explicitly.
@@ -28,7 +28,7 @@ const (
 
 // Assets locates and downloads the two UiAutomator2 server APKs.
 type Assets struct {
-	// Dir is the directory holding the APKs, e.g. ~/.phoneforge/uia2.
+	// Dir is the directory holding the APKs, e.g. ~/.pocketlab/uia2.
 	Dir string
 
 	apiURL string       // test override of the releases API URL
@@ -143,7 +143,7 @@ func (a *Assets) get(ctx context.Context, rawURL string, limit int64, accept str
 	if accept != "" {
 		req.Header.Set("Accept", accept)
 	}
-	req.Header.Set("User-Agent", "phoneforge")
+	req.Header.Set("User-Agent", "pocketlab")
 	resp, err := a.httpClient().Do(req)
 	if err != nil {
 		return nil, err

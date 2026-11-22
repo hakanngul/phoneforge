@@ -13,7 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 const ipsSample = `{"app_name":"Demo","timestamp":"2026-05-12 14:23:45.00 +0100","app_version":"1.0","slice_uuid":"x","build_version":"1","platform":2,"bundleID":"com.example.demo","share_with_app_devs":1,"is_first_party":0,"bug_type":"309","os_version":"iPhone OS 17.5 (21F79)","incident_id":"ABC","name":"Demo"}

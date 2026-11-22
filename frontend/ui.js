@@ -1,4 +1,4 @@
-/* PhoneForge UI kit: one reusable modal system + small form/table/copy helpers. */
+/* Pocketlab UI kit: one reusable modal system + small form/table/copy helpers. */
 (function () {
   'use strict';
   var PF = window.PF, $ = PF.$;

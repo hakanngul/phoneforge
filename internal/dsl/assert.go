@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // snapshot is a captured screen state used by observe and assert_screen_changed.

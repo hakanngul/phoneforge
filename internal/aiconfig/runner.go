@@ -77,7 +77,7 @@ func (r *run) snapshot(from int) ([]Event, bool, <-chan struct{}) {
 }
 
 // AllowedTools computes the --allowedTools entries for a Claude run: the whole
-// phoneforge MCP server, always (agents are under the user's control).
+// pocketlab MCP server, always (agents are under the user's control).
 func AllowedTools(_ Settings) []string {
 	return []string{"mcp__" + MCPName}
 }
@@ -87,10 +87,10 @@ func SystemPrompt(typ, deviceID string, s Settings) string {
 	var b strings.Builder
 	switch typ {
 	case TypeTesting:
-		b.WriteString("You are the PhoneForge Testing agent. Write, run and fix .mob test scripts for mobile apps using the PhoneForge MCP tools (server \"" + MCPName + "\"). ")
+		b.WriteString("You are the Pocketlab Testing agent. Write, run and fix .mob test scripts for mobile apps using the Pocketlab MCP tools (server \"" + MCPName + "\"). ")
 		b.WriteString("Inspect the screen and UI tree before writing steps, keep scripts deterministic, run them on the device, and report pass/fail with the reason for any failure.")
 	default:
-		b.WriteString("You are the PhoneForge Automation agent. You operate a real mobile device through the PhoneForge MCP tools (server \"" + MCPName + "\"). ")
+		b.WriteString("You are the Pocketlab Automation agent. You operate a real mobile device through the Pocketlab MCP tools (server \"" + MCPName + "\"). ")
 		b.WriteString("Observe the screen before every action, act in small verified steps, and stop when the task is complete or cannot be completed.")
 	}
 	if deviceID != "" {
@@ -128,7 +128,7 @@ func buildCommand(agent, bin, system, prompt, model, mcpConfig, sessionID string
 			a = append(a, "--model", model)
 		}
 		// --full-auto was removed in codex 0.16x. In non-interactive exec an MCP tool call
-		// needs approval (policy is "never"), so approve the phoneforge server's tools
+		// needs approval (policy is "never"), so approve the pocketlab server's tools
 		// explicitly; the shell sandbox stays workspace-write unless full access is on.
 		a = append(a, "--skip-git-repo-check",
 			"-c", "mcp_servers."+MCPName+`.default_tools_approval_mode="approve"`)
@@ -148,7 +148,7 @@ func buildCommand(agent, bin, system, prompt, model, mcpConfig, sessionID string
 		return append(a, "-p", system+"\n\nTask: "+prompt)
 	case AgentKiroCLI:
 		// Plain-text output (the stream-json record schema is undocumented). Trust only the
-		// phoneforge MCP server's tools (@server reference, kiro-cli >= 3.3.0), or everything
+		// pocketlab MCP server's tools (@server reference, kiro-cli >= 3.3.0), or everything
 		// when full access is on. --require-mcp-startup makes the run wait for the MCP server.
 		a := []string{bin, "chat", "--no-interactive", "--require-mcp-startup"}
 		if s.FullAccess {
@@ -221,7 +221,7 @@ func (m *Manager) StartRun(req RunRequest) (string, error) {
 	if agent == AgentClaude {
 		cfg, _ := json.Marshal(map[string]any{"mcpServers": map[string]any{
 			MCPName: map[string]any{"type": "http", "url": m.mcpURL}}})
-		f, err := os.CreateTemp(m.tmpDir, "phoneforge-mcp-*.json")
+		f, err := os.CreateTemp(m.tmpDir, "pocketlab-mcp-*.json")
 		if err != nil {
 			return "", err
 		}
@@ -240,7 +240,7 @@ func (m *Manager) StartRun(req RunRequest) (string, error) {
 	}
 	if agent == AgentKiroCLI {
 		// A dedicated work dir keeps --resume ("previous conversation from this directory")
-		// scoped to PhoneForge, and its workspace MCP config makes runs independent of Connect.
+		// scoped to Pocketlab, and its workspace MCP config makes runs independent of Connect.
 		dir, err := m.prepareKiroDir()
 		if err != nil {
 			return "", err
@@ -331,7 +331,7 @@ func sessionIDFromLine(line string) string {
 }
 
 // prepareKiroDir creates the dedicated kiro-cli work directory next to the settings file
-// and writes a workspace-level .kiro/settings/mcp.json registering the phoneforge server.
+// and writes a workspace-level .kiro/settings/mcp.json registering the pocketlab server.
 func (m *Manager) prepareKiroDir() (string, error) {
 	base := m.tmpDir
 	if m.settingsPath != "" {

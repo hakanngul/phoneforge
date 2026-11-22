@@ -1,4 +1,4 @@
-# Releasing PhoneForge
+# Releasing Pocketlab
 
 Releases are built by `.github/workflows/release.yml`. Status: workflows added, not yet run on GitHub.
 
@@ -11,16 +11,16 @@ git push origin v0.1.0
 
 The tag name (without `v`) becomes the version. It is stamped into `Info.plist`
 (`CFBundleShortVersionString`, `CFBundleVersion`) and into every binary through
-`-X phoneforge/internal/version.Version=...` (`phoneforge version`, `/api/v1/health`, the desktop About box).
+`-X pocketlab/internal/version.Version=...` (`pocketlab version`, `/api/v1/health`, the desktop About box).
 Tags containing `-` (for example `v0.2.0-rc1`) are published as pre-releases.
 
 The workflow runs `go vet` and `go test ./...`, then builds:
 
 | Artifact | Built on |
 | --- | --- |
-| `PhoneForge-<version>-macos-arm64.dmg` / `.zip` | `macos-latest` |
-| `PhoneForge-<version>-macos-amd64.dmg` / `.zip` | `macos-15-intel` (best effort, failure does not block the release) |
-| `phoneforge_<version>_{darwin,linux}_{arm64,amd64}.tar.gz` (`phoneforged` + `phoneforge`, CGO off) | `ubuntu-latest` |
+| `Pocketlab-<version>-macos-arm64.dmg` / `.zip` | `macos-latest` |
+| `Pocketlab-<version>-macos-amd64.dmg` / `.zip` | `macos-15-intel` (best effort, failure does not block the release) |
+| `pocketlab_<version>_{darwin,linux}_{arm64,amd64}.tar.gz` (`pocketlabd` + `pocketlab`, CGO off) | `ubuntu-latest` |
 | `SHA256SUMS.txt` | release job |
 
 and publishes them with auto-generated release notes.
@@ -33,13 +33,13 @@ Actions tab > Release > Run workflow (`workflow_dispatch`). It builds everything
 ## Local build with a version
 
 ```sh
-PF_VERSION=0.1.0 scripts/build-desktop.sh --dmg
+PL_VERSION=0.1.0 scripts/build-desktop.sh --dmg
 ```
 
 ## Signing and notarization (optional)
 
 Without secrets the app is ad-hoc signed and not notarized. Users must right-click > Open on first launch, or run
-`xattr -dr com.apple.quarantine /Applications/PhoneForge.app`.
+`xattr -dr com.apple.quarantine /Applications/Pocketlab.app`.
 
 Behaviour of the `app` job, decided by which repository secrets exist:
 
@@ -93,7 +93,7 @@ Then test with Actions > Release > Run workflow (builds only; the Notarize step 
 push a tag.
 
 With secrets present the workflow imports the certificate into a temporary keychain, signs with
-`PF_CODESIGN_IDENTITY` (hardened runtime, `desktop/entitlements.plist`), runs
+`PL_CODESIGN_IDENTITY` (hardened runtime, `desktop/entitlements.plist`), runs
 `xcrun notarytool submit --wait` on the dmg (`--key/--key-id/--issuer` for the API key; the key file is written
 to the runner temp dir with mode 0600 and removed afterwards), and staples the dmg and the app.
 
@@ -101,13 +101,13 @@ to the runner temp dir with mode 0600 and removed afterwards), and staples the d
 
 ```sh
 scripts/build-desktop.sh --dmg
-PF_CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" scripts/notarize-local.sh --dmg
+PL_CODESIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" scripts/notarize-local.sh --dmg
 ```
 
-`scripts/notarize-local.sh` re-signs `dist/PhoneForge.app` with hardened runtime, submits it with the
+`scripts/notarize-local.sh` re-signs `dist/Pocketlab.app` with hardened runtime, submits it with the
 `ASC_KEY_ID`, `ASC_ISSUER_ID` and `ASC_KEY_PATH` from your shell (the key file is read by `notarytool` at runtime;
 no secret is echoed), staples, and verifies with `spctl -a -vv`. `--dmg` also signs, notarizes and staples
-`dist/PhoneForge.dmg`. If no Developer ID Application certificate is in your keychain it stops and prints how to
+`dist/Pocketlab.dmg`. If no Developer ID Application certificate is in your keychain it stops and prints how to
 create one.
 
-`scripts/build-desktop.sh` honours `PF_CODESIGN_IDENTITY` (default `-`) and `PF_KEYCHAIN` locally too.
+`scripts/build-desktop.sh` honours `PL_CODESIGN_IDENTITY` (default `-`) and `PL_KEYCHAIN` locally too.

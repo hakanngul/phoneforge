@@ -12,8 +12,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"phoneforge/internal/device"
-	"phoneforge/internal/dsl"
+	"pocketlab/internal/device"
+	"pocketlab/internal/dsl"
 )
 
 const runTimeout = 10 * time.Minute

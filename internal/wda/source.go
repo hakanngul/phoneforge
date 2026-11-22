@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // Source fetches the UI hierarchy (XML) and parses it into a device.Element

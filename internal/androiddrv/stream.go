@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/brand"
+	"pocketlab/internal/device"
 )
 
 var _ device.VideoStreamer = (*androidDevice)(nil)
@@ -46,9 +46,9 @@ func parseWMSize(out string) (w, h int, ok bool) {
 }
 
 // streamBitRate returns the screenrecord bit-rate cap in bits/s from
-// PF_ANDROID_BITRATE (500000-20000000), falling back to 3 Mbps.
+// PL_ANDROID_BITRATE (500000-20000000), falling back to 3 Mbps.
 func streamBitRate() int {
-	v, err := strconv.Atoi(strings.TrimSpace(os.Getenv("PF_ANDROID_BITRATE")))
+	v, err := strconv.Atoi(strings.TrimSpace(brand.Getenv("PL_ANDROID_BITRATE")))
 	if err != nil || v < minStreamBitRate || v > maxStreamBitRate {
 		return defaultStreamBitRate
 	}
@@ -56,9 +56,9 @@ func streamBitRate() int {
 }
 
 // streamScale returns the capture scale in percent of physical size from
-// PF_ANDROID_SCALE (25-100), falling back to 50.
+// PL_ANDROID_SCALE (25-100), falling back to 50.
 func streamScale() int {
-	v, err := strconv.Atoi(strings.TrimSpace(os.Getenv("PF_ANDROID_SCALE")))
+	v, err := strconv.Atoi(strings.TrimSpace(brand.Getenv("PL_ANDROID_SCALE")))
 	if err != nil || v < minStreamScale || v > maxStreamScale {
 		return defaultStreamScale
 	}
@@ -123,7 +123,7 @@ func (d *androidDevice) streamSize(ctx context.Context) string {
 
 // StreamH264 streams device video as raw Annex-B H.264 to w using
 // `adb -s <serial> exec-out screenrecord --output-format=h264 --bit-rate
-// <PF_ANDROID_BITRATE, default 3000000> [--size WxH] -`. screenrecord is restarted transparently when it
+// <PL_ANDROID_BITRATE, default 3000000> [--size WxH] -`. screenrecord is restarted transparently when it
 // reaches its time limit. It returns when ctx is done (nil error), when w
 // fails, or after three consecutive runs that end in under one second.
 func (d *androidDevice) StreamH264(ctx context.Context, w io.Writer) error {

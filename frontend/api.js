@@ -1,4 +1,4 @@
-/* PhoneForge shared helpers: DOM, toast, API wrapper. */
+/* Pocketlab shared helpers: DOM, toast, API wrapper. */
 (function (w) {
   'use strict';
   var PF = w.PF = { API: '/api/v1', selectedId: null, devices: [] };

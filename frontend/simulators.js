@@ -55,7 +55,7 @@
         host.innerHTML = '';
         var built = r && r.wdaBuilt;
         if (!built) {
-          var nb = PF.note('WDA is not built for the simulator yet. PhoneForge builds it on this Mac with Xcode (no signing needed, a few minutes the first time).', 'info');
+          var nb = PF.note('WDA is not built for the simulator yet. Pocketlab builds it on this Mac with Xcode (no signing needed, a few minutes the first time).', 'info');
           var bb = PF.btn('Build WDA', 'primary sm', function () {
             PF.confirm('Build WebDriverAgent for the iOS Simulator now?\nIt needs Xcode and takes a few minutes the first time.', function () {
               clearInterval(timer);

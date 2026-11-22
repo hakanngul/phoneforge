@@ -1,8 +1,8 @@
 package httpapi
 
 import (
-	"phoneforge/internal/iosbridge"
-	"phoneforge/internal/iossim"
+	"pocketlab/internal/iosbridge"
+	"pocketlab/internal/iossim"
 )
 
 // SetSim attaches the simulator control so the generic iOS bridge routes

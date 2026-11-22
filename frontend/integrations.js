@@ -57,14 +57,14 @@
     b.appendChild(PF.section('REST base URL')); b.appendChild(PF.codeBlock(rest, 'REST URL'));
     b.appendChild(PF.section('MCP URL')); b.appendChild(PF.codeBlock(mcp, 'MCP URL'));
     b.appendChild(PF.section('MCP client config'));
-    b.appendChild(PF.codeBlock(JSON.stringify({ mcpServers: { phoneforge: { type: 'http', url: mcp } } }, null, 2), 'MCP config'));
+    b.appendChild(PF.codeBlock(JSON.stringify({ mcpServers: { pocketlab: { type: 'http', url: mcp } } }, null, 2), 'MCP config'));
     var tok = PF.el('p', 'muted', 'Checking token requirement...');
     b.appendChild(PF.section('Authentication')); b.appendChild(tok);
     PF.api('GET', '/health').then(function (h) {
       var req = h.authRequired != null ? h.authRequired : h.tokenRequired != null ? h.tokenRequired : h.auth;
       if (req === true || req === 'required') tok.textContent = 'A token is required. Send it as "Authorization: Bearer <token>".';
       else if (req === false || req === 'none') tok.textContent = 'No token required. Only bind the server to a non-loopback address together with -token.';
-      else tok.textContent = 'The server does not report its auth mode. This page works without a token; if you start phoneforged with -token <token>, clients must send "Authorization: Bearer <token>".';
+      else tok.textContent = 'The server does not report its auth mode. This page works without a token; if you start pocketlabd with -token <token>, clients must send "Authorization: Bearer <token>".';
     }, function () { tok.textContent = 'Could not read /health.'; });
   }
 
@@ -72,7 +72,7 @@
   function openCloud() {
     var m = PF.modal.open('Cloud Agents');
     m.body.appendChild(PF.note('CI-based cloud agents — coming soon', 'info'));
-    m.body.appendChild(PF.el('p', 'muted', 'Cloud agents will run PhoneForge automation from your CI pipeline against cloud device farms, so scheduled and pull-request test runs do not need a machine with phones attached. Nothing here is available yet.'));
+    m.body.appendChild(PF.el('p', 'muted', 'Cloud agents will run Pocketlab automation from your CI pipeline against cloud device farms, so scheduled and pull-request test runs do not need a machine with phones attached. Nothing here is available yet.'));
   }
 
   var ACTIONS = { aiconfig: function () { PF.openAIConfig(); }, ai: openAI, api: openAPI, webhooks: function () { PF.openWebhooks(); }, farms: function () { PF.openFarms(); }, sims: function () { PF.openSimulators(); },

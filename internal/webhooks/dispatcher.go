@@ -16,14 +16,15 @@ import (
 	"sync"
 	"time"
 
-	"phoneforge/internal/events"
+	"pocketlab/internal/brand"
+	"pocketlab/internal/events"
 )
 
 const (
 	queueSize    = 256
 	workerCount  = 4
 	logPrefix    = "webhooks:"
-	signatureHdr = "X-PhoneForge-Signature"
+	signatureHdr = "X-Pocketlab-Signature"
 )
 
 // Payload is the JSON body POSTed to a webhook.
@@ -162,16 +163,18 @@ func (m *Manager) Deliver(ctx context.Context, w Webhook, ev events.Event) Deliv
 func (m *Manager) deliver(ctx context.Context, w Webhook, ev events.Event) DeliveryStatus {
 	st := DeliveryStatus{Time: time.Now().UTC()}
 	body, _ := json.Marshal(Payload{
-		ID: newEventID(), Time: ev.Time, Level: ev.Level, Message: ev.Message, Source: "phoneforge",
+		ID: newEventID(), Time: ev.Time, Level: ev.Level, Message: ev.Message, Source: "pocketlab",
 	})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, w.URL, bytes.NewReader(body))
 	if err != nil {
 		st.Error = err.Error()
 	} else {
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("User-Agent", "PhoneForge-Webhook/1")
+		req.Header.Set("User-Agent", "Pocketlab-Webhook/1")
 		if w.Secret != "" {
-			req.Header.Set(signatureHdr, Sign(body, w.Secret))
+			sig := Sign(body, w.Secret)
+			req.Header.Set(signatureHdr, sig)
+			req.Header.Set(brand.LegacySignatureHeader, sig) // receivers written before the rename
 		}
 		resp, err := m.client.Do(req)
 		if err != nil {
@@ -200,7 +203,7 @@ func (m *Manager) Test(ctx context.Context, id string) (DeliveryStatus, error) {
 		return DeliveryStatus{}, ErrNotFound
 	}
 	return m.deliver(ctx, w, events.Event{
-		Time: time.Now().UTC(), Level: "info", Message: "PhoneForge webhook test event",
+		Time: time.Now().UTC(), Level: "info", Message: "Pocketlab webhook test event",
 	}), nil
 }
 

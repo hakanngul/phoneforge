@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // Client talks to one WebDriverAgent instance.

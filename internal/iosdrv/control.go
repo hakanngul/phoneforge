@@ -9,7 +9,7 @@ import (
 
 	"github.com/danielpaulus/go-ios/ios/instruments"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 func wdaErr() error {

@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // Routes returns the handler to mount at /devices/{id}/crashes. The device id

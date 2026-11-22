@@ -8,7 +8,7 @@ import (
 	"github.com/danielpaulus/go-ios/ios/installationproxy"
 	"github.com/danielpaulus/go-ios/ios/instruments"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // runCtx runs fn and returns early with ctx.Err() if ctx ends first.

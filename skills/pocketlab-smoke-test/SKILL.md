@@ -1,12 +1,12 @@
 ---
-name: phoneforge-smoke-test
-description: Run a quick smoke test of a mobile app on a real device or simulator with PhoneForge - launch it, walk the main flows, screenshot every step, detect crashes, and write a pass/fail report (Markdown or HTML) in the working directory. Use for "smoke test", "sanity check", "does the app crash", "verify the app works", "test this build on the phone", or in Turkish "duman testi", "uygulama çöküyor mu", "telefonda hızlı test", "uygulamayı test et".
+name: pocketlab-smoke-test
+description: Run a quick smoke test of a mobile app on a real device or simulator with Pocketlab - launch it, walk the main flows, screenshot every step, detect crashes, and write a pass/fail report (Markdown or HTML) in the working directory. Use for "smoke test", "sanity check", "does the app crash", "verify the app works", "test this build on the phone", or in Turkish "duman testi", "uygulama çöküyor mu", "telefonda hızlı test", "uygulamayı test et".
 ---
 
-# PhoneForge smoke test
+# Pocketlab smoke test
 
 Goal: in a few minutes, prove the app launches and its critical paths work, with evidence. Not exhaustive QA.
-Use the observe/act/verify loop from `phoneforge-device-control` for every interaction.
+Use the observe/act/verify loop from `pocketlab-device-control` for every interaction.
 
 ## Inputs to settle first (ask only what you cannot infer)
 - Device id (`list_devices`), app id (bundle id / package; find with `list_apps`), build installed?
@@ -36,7 +36,7 @@ Use the observe/act/verify loop from `phoneforge-device-control` for every inter
 ## Faster path when flows are known
 Encode the flow as a DSL script and run it with `execute_dsl`; each failing step returns a screenshot and an
 error code. Add `{"action":"screenshot"}` steps for evidence. Then still run the crash scan. Syntax:
-`phoneforge-test-authoring`. CLI users: `phoneforge run flow.mob` (exit 1 if a step fails) and `phoneforge crashes --app <id>`.
+`pocketlab-test-authoring`. CLI users: `pocketlab run flow.mob` (exit 1 if a step fails) and `pocketlab crashes --app <id>`.
 
 ## Report format
 Write `smoke-report.md` (or `.html` if asked; embed images with relative `<img src>`) in the run folder:

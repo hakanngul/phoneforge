@@ -1,5 +1,5 @@
-// Command phoneforge-desktop is the native macOS PhoneForge app: it runs the
-// same server as phoneforged in-process (or attaches to one that is already
+// Command pocketlab-desktop is the native macOS Pocketlab app: it runs the
+// same server as pocketlabd in-process (or attaches to one that is already
 // running) and shows the web UI in a native Wails window.
 package main
 
@@ -21,10 +21,11 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 
-	"phoneforge/frontend"
-	"phoneforge/internal/config"
-	"phoneforge/internal/server"
-	"phoneforge/internal/version"
+	"pocketlab/frontend"
+	"pocketlab/internal/brand"
+	"pocketlab/internal/config"
+	"pocketlab/internal/server"
+	"pocketlab/internal/version"
 )
 
 const (
@@ -42,19 +43,20 @@ var appIcon []byte
 var trayIcon []byte
 
 func main() {
+	brand.DataDir() // migrate ~/.phoneforge -> ~/.pocketlab (logged once) before anything reads the state dir
 	def := config.Default().Addr
-	if v := os.Getenv("PHONEFORGE_ADDR"); v != "" {
+	if v := brand.Getenv("POCKETLAB_ADDR"); v != "" {
 		def = v
 	}
-	addr := flag.String("addr", def, "server address to listen on / attach to (env PHONEFORGE_ADDR)")
+	addr := flag.String("addr", def, "server address to listen on / attach to (env POCKETLAB_ADDR)")
 	webDir := flag.String("webdir", "", "serve the web UI from this directory instead of the embedded copy (development)")
 	adb := flag.String("adb", "", "path to adb (default: adb in PATH)")
 	token := flag.String("token", "", "optional API token required for non-loopback requests")
 	noTray := flag.Bool("no-tray", false, "disable the menu-bar icon (closing the window then quits)")
 	flag.Parse()
-	dev := devBuild != "" || os.Getenv("PHONEFORGE_DEV") == "1"
+	dev := devBuild != "" || brand.Getenv("POCKETLAB_DEV") == "1"
 
-	// 1. Attach to a PhoneForge server that already owns the address, or start our own.
+	// 1. Attach to a Pocketlab server that already owns the address, or start our own.
 	var (
 		srv      *server.Server
 		uiAddr   = *addr
@@ -62,9 +64,9 @@ func main() {
 		ctl      *serverCtl
 	)
 	opts := server.Options{Addr: *addr, APIToken: *token, ADBPath: *adb, WebDir: *webDir, WebFS: frontend.FS(), StartedVia: "desktop", Owner: "desktop"}
-	if isPhoneForge(*addr) {
+	if isPocketlab(*addr) {
 		attached = true
-		log.Printf("attaching to the running PhoneForge server at %s", uiAddr)
+		log.Printf("attaching to the running Pocketlab server at %s", uiAddr)
 	} else {
 		var err error
 		srv, err = server.Start(context.Background(), opts)
@@ -84,16 +86,16 @@ func main() {
 	}
 	baseURL := "http://" + uiAddr + "/"
 
-	title := "PhoneForge"
+	title := "Pocketlab"
 	if attached {
-		title = "PhoneForge — connected to running server"
+		title = "Pocketlab — connected to running server"
 	}
 
 	// 2. Native app + window.
 	st := loadState()
 	app := application.New(application.Options{
-		Name:        "PhoneForge",
-		Description: "PhoneForge " + version.Version + ". Control Android and iOS devices from your Mac or from an AI agent.",
+		Name:        "Pocketlab",
+		Description: "Pocketlab " + version.Version + ". Control Android and iOS devices from your Mac or from an AI agent.",
 		Icon:        appIcon,
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: *noTray,
@@ -161,7 +163,7 @@ func main() {
 	}
 	// Tell the web UI it runs inside the desktop app (recorded as the origin of a Quit, banner wording).
 	win.OnWindowEvent(events.Mac.WebViewDidFinishNavigation, func(*application.WindowEvent) {
-		win.ExecJS(`window.PF_ORIGIN='desktop-ui'`)
+		win.ExecJS(`window.PL_ORIGIN='desktop-ui'`)
 	})
 	defer func() {
 		if r := recover(); r != nil {
@@ -225,7 +227,7 @@ func serverMenuItems(m *application.Menu, ctl *serverCtl) {
 func buildMenu(app *application.App, win *application.WebviewWindow, ctl *serverCtl, dev bool, openSettings func()) {
 	menu := app.NewMenu()
 
-	appMenu := menu.AddSubmenu("PhoneForge")
+	appMenu := menu.AddSubmenu("Pocketlab")
 	appMenu.AddRole(application.About)
 	appMenu.AddSeparator()
 	appMenu.Add("Settings…").SetAccelerator("CmdOrCtrl+,").OnClick(func(*application.Context) { openSettings() })
@@ -263,7 +265,7 @@ func buildMenu(app *application.App, win *application.WebviewWindow, ctl *server
 	menu.AddRole(application.WindowMenu)
 
 	help := menu.AddSubmenu("Help")
-	help.Add("PhoneForge Documentation").OnClick(func(*application.Context) { _ = app.Browser.OpenURL(repoURL) })
+	help.Add("Pocketlab Documentation").OnClick(func(*application.Context) { _ = app.Browser.OpenURL(repoURL) })
 	help.Add("Open in Browser").OnClick(func(*application.Context) { _ = app.Browser.OpenURL(ctl.base()) })
 
 	app.Menu.SetApplicationMenu(menu)
@@ -272,16 +274,16 @@ func buildMenu(app *application.App, win *application.WebviewWindow, ctl *server
 func buildTray(app *application.App, ctl *serverCtl, showWindow func()) {
 	tray := app.SystemTray.New()
 	tray.SetTemplateIcon(trayIcon)
-	tray.SetTooltip("PhoneForge")
+	tray.SetTooltip("Pocketlab")
 
 	m := app.NewMenu()
-	m.Add("Open PhoneForge").OnClick(func(*application.Context) { showWindow() })
+	m.Add("Open Pocketlab").OnClick(func(*application.Context) { showWindow() })
 	m.AddSeparator()
 	status := m.Add("Server: checking...")
 	status.SetEnabled(false)
 	serverMenuItems(m, ctl)
 	m.AddSeparator()
-	m.Add("Quit PhoneForge").OnClick(func(*application.Context) { app.Quit() })
+	m.Add("Quit Pocketlab").OnClick(func(*application.Context) { app.Quit() })
 	tray.SetMenu(m)
 
 	go func() {
@@ -291,7 +293,7 @@ func buildTray(app *application.App, ctl *serverCtl, showWindow func()) {
 			ctl.mu.Lock()
 			addr, attached := ctl.addr, ctl.attached
 			ctl.mu.Unlock()
-			up := isPhoneForge(addr)
+			up := isPocketlab(addr)
 			switch {
 			case up && attached:
 				status.SetLabel("Connected to running server " + addr)
@@ -304,8 +306,8 @@ func buildTray(app *application.App, ctl *serverCtl, showWindow func()) {
 	}()
 }
 
-// isPhoneForge reports whether a PhoneForge server answers /api/v1/health at addr.
-func isPhoneForge(addr string) bool {
+// isPocketlab reports whether a Pocketlab server answers /api/v1/health at addr.
+func isPocketlab(addr string) bool {
 	c := &http.Client{Timeout: 1500 * time.Millisecond}
 	resp, err := c.Get("http://" + addr + "/api/v1/health")
 	if err != nil {
@@ -318,7 +320,7 @@ func isPhoneForge(addr string) bool {
 	if json.NewDecoder(resp.Body).Decode(&body) != nil {
 		return false
 	}
-	return body.Service == "phoneforge"
+	return body.Service == "pocketlab" || body.Service == "phoneforge" // an older server on the port
 }
 
 // portBusy reports whether something is listening on addr (any protocol).
@@ -331,14 +333,14 @@ func portBusy(addr string) bool {
 	return true
 }
 
-// windowState is persisted to ~/.phoneforge/desktop.json.
+// windowState is persisted to ~/.pocketlab/desktop.json.
 type windowState struct {
 	mu                  sync.Mutex `json:"-"`
 	X, Y, Width, Height int
 }
 
 func statePath() string {
-	return filepath.Join(server.PhoneforgeHome(), "desktop.json") // ~/.phoneforge/desktop.json
+	return filepath.Join(server.PocketlabHome(), "desktop.json") // ~/.pocketlab/desktop.json
 }
 
 func loadState() *windowState {

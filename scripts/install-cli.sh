@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Build the phoneforge CLI and install it into the first writable directory
+# Build the pocketlab CLI and install it into the first writable directory
 # that is on PATH: ~/.local/bin, then /usr/local/bin.
-# Usage: scripts/install-cli.sh [--copy]   (default: symlink to bin/phoneforge)
+# Usage: scripts/install-cli.sh [--copy]   (default: symlink to bin/pocketlab)
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -9,8 +9,8 @@ mode=link
 [ "${1:-}" = "--copy" ] && mode=copy
 
 mkdir -p "$root/bin"
-echo "building $root/bin/phoneforge"
-(cd "$root" && go build -o bin/phoneforge ./cmd/phoneforge)
+echo "building $root/bin/pocketlab"
+(cd "$root" && go build -o bin/pocketlab ./cmd/pocketlab)
 
 on_path() { case ":$PATH:" in *":$1:"*) return 0 ;; esac; return 1; }
 
@@ -24,16 +24,22 @@ done
 
 if [ -z "$dest" ]; then
   echo "no writable directory on PATH among ~/.local/bin and /usr/local/bin." >&2
-  echo "binary is at $root/bin/phoneforge; add it to PATH or copy it manually." >&2
+  echo "binary is at $root/bin/pocketlab; add it to PATH or copy it manually." >&2
   exit 1
 fi
 
-target="$dest/phoneforge"
+# Pre-rename leftover: drop an old `phoneforge` symlink that pointed into this checkout.
+old="$dest/phoneforge"
+if [ -L "$old" ] && [ "$(readlink "$old")" = "$root/bin/phoneforge" ]; then
+  rm -f "$old"; echo "removed old symlink $old"
+fi
+
+target="$dest/pocketlab"
 if [ "$mode" = copy ]; then
-  install -m 0755 "$root/bin/phoneforge" "$target"
-  echo "copied bin/phoneforge -> $target"
+  install -m 0755 "$root/bin/pocketlab" "$target"
+  echo "copied bin/pocketlab -> $target"
 else
-  ln -sf "$root/bin/phoneforge" "$target"
-  echo "symlinked $target -> $root/bin/phoneforge"
+  ln -sf "$root/bin/pocketlab" "$target"
+  echo "symlinked $target -> $root/bin/pocketlab"
 fi
 echo "installed: $("$target" version)"

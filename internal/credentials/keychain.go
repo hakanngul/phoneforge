@@ -1,4 +1,4 @@
-// Package credentials implements the PhoneForge secrets manager and "App
+// Package credentials implements the Pocketlab secrets manager and "App
 // Cards" (per-app login profiles).
 //
 // Secret values live only in the macOS Keychain (via the `security` CLI) and
@@ -16,8 +16,22 @@ import (
 )
 
 // ServicePrefix is the fixed prefix of every Keychain service name used by
-// PhoneForge.
-const ServicePrefix = "phoneforge"
+// Pocketlab.
+const ServicePrefix = "pocketlab"
+
+// LegacyServicePrefix is the pre-rename (PhoneForge) Keychain service prefix.
+// SecurityBackend still reads and deletes items stored under it, so secrets
+// saved before the rename keep working.
+const LegacyServicePrefix = "phoneforge"
+
+// legacyService maps a current service name to its pre-rename name ("" when it
+// has no legacy twin).
+func legacyService(service string) string {
+	if service == ServicePrefix || strings.HasPrefix(service, ServicePrefix+".") {
+		return LegacyServicePrefix + strings.TrimPrefix(service, ServicePrefix)
+	}
+	return ""
+}
 
 // keychainTimeout bounds every call to the `security` CLI.
 const keychainTimeout = 10 * time.Second
@@ -83,7 +97,17 @@ func (SecurityBackend) Set(service, account, secret string) error {
 }
 
 // Get implements Backend using `find-generic-password -w`.
-func (SecurityBackend) Get(service, account string) (string, error) {
+func (b SecurityBackend) Get(service, account string) (string, error) {
+	v, err := b.getOne(service, account)
+	if errors.Is(err, ErrNotFound) {
+		if old := legacyService(service); old != "" {
+			return b.getOne(old, account)
+		}
+	}
+	return v, err
+}
+
+func (SecurityBackend) getOne(service, account string) (string, error) {
 	out, stderr, err := runSecurity("find-generic-password", "-s", service, "-a", account, "-w")
 	if err != nil {
 		if notFound(err, stderr) {
@@ -95,7 +119,18 @@ func (SecurityBackend) Get(service, account string) (string, error) {
 }
 
 // Delete implements Backend using `delete-generic-password`.
-func (SecurityBackend) Delete(service, account string) error {
+func (b SecurityBackend) Delete(service, account string) error {
+	err := b.deleteOne(service, account)
+	if old := legacyService(service); old != "" {
+		// Remove a pre-rename copy too; only report not-found if neither existed.
+		if oerr := b.deleteOne(old, account); err != nil && errors.Is(err, ErrNotFound) && oerr == nil {
+			return nil
+		}
+	}
+	return err
+}
+
+func (SecurityBackend) deleteOne(service, account string) error {
 	_, stderr, err := runSecurity("delete-generic-password", "-s", service, "-a", account)
 	if err != nil {
 		if notFound(err, stderr) {

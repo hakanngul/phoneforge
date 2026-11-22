@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"pocketlab/internal/brand"
 )
 
 const apiPrefix = "/api/v1"
@@ -76,7 +78,7 @@ func newClient(server, token string) *client {
 
 // unreachableError is returned when the server cannot be contacted.
 func (c *client) unreachable(err error) error {
-	return &exitError{ExitUnreachable, fmt.Errorf("cannot reach PhoneForge at %s: %v\nhint: start the server with `phoneforged` (see RUN.md), or set --server / PHONEFORGE_URL", c.base, rootCause(err))}
+	return &exitError{ExitUnreachable, fmt.Errorf("cannot reach Pocketlab at %s: %v\nhint: start the server with `pocketlabd` (see RUN.md), or set --server / POCKETLAB_URL", c.base, rootCause(err))}
 }
 
 func rootCause(err error) error {
@@ -99,8 +101,11 @@ func (c *client) request(ctx context.Context, method, path string, body io.Reade
 		req.Header.Set("X-API-Key", c.token)
 	}
 	if path == "/server/shutdown" {
-		req.Header.Set("X-PhoneForge-Action", "shutdown")
-		req.Header.Set("X-PhoneForge-Origin", "cli")
+		req.Header.Set("X-Pocketlab-Action", "shutdown")
+		req.Header.Set("X-Pocketlab-Origin", "cli")
+		// Older servers only know the pre-rename header names.
+		req.Header.Set(brand.LegacyActionHeader, "shutdown")
+		req.Header.Set(brand.LegacyOriginHeader, "cli")
 	}
 	resp, err := c.hc.Do(req)
 	if err != nil {

@@ -10,7 +10,7 @@ import (
 
 func TestStartStopRecorded(t *testing.T) {
 	dir := t.TempDir()
-	r := Begin(dir, Info{Version: "1.2.3", Addr: "127.0.0.1:1", StartedVia: "phoneforged", Owner: "cli"})
+	r := Begin(dir, Info{Version: "1.2.3", Addr: "127.0.0.1:1", StartedVia: "pocketlabd", Owner: "cli"})
 	r.SetStopReason("shutdown API request", "web-ui", "")
 	r.SetStopReason("ignored later reason", "x", "") // first wins
 	r.Stop("fallback")
@@ -22,7 +22,7 @@ func TestStartStopRecorded(t *testing.T) {
 	if h[0].Event != KindStop || h[0].Reason != "shutdown API request" || h[0].Origin != "web-ui" {
 		t.Errorf("stop event: %+v", h[0])
 	}
-	if h[1].Event != KindStart || h[1].StartedVia != "phoneforged" || h[1].PID != os.Getpid() || h[1].Version != "1.2.3" {
+	if h[1].Event != KindStart || h[1].StartedVia != "pocketlabd" || h[1].PID != os.Getpid() || h[1].Version != "1.2.3" {
 		t.Errorf("start event: %+v", h[1])
 	}
 	st, _ := ReadState(dir)
@@ -64,7 +64,7 @@ func TestUncleanExitDetected(t *testing.T) {
 	pidAlive = func(int) bool { return false }
 	defer func() { pidAlive = old }()
 
-	r := Begin(dir, Info{StartedVia: "phoneforged"})
+	r := Begin(dir, Info{StartedVia: "pocketlabd"})
 	defer r.Stop("test done")
 	h := ReadHistory(dir, 10)
 	if len(h) != 2 || h[0].Event != KindStart || h[1].Event != KindUnexpectedExit {
@@ -111,7 +111,7 @@ func TestRotate(t *testing.T) {
 
 func TestListenFailure(t *testing.T) {
 	dir := t.TempDir()
-	RecordListenFailure(dir, Info{Addr: "127.0.0.1:8700", StartedVia: "phoneforged"}, fmt.Errorf("address already in use"))
+	RecordListenFailure(dir, Info{Addr: "127.0.0.1:8700", StartedVia: "pocketlabd"}, fmt.Errorf("address already in use"))
 	h := ReadHistory(dir, 5)
 	if len(h) != 1 || h[0].Event != KindListenFailed || !h[0].Unexpected() || h[0].Message != "address already in use" {
 		t.Errorf("%+v", h)

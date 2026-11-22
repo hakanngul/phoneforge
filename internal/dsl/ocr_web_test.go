@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"phoneforge/internal/device"
-	"phoneforge/internal/ocr"
+	"pocketlab/internal/device"
+	"pocketlab/internal/ocr"
 )
 
 func blankPNG(w, h int) []byte {

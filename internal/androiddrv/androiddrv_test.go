@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 func TestParseBounds(t *testing.T) {
@@ -129,7 +129,7 @@ func TestUITreeStdoutFastPath(t *testing.T) {
 		t.Fatalf("got %+v, %v", root, err)
 	}
 	calls, _ := os.ReadFile(log)
-	if strings.Contains(string(calls), "pf_dump") || !strings.Contains(string(calls), "--compressed") {
+	if strings.Contains(string(calls), "pl_dump") || !strings.Contains(string(calls), "--compressed") {
 		t.Fatalf("expected a single compressed stdout dump, got:\n%s", calls)
 	}
 }
@@ -147,7 +147,7 @@ func TestUITreeFallsBackToFile(t *testing.T) {
 	if n := strings.Count(string(calls), "/dev/stdout"); n != 1 {
 		t.Fatalf("stdout dump should be tried once then remembered, tried %d times:\n%s", n, calls)
 	}
-	if n := strings.Count(string(calls), "pf_dump"); n < 4 {
+	if n := strings.Count(string(calls), "pl_dump"); n < 4 {
 		t.Fatalf("expected file dump + cat on both calls:\n%s", calls)
 	}
 }

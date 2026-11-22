@@ -1,4 +1,4 @@
-module phoneforge
+module pocketlab
 
 go 1.27
 

@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"phoneforge/internal/device"
-	"phoneforge/internal/events"
-	"phoneforge/internal/iosbridge"
-	"phoneforge/internal/uia2"
+	"pocketlab/internal/device"
+	"pocketlab/internal/events"
+	"pocketlab/internal/iosbridge"
+	"pocketlab/internal/uia2"
 )
 
 // bridgeStatus is the JSON shape of GET/POST /devices/{id}/bridge[/start|/stop].

@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"phoneforge/internal/avcapture"
-	"phoneforge/internal/events"
+	"pocketlab/internal/avcapture"
+	"pocketlab/internal/events"
 )
 
 // AVBackend is the native-capture surface the /mjpeg route needs

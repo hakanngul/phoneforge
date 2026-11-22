@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"phoneforge/internal/dsl"
+	"pocketlab/internal/dsl"
 )
 
 // Format renders a script as .mob text. Steps that cannot be expressed in

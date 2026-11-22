@@ -5,7 +5,7 @@ import (
 	"errors"
 	"io"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // Wrap decorates inner so that, while active() reports true, screenshots,

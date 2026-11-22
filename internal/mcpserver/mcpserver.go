@@ -1,4 +1,4 @@
-// Package mcpserver exposes PhoneForge's HTTP API as MCP tools.
+// Package mcpserver exposes Pocketlab's HTTP API as MCP tools.
 package mcpserver
 
 import (
@@ -15,8 +15,8 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
-	"phoneforge/internal/device"
-	"phoneforge/internal/uitree"
+	"pocketlab/internal/device"
+	"pocketlab/internal/uitree"
 )
 
 type client struct {
@@ -114,13 +114,13 @@ func devPath(req mcp.CallToolRequest, suffix string) string {
 	return "/devices/" + url.PathEscape(req.GetString("id", "")) + suffix
 }
 
-// New builds an MCP server whose tools call the PhoneForge HTTP API at
+// New builds an MCP server whose tools call the Pocketlab HTTP API at
 // apiBaseURL (for example "http://127.0.0.1:8700/api/v1").
 func New(apiBaseURL, version string) *server.MCPServer {
 	c := &client{base: strings.TrimRight(apiBaseURL, "/"), http: &http.Client{Timeout: 60 * time.Second}}
 	// Test runs can take minutes; give them their own client timeout.
 	runner := &client{base: c.base, http: &http.Client{Timeout: 11 * time.Minute}}
-	s := server.NewMCPServer("phoneforge", version, server.WithToolCapabilities(true))
+	s := server.NewMCPServer("pocketlab", version, server.WithToolCapabilities(true))
 
 	id := mcp.WithString("id", mcp.Required(), mcp.Description("Device id from list_devices"))
 	num := func(n, d string) mcp.ToolOption { return mcp.WithNumber(n, mcp.Required(), mcp.Description(d)) }
@@ -190,7 +190,7 @@ func New(apiBaseURL, version string) *server.MCPServer {
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return c.text(ctx, "POST", devPath(req, "/stop-app"), jsonBody("bundleId", req.GetString("bundleId", "")))
 		})
-	s.AddTool(mcp.NewTool("execute_dsl", mcp.WithDescription("Execute a PhoneForge DSL script (JSON) on a device"), id,
+	s.AddTool(mcp.NewTool("execute_dsl", mcp.WithDescription("Execute a Pocketlab DSL script (JSON) on a device"), id,
 		mcp.WithString("script", mcp.Required(), mcp.Description("DSL script as a JSON string"))),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return c.text(ctx, "POST", devPath(req, "/dsl/execute"), req.GetString("script", ""))
@@ -222,7 +222,7 @@ func New(apiBaseURL, version string) *server.MCPServer {
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return c.text(ctx, "POST", devPath(req, "/dismiss-keyboard"), "")
 		})
-	s.AddTool(mcp.NewTool("install_app", mcp.WithDescription("Install an app package (.apk) that exists on the PhoneForge server machine"), id,
+	s.AddTool(mcp.NewTool("install_app", mcp.WithDescription("Install an app package (.apk) that exists on the Pocketlab server machine"), id,
 		mcp.WithString("path", mcp.Required(), mcp.Description("Local file path on the server machine"))),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return c.text(ctx, "POST", devPath(req, "/install-app"), jsonBody("path", req.GetString("path", "")))
@@ -262,7 +262,7 @@ func New(apiBaseURL, version string) *server.MCPServer {
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return c.text(ctx, "GET", devPath(req, "/bridge"), "")
 		})
-	s.AddTool(mcp.NewTool("ios_install_helper", mcp.WithDescription("Install the locally built WebDriverAgent runner onto an iOS device (explicit user action; the runner must be built first: in the PhoneForge UI use Build WDA, or run `phoneforge ios build-wda`)."), id),
+	s.AddTool(mcp.NewTool("ios_install_helper", mcp.WithDescription("Install the locally built WebDriverAgent runner onto an iOS device (explicit user action; the runner must be built first: in the Pocketlab UI use Build WDA, or run `pocketlab ios build-wda`)."), id),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return c.text(ctx, "POST", devPath(req, "/iosbridge/install"), "")
 		})

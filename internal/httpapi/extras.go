@@ -14,8 +14,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"phoneforge/internal/device"
-	"phoneforge/internal/events"
+	"pocketlab/internal/device"
+	"pocketlab/internal/events"
 )
 
 // maxAPKSize caps uploaded installers.
@@ -229,9 +229,9 @@ func (a *api) installApp(w http.ResponseWriter, r *http.Request, dev device.Devi
 		writeErr(w, "BAD_REQUEST", http.StatusBadRequest, "expected multipart form with a 'file' field or JSON {path}: "+err.Error())
 		return
 	}
-	pattern := "phoneforge-*.apk"
+	pattern := "pocketlab-*.apk"
 	if dev.Info().Platform == device.PlatformIOS {
-		pattern = "phoneforge-*.ipa"
+		pattern = "pocketlab-*.ipa"
 	}
 	tmp, err := os.CreateTemp("", pattern)
 	if err != nil {

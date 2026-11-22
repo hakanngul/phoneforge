@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 type scriptDisc struct {

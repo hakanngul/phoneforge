@@ -12,9 +12,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"phoneforge/internal/device"
-	"phoneforge/internal/events"
-	"phoneforge/internal/iosbridge"
+	"pocketlab/internal/device"
+	"pocketlab/internal/events"
+	"pocketlab/internal/iosbridge"
 )
 
 // writeIssue answers with a structured, user-actionable error:

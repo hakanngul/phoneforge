@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 type fakeDev struct{ info device.Info }

@@ -30,7 +30,7 @@
     root.innerHTML = '';
     var state = { agents: [], settings: null, runId: null, es: null };
     var cardsBox = PF.el('div'), setBox = PF.el('div'), runBox = PF.el('div');
-    root.appendChild(PF.el('p', 'muted', 'Choose which coding agent drives the phone. External agents connect to PhoneForge through its MCP server; connecting only happens when you click the button.'));
+    root.appendChild(PF.el('p', 'muted', 'Choose which coding agent drives the phone. External agents connect to Pocketlab through its MCP server; connecting only happens when you click the button.'));
     root.appendChild(PF.section('Agents'));
     root.appendChild(cardsBox);
     root.appendChild(PF.section('Agent types & settings'));
@@ -69,7 +69,7 @@
             acts.appendChild(dis);
           } else {
             var con = PF.btn('Connect', 'sm primary', function () {
-              PF.confirm('Register the PhoneForge MCP server in ' + a.label + '?' + (a.configPath ? '\nYour config (' + a.configPath + ') is backed up first.' : ''), function () {
+              PF.confirm('Register the Pocketlab MCP server in ' + a.label + '?' + (a.configPath ? '\nYour config (' + a.configPath + ') is backed up first.' : ''), function () {
                 PF.busy(con, PF.api('POST', '/ai/agents/' + encodeURIComponent(a.name) + '/connect').then(function () { PF.toast('Connected ' + a.label, true); return loadAgents(true); }));
               }, { title: 'Connect agent', okLabel: 'Connect', danger: false });
             });
@@ -123,7 +123,7 @@
       var auto = document.createElement('input'); auto.type = 'checkbox'; auto.checked = !!s.fullAccess;
       var extra = document.createElement('textarea'); extra.rows = 4; extra.value = s.extraInstructions || '';
       extra.placeholder = 'Extra instructions appended to the agent system prompt';
-      var ar = PF.row('Full access', auto, 'Run Claude Code with --dangerously-skip-permissions (and Kiro CLI with --trust-all-tools) so it can also use Bash and file tools on this Mac without prompts. Off by default. PhoneForge tools are always allowed.');
+      var ar = PF.row('Full access', auto, 'Run Claude Code with --dangerously-skip-permissions (and Kiro CLI with --trust-all-tools) so it can also use Bash and file tools on this Mac without prompts. Off by default. Pocketlab tools are always allowed.');
       ar.className += ' inline'; setBox.appendChild(ar);
       setBox.appendChild(PF.row('Extra instructions', extra));
       var save = PF.btn('Save settings', 'primary', function () {

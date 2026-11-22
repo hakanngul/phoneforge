@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"phoneforge/internal/device"
-	"phoneforge/internal/dsl"
+	"pocketlab/internal/device"
+	"pocketlab/internal/dsl"
 )
 
 // RunRecord is the persisted outcome of one script run.

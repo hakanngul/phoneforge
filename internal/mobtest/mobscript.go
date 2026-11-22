@@ -1,4 +1,4 @@
-// Package mobtest implements PhoneForge's test projects: .mob script
+// Package mobtest implements Pocketlab's test projects: .mob script
 // parsing and formatting, on-disk projects, a runner built on the dsl
 // engine, run history and the HTTP routes that expose them.
 package mobtest
@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"phoneforge/internal/dsl"
+	"pocketlab/internal/dsl"
 )
 
 // ParseError is a problem found in a .mob script. Line is 1-based (0 when

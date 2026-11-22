@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 func r(x, y, w, h int) device.Rect { return device.Rect{X: x, Y: y, W: w, H: h} }

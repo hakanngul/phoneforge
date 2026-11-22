@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 const (

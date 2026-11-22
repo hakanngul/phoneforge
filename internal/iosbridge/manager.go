@@ -15,14 +15,14 @@ import (
 	"github.com/danielpaulus/go-ios/ios"
 )
 
-// DefaultRunnerBundleID is the PhoneForge-owned WDA runner bundle id.
-const DefaultRunnerBundleID = "com.phoneforge.WebDriverAgentRunner.xctrunner"
+// DefaultRunnerBundleID is the Pocketlab-owned WDA runner bundle id.
+const DefaultRunnerBundleID = "com.pocketlab.WebDriverAgentRunner.xctrunner"
 
 // DefaultXCTestConfig is the xctest bundle name inside the WDA runner.
 const DefaultXCTestConfig = "WebDriverAgentRunner.xctest"
 
 const (
-	// Default on-device ports. MobAI's own WDA owns 8100/9100, so PhoneForge
+	// Default on-device ports. MobAI's own WDA owns 8100/9100, so Pocketlab
 	// uses a distinct range to coexist with it.
 	defaultWDAPort   = 8110
 	defaultMJPEGPort = 9110

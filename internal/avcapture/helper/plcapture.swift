@@ -1,8 +1,8 @@
-// pfcapture: macOS native USB screen capture of iOS devices (the QuickTime
+// plcapture: macOS native USB screen capture of iOS devices (the QuickTime
 // mechanism) via CoreMediaIO + AVCaptureSession.
 //
-//   pfcapture list
-//   pfcapture stream --id <uniqueID> [--fps 60] [--scale 0.5] [--quality 0.6]
+//   plcapture list
+//   plcapture stream --id <uniqueID> [--fps 60] [--scale 0.5] [--quality 0.6]
 //
 // stream writes frames to stdout as [uint32 big-endian length][JPEG bytes].
 // Status/errors go to stderr as one JSON object per line. Exit codes:
@@ -142,7 +142,7 @@ case "stream":
         status = AVCaptureDevice.authorizationStatus(for: .video)
     }
     if status == .denied || status == .restricted {
-        die(10, "tcc_denied", "camera permission \(authName()): allow the app that runs PhoneForge in System Settings > Privacy & Security > Camera")
+        die(10, "tcc_denied", "camera permission \(authName()): allow the app that runs Pocketlab in System Settings > Privacy & Security > Camera")
     }
     if status == .notDetermined { die(10, "tcc_undetermined", "camera permission was not granted") }
 
@@ -161,7 +161,7 @@ case "stream":
     out.alwaysDiscardsLateVideoFrames = true
     out.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
     let streamer = Streamer(scale: scale, quality: quality, fps: fps)
-    out.setSampleBufferDelegate(streamer, queue: DispatchQueue(label: "pfcapture.frames"))
+    out.setSampleBufferDelegate(streamer, queue: DispatchQueue(label: "plcapture.frames"))
     guard session.canAddOutput(out) else { die(12, "session_failed", "cannot add video output") }
     session.addOutput(out)
     NotificationCenter.default.addObserver(forName: .AVCaptureSessionRuntimeError, object: session, queue: nil) { n in
@@ -177,5 +177,5 @@ case "stream":
     }
     RunLoop.main.run()
 default:
-    die(2, "usage", "usage: pfcapture list | stream --id ID [--fps N --scale F --quality F]")
+    die(2, "usage", "usage: plcapture list | stream --id ID [--fps N --scale F --quality F]")
 }

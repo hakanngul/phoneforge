@@ -1,5 +1,5 @@
-// Package server wires and runs the PhoneForge HTTP server (REST /api/v1,
-// MCP /mcp and the web UI). It is shared by cmd/phoneforged and the desktop app.
+// Package server wires and runs the Pocketlab HTTP server (REST /api/v1,
+// MCP /mcp and the web UI). It is shared by cmd/pocketlabd and the desktop app.
 package server
 
 import (
@@ -20,30 +20,31 @@ import (
 	"sync"
 	"time"
 
-	"phoneforge/internal/aiconfig"
-	"phoneforge/internal/androiddrv"
-	"phoneforge/internal/avcapture"
-	"phoneforge/internal/config"
-	"phoneforge/internal/crashreport"
-	"phoneforge/internal/credentials"
-	"phoneforge/internal/debugger"
-	"phoneforge/internal/device"
-	"phoneforge/internal/dsl"
-	"phoneforge/internal/events"
-	"phoneforge/internal/farms"
-	"phoneforge/internal/httpapi"
-	"phoneforge/internal/iosbridge"
-	"phoneforge/internal/iosdrv"
-	"phoneforge/internal/iossim"
-	"phoneforge/internal/lifecycle"
-	"phoneforge/internal/mcpserver"
-	"phoneforge/internal/mobtest"
-	"phoneforge/internal/ocr"
-	"phoneforge/internal/registry"
-	"phoneforge/internal/remotenode"
-	"phoneforge/internal/uia2"
-	"phoneforge/internal/webauto"
-	"phoneforge/internal/webhooks"
+	"pocketlab/internal/aiconfig"
+	"pocketlab/internal/androiddrv"
+	"pocketlab/internal/avcapture"
+	"pocketlab/internal/brand"
+	"pocketlab/internal/config"
+	"pocketlab/internal/crashreport"
+	"pocketlab/internal/credentials"
+	"pocketlab/internal/debugger"
+	"pocketlab/internal/device"
+	"pocketlab/internal/dsl"
+	"pocketlab/internal/events"
+	"pocketlab/internal/farms"
+	"pocketlab/internal/httpapi"
+	"pocketlab/internal/iosbridge"
+	"pocketlab/internal/iosdrv"
+	"pocketlab/internal/iossim"
+	"pocketlab/internal/lifecycle"
+	"pocketlab/internal/mcpserver"
+	"pocketlab/internal/mobtest"
+	"pocketlab/internal/ocr"
+	"pocketlab/internal/registry"
+	"pocketlab/internal/remotenode"
+	"pocketlab/internal/uia2"
+	"pocketlab/internal/webauto"
+	"pocketlab/internal/webhooks"
 )
 
 // providerKeys are secret names that, when stored via AI Tools, are loaded
@@ -59,15 +60,15 @@ type Options struct {
 	WebDir string
 	// WebFS is served at / when WebDir is empty or missing (e.g. frontend.FS()).
 	WebFS fs.FS
-	// StateDir overrides the state directory ($PHONEFORGE_HOME, else ~/.phoneforge).
+	// StateDir overrides the state directory ($POCKETLAB_HOME, else ~/.pocketlab).
 	StateDir string
 	// StartedVia and Owner describe who launched this server, for the lifecycle
-	// history ("phoneforged"/"desktop"/"phoneforge server start"; owner "cli"/"desktop").
+	// history ("pocketlabd"/"desktop"/"pocketlab server start"; owner "cli"/"desktop").
 	StartedVia string
 	Owner      string
 }
 
-// Server is a running PhoneForge server.
+// Server is a running Pocketlab server.
 type Server struct {
 	addr     string
 	srv      *http.Server
@@ -126,7 +127,7 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 	if err != nil {
 		dir := opts.StateDir
 		if dir == "" {
-			dir = PhoneforgeHome()
+			dir = PocketlabHome()
 		}
 		lifecycle.RecordListenFailure(dir, lifecycle.Info{Version: cfg.Version, Addr: cfg.Addr, StartedVia: opts.StartedVia, Owner: opts.Owner}, err)
 		return nil, err
@@ -135,7 +136,7 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 
 	stateDir := opts.StateDir
 	if stateDir == "" {
-		stateDir = PhoneforgeHome()
+		stateDir = PocketlabHome()
 	}
 	_ = os.MkdirAll(stateDir, 0o700)
 	life := lifecycle.Begin(stateDir, lifecycle.Info{
@@ -218,7 +219,7 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 	if runtime.GOOS == "darwin" {
 		go simSup.Run(bgCtx)
 	}
-	events.Info("PhoneForge started")
+	events.Info("Pocketlab started")
 
 	// Hot-plug: usbmuxd Listen events kick an immediate rescan; a periodic
 	// rescan stays on as the safety net (Android, listener down, Windows/Linux).
@@ -321,7 +322,7 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 	}
 	go func() {
 		defer close(s.done)
-		log.Printf("PhoneForge %s listening on http://%s  (REST /api/v1, MCP /mcp)", cfg.Version, cfg.Addr)
+		log.Printf("Pocketlab %s listening on http://%s  (REST /api/v1, MCP /mcp)", cfg.Version, cfg.Addr)
 		if err := s.srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			log.Printf("server: %v", err)
 			s.life.Crash("http server stopped serving: " + err.Error())
@@ -429,15 +430,9 @@ func simUDIDs(reg *registry.Registry) []string {
 	return out
 }
 
-// PhoneforgeHome returns the state directory ($PHONEFORGE_HOME, else ~/.phoneforge, or ./.phoneforge).
-func PhoneforgeHome() string {
-	if h := os.Getenv("PHONEFORGE_HOME"); h != "" {
-		return h // lets a second instance (tests) keep its state apart
-	}
-	if h, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(h, ".phoneforge")
-	}
-	return ".phoneforge"
+// PocketlabHome returns the state directory ($POCKETLAB_HOME, else ~/.pocketlab, or ./.pocketlab).
+func PocketlabHome() string {
+	return brand.Home()
 }
 
 // noCache makes browsers revalidate static frontend assets on every load

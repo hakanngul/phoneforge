@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
-	"phoneforge/internal/config"
-	"phoneforge/internal/device"
-	"phoneforge/internal/registry"
+	"pocketlab/internal/config"
+	"pocketlab/internal/device"
+	"pocketlab/internal/registry"
 )
 
 // fullDev implements every optional interface and records calls.

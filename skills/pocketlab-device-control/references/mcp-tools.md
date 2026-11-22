@@ -1,6 +1,6 @@
-# PhoneForge MCP tools
+# Pocketlab MCP tools
 
-Server `phoneforge`, endpoint `http://127.0.0.1:8700/mcp` (streamable HTTP). Every device tool takes `id`
+Server `pocketlab`, endpoint `http://127.0.0.1:8700/mcp` (streamable HTTP). Every device tool takes `id`
 (device id from `list_devices`) unless noted. Tools live in `internal/mcpserver/`.
 
 ## Devices and apps

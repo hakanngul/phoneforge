@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 	"strconv"
 	"testing"
 	"time"
@@ -12,11 +12,11 @@ import (
 
 // TestRealLLDBPlumbing drives the real lldb (no process needed): prompt/echo
 // handling, the sentinel protocol, breakpoint set/list/delete and expression
-// parsing. Opt-in: PF_LIVE_LLDB=<path to a binary built with -g from a file t.c>.
+// parsing. Opt-in: PL_LIVE_LLDB=<path to a binary built with -g from a file t.c>.
 func TestRealLLDBPlumbing(t *testing.T) {
-	bin := os.Getenv("PF_LIVE_LLDB")
+	bin := os.Getenv("PL_LIVE_LLDB")
 	if bin == "" {
-		t.Skip("set PF_LIVE_LLDB to a -g built binary to run against the real lldb")
+		t.Skip("set PL_LIVE_LLDB to a -g built binary to run against the real lldb")
 	}
 	p, err := startLLDB(exec.Command("lldb", "--no-lldbinit"))
 	if err != nil {
@@ -63,13 +63,13 @@ func TestRealLLDBPlumbing(t *testing.T) {
 	}
 }
 
-// TestRealLLDBAttachHang: opt-in (PF_LIVE_ATTACH_PID=<pid of a local process>).
+// TestRealLLDBAttachHang: opt-in (PL_LIVE_ATTACH_PID=<pid of a local process>).
 // On a Mac with Developer mode disabled, lldb blocks on the authorization
 // prompt; the driver must time out, interrupt/kill lldb and report a hint.
 func TestRealLLDBAttachHang(t *testing.T) {
-	pid := os.Getenv("PF_LIVE_ATTACH_PID")
+	pid := os.Getenv("PL_LIVE_ATTACH_PID")
 	if pid == "" {
-		t.Skip("set PF_LIVE_ATTACH_PID")
+		t.Skip("set PL_LIVE_ATTACH_PID")
 	}
 	n, _ := strconv.Atoi(pid)
 	defer func(a time.Duration) { attachTimeout = a }(attachTimeout)

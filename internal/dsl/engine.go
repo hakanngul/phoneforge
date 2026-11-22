@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // Timing knobs (variables so tests can shorten them).

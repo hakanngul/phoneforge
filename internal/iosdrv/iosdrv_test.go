@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 func TestFormatID(t *testing.T) {

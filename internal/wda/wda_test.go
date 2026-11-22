@@ -16,7 +16,7 @@ import (
 	"sync"
 	"testing"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 type req struct {

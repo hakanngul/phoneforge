@@ -13,7 +13,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	if os.Getenv("PF_FAKE_LLDB") == "1" {
+	if os.Getenv("PL_FAKE_LLDB") == "1" {
 		fakeLLDB()
 		return
 	}
@@ -22,7 +22,7 @@ func TestMain(m *testing.M) {
 
 func fakeCommand() *exec.Cmd {
 	c := exec.Command(os.Args[0])
-	c.Env = append(os.Environ(), "PF_FAKE_LLDB=1")
+	c.Env = append(os.Environ(), "PL_FAKE_LLDB=1")
 	return c
 }
 

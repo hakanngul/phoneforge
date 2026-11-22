@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"strings"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // ErrNotRunning is returned by client calls when the bridge has no session.

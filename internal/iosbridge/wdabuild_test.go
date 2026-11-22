@@ -117,7 +117,7 @@ func TestExtractRejectsTraversal(t *testing.T) {
 func TestPrepareSourceMarkerAndReextract(t *testing.T) {
 	home := t.TempDir()
 	tb := writeTar(t, t.TempDir(), goodTar())
-	t.Setenv("PF_WDA_TARBALL", tb)
+	t.Setenv("PL_WDA_TARBALL", tb)
 	if SourceReady(home) {
 		t.Fatal("ready before extract")
 	}
@@ -154,7 +154,7 @@ func TestPrepareSourceMarkerAndReextract(t *testing.T) {
 
 func TestPrepareSourceDownloadFallback(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("PF_WDA_TARBALL", "")
+	t.Setenv("PL_WDA_TARBALL", "")
 	old := downloadFn
 	defer func() { downloadFn = old }()
 	called := false
@@ -182,7 +182,7 @@ func TestPrepareSourceDownloadFallback(t *testing.T) {
 }
 
 func TestTarballCandidatesOrder(t *testing.T) {
-	t.Setenv("PF_WDA_TARBALL", "/x/custom.tgz")
+	t.Setenv("PL_WDA_TARBALL", "/x/custom.tgz")
 	c := TarballCandidates("/home/wda")
 	if c[0] != "/x/custom.tgz" || c[len(c)-1] != filepath.Join("/home/wda", WDATarballName) {
 		t.Fatalf("%v", c)
@@ -334,7 +334,7 @@ func TestTeamFinderFallbacks(t *testing.T) {
 	// 1. env wins over everything
 	f := run(map[string]fakeOut{"security find-certificate": {out: certOK}})
 	f.Env = func(k string) string {
-		if k == "PF_TEAM_ID" {
+		if k == "PL_TEAM_ID" {
 			return "env1234567"
 		}
 		return ""
@@ -473,7 +473,7 @@ func TestBuilderSuccessDevice(t *testing.T) {
 	b := newTestBuilder(t, r)
 	r.stream = func(ctx context.Context, dir string, w io.Writer, args []string) error {
 		joined := strings.Join(args, " ")
-		for _, want := range []string{"build-for-testing", "-allowProvisioningUpdates", "DEVELOPMENT_TEAM=TEAM123456", "generic/platform=iOS", "PRODUCT_BUNDLE_IDENTIFIER=com.phoneforge.WebDriverAgentRunner"} {
+		for _, want := range []string{"build-for-testing", "-allowProvisioningUpdates", "DEVELOPMENT_TEAM=TEAM123456", "generic/platform=iOS", "PRODUCT_BUNDLE_IDENTIFIER=com.pocketlab.WebDriverAgentRunner"} {
 			if !strings.Contains(joined, want) {
 				t.Errorf("args missing %q: %s", want, joined)
 			}

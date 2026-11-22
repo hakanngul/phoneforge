@@ -101,12 +101,12 @@ jobs:
           rm -f "$RUNNER_TEMP/cert.p12"
           IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" | grep "Developer ID Application" | grep "$APPLE_TEAM_ID" | head -1 | sed -E 's/^[^"]*"(.*)"$/\1/')
           [ -n "$IDENTITY" ] || { echo "no Developer ID Application identity for team $APPLE_TEAM_ID in the certificate"; exit 1; }
-          echo "PF_CODESIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
-          echo "PF_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+          echo "PL_CODESIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          echo "PL_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
 
-      - name: Build PhoneForge.app and .dmg
+      - name: Build Pocketlab.app and .dmg
         env:
-          PF_VERSION: ${{ env.VERSION }}
+          PL_VERSION: ${{ env.VERSION }}
         run: scripts/build-desktop.sh --dmg
 
       - name: Notarize and staple
@@ -125,29 +125,29 @@ jobs:
             KEY_FILE="$RUNNER_TEMP/AuthKey.p8"
             (umask 077; echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$KEY_FILE")
             trap 'rm -f "$KEY_FILE"' EXIT
-            xcrun notarytool submit dist/PhoneForge.dmg \
+            xcrun notarytool submit dist/Pocketlab.dmg \
               --key "$KEY_FILE" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" --wait
           else
             echo "Notarizing with Apple ID + app-specific password"
-            xcrun notarytool submit dist/PhoneForge.dmg \
+            xcrun notarytool submit dist/Pocketlab.dmg \
               --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
           fi
-          xcrun stapler staple dist/PhoneForge.dmg
+          xcrun stapler staple dist/Pocketlab.dmg
           # The notarization ticket covers the app inside the dmg, so staple the loose app as well.
-          xcrun stapler staple dist/PhoneForge.app
-          spctl --assess --type execute --verbose=2 dist/PhoneForge.app
+          xcrun stapler staple dist/Pocketlab.app
+          spctl --assess --type execute --verbose=2 dist/Pocketlab.app
 
       - name: Package
         run: |
           set -euo pipefail
           mkdir -p out
-          cp dist/PhoneForge.dmg "out/PhoneForge-${VERSION}-macos-${{ matrix.arch }}.dmg"
-          ditto -c -k --keepParent dist/PhoneForge.app "out/PhoneForge-${VERSION}-macos-${{ matrix.arch }}.zip"
+          cp dist/Pocketlab.dmg "out/Pocketlab-${VERSION}-macos-${{ matrix.arch }}.dmg"
+          ditto -c -k --keepParent dist/Pocketlab.app "out/Pocketlab-${VERSION}-macos-${{ matrix.arch }}.zip"
           ls -lh out
 
       - name: Clean up keychain
         if: always() && env.HAVE_SIGNING == 'true'
-        run: security delete-keychain "$PF_KEYCHAIN" || true
+        run: security delete-keychain "$PL_KEYCHAIN" || true
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -184,13 +184,13 @@ jobs:
       - name: Build and package
         run: |
           set -euo pipefail
-          NAME="phoneforge_${VERSION}_${GOOS}_${GOARCH}"
+          NAME="pocketlab_${VERSION}_${GOOS}_${GOARCH}"
           mkdir -p "pkg/$NAME" out
-          LDFLAGS="-s -w -X phoneforge/internal/version.Version=${VERSION}"
+          LDFLAGS="-s -w -X pocketlab/internal/version.Version=${VERSION}"
           EXT=""
           if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
-          go build $GO_FLAGS -ldflags "$LDFLAGS" -o "pkg/$NAME/phoneforged$EXT" ./cmd/phoneforged
-          go build $GO_FLAGS -ldflags "$LDFLAGS" -o "pkg/$NAME/phoneforge$EXT" ./cmd/phoneforge
+          go build $GO_FLAGS -ldflags "$LDFLAGS" -o "pkg/$NAME/pocketlabd$EXT" ./cmd/pocketlabd
+          go build $GO_FLAGS -ldflags "$LDFLAGS" -o "pkg/$NAME/pocketlab$EXT" ./cmd/pocketlab
           if [ "$GOOS" = "darwin" ]; then
             # Pinned WebDriverAgent source: "Build WDA" extracts it on the user's Mac (no git or network).
             WDA_TARBALL=$(scripts/fetch-wda.sh)
@@ -200,18 +200,18 @@ jobs:
             tar -xzOf "$WDA_TARBALL" "$WDA_LICENSE" > "pkg/$NAME/WebDriverAgent-LICENSE.txt"
           fi
           cat > "pkg/$NAME/README.txt" <<README
-          PhoneForge ${VERSION} (${GOOS}/${GOARCH})
+          Pocketlab ${VERSION} (${GOOS}/${GOARCH})
 
-            phoneforged   headless server: REST /api/v1, MCP /mcp and the web UI on 127.0.0.1:8700
-            phoneforge    command-line client for a running server
+            pocketlabd  headless server: REST /api/v1, MCP /mcp and the web UI on 127.0.0.1:8700
+            pocketlab   command-line client for a running server
 
           Quick start:
-            ./phoneforged &            # needs adb in PATH for Android devices
-            ./phoneforge devices
-            ./phoneforge version
+            ./pocketlabd &            # needs adb in PATH for Android devices
+            ./pocketlab devices
+            ./pocketlab version
 
-          macOS + iPhone: keep WebDriverAgent-*.tar.gz next to phoneforged (it is the pinned appium/WebDriverAgent
-          source, BSD licence). Needs Xcode; run ./phoneforge ios build-wda or use "Build WDA" in the web UI.
+          macOS + iPhone: keep WebDriverAgent-*.tar.gz next to pocketlabd (it is the pinned appium/WebDriverAgent
+          source, BSD licence). Needs Xcode; run ./pocketlab ios build-wda or use "Build WDA" in the web UI.
 
           Docs: https://github.com/hakanngul/phoneforge
           README
@@ -249,9 +249,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p pkg out
-          LDFLAGS="-s -w -H windowsgui -X phoneforge/internal/version.Version=${VERSION}"
-          go build $GO_FLAGS -ldflags "$LDFLAGS" -o pkg/phoneforge-desktop.exe ./cmd/phoneforge-desktop
-          (cd pkg && 7z a -tzip "../out/PhoneForge-${VERSION}-windows-amd64.zip" phoneforge-desktop.exe)
+          LDFLAGS="-s -w -H windowsgui -X pocketlab/internal/version.Version=${VERSION}"
+          go build $GO_FLAGS -ldflags "$LDFLAGS" -o pkg/pocketlab-desktop.exe ./cmd/pocketlab-desktop
+          (cd pkg && 7z a -tzip "../out/Pocketlab-${VERSION}-windows-amd64.zip" pocketlab-desktop.exe)
           ls -lh out
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -295,9 +295,9 @@ jobs:
           {
             echo "## Install"
             echo
-            echo '- **macOS app:** download `PhoneForge-<version>-macos-<arch>.dmg` (or the `.zip`) and drag `PhoneForge.app` to Applications.'
-            echo '- **CLI + server:** download `phoneforge_<version>_<os>_<arch>.tar.gz` (`.zip` on Windows), extract, and run `./phoneforged` / `./phoneforge` (`phoneforged.exe` / `phoneforge.exe` on Windows).'
-            echo '- **Windows app (experimental, unsigned):** `PhoneForge-<version>-windows-amd64.zip`; needs the WebView2 runtime.'
+            echo '- **macOS app:** download `Pocketlab-<version>-macos-<arch>.dmg` (or the `.zip`) and drag `Pocketlab.app` to Applications.'
+            echo '- **CLI + server:** download `pocketlab_<version>_<os>_<arch>.tar.gz` (`.zip` on Windows), extract, and run `./pocketlabd` / `./pocketlab` (`pocketlabd.exe` / `pocketlab.exe` on Windows).'
+            echo '- **Windows app (experimental, unsigned):** `Pocketlab-<version>-windows-amd64.zip`; needs the WebView2 runtime.'
             echo '- Verify downloads with `SHA256SUMS.txt`.'
             echo
             if [ "$HAVE_NOTARY" = "true" ]; then
@@ -305,11 +305,11 @@ jobs:
             elif [ "$HAVE_SIGNING" = "true" ]; then
               echo '> **Signing:** the macOS app is signed with a Developer ID certificate but **not notarized**.'
               echo '> On first open, right-click the app and choose **Open**, or run'
-              echo '> `xattr -dr com.apple.quarantine /Applications/PhoneForge.app`.'
+              echo '> `xattr -dr com.apple.quarantine /Applications/Pocketlab.app`.'
             else
               echo '> **Signing:** the macOS app is **ad-hoc signed and not notarized**.'
               echo '> On first open, right-click the app and choose **Open**, or run'
-              echo '> `xattr -dr com.apple.quarantine /Applications/PhoneForge.app`.'
+              echo '> `xattr -dr com.apple.quarantine /Applications/Pocketlab.app`.'
             fi
             echo
             echo "## Changes"

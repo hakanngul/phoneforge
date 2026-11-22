@@ -5,9 +5,9 @@ import (
 	"log"
 	"time"
 
-	"phoneforge/internal/device"
-	"phoneforge/internal/events"
-	"phoneforge/internal/registry"
+	"pocketlab/internal/device"
+	"pocketlab/internal/events"
+	"pocketlab/internal/registry"
 )
 
 // RescanInterval is the safety-net poll period. usbmuxd Listen events trigger

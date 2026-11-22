@@ -1,5 +1,5 @@
 // Package webhooks lets users configure external URLs that receive a JSON
-// POST whenever PhoneForge publishes an activity event.
+// POST whenever Pocketlab publishes an activity event.
 package webhooks
 
 import (

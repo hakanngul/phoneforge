@@ -13,13 +13,13 @@ const (
 )
 
 // MJPEGDefaults returns the framerate, scaling and quality to apply on a new
-// WDA session. Each value can be overridden with PF_MJPEG_FPS (1-60),
-// PF_MJPEG_SCALE (1-100) and PF_MJPEG_QUALITY (1-100); unset, non-numeric or
+// WDA session. Each value can be overridden with PL_MJPEG_FPS (1-60),
+// PL_MJPEG_SCALE (1-100) and PL_MJPEG_QUALITY (1-100); unset, non-numeric or
 // out-of-range values fall back to the default.
 func MJPEGDefaults() (fps, scaling, quality int) {
-	return envInt("PF_MJPEG_FPS", DefaultMJPEGFPS, 1, 60),
-		envInt("PF_MJPEG_SCALE", DefaultMJPEGScaling, 1, 100),
-		envInt("PF_MJPEG_QUALITY", DefaultMJPEGQuality, 1, 100)
+	return envInt("PL_MJPEG_FPS", DefaultMJPEGFPS, 1, 60),
+		envInt("PL_MJPEG_SCALE", DefaultMJPEGScaling, 1, 100),
+		envInt("PL_MJPEG_QUALITY", DefaultMJPEGQuality, 1, 100)
 }
 
 func envInt(key string, def, lo, hi int) int {

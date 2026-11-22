@@ -120,3 +120,15 @@ func TestRoutesNeverLeak(t *testing.T) {
 		t.Fatal("delete secret")
 	}
 }
+
+func TestLegacyServiceName(t *testing.T) {
+	if got := legacyService(SecretService); got != "phoneforge.secret" {
+		t.Fatalf("legacyService(%q) = %q", SecretService, got)
+	}
+	if got := legacyService(ServicePrefix); got != "phoneforge" {
+		t.Fatalf("got %q", got)
+	}
+	if got := legacyService("other.service"); got != "" {
+		t.Fatalf("got %q", got)
+	}
+}

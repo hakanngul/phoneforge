@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 func cmdApps(c *call) error {
@@ -63,7 +63,7 @@ func bundleCmd(c *call, path, verb string) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return usagef("usage: phoneforge %s <bundle-id|package>", c.name)
+		return usagef("usage: pocketlab %s <bundle-id|package>", c.name)
 	}
 	return c.post(path, map[string]string{"bundleId": pos[0]}, 60*time.Second, verb+" "+pos[0])
 }
@@ -77,7 +77,7 @@ func cmdUninstall(c *call) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return usagef("usage: phoneforge uninstall <bundle-id|package>")
+		return usagef("usage: pocketlab uninstall <bundle-id|package>")
 	}
 	ctx, cancel := c.ctxFor(2 * time.Minute)
 	defer cancel()
@@ -97,7 +97,7 @@ func cmdInstall(c *call) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return usagef("usage: phoneforge install <file.apk|.ipa|.app>")
+		return usagef("usage: pocketlab install <file.apk|.ipa|.app>")
 	}
 	path, err := filepath.Abs(pos[0])
 	if err != nil {
@@ -153,7 +153,7 @@ func cmdOpen(c *call) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return usagef("usage: phoneforge open <url>")
+		return usagef("usage: pocketlab open <url>")
 	}
 	return c.post("/open-url", map[string]string{"url": pos[0]}, 60*time.Second, "opened "+pos[0])
 }
@@ -239,7 +239,7 @@ func cmdWait(c *call) error {
 		return err
 	}
 	if *text == "" && *rid == "" {
-		return usagef("usage: phoneforge wait --text TEXT | --id RESOURCE_ID [--gone] [--ocr] [--timeout 10s]")
+		return usagef("usage: pocketlab wait --text TEXT | --id RESOURCE_ID [--gone] [--ocr] [--timeout 10s]")
 	}
 	if *ocr && *text == "" {
 		return usagef("wait: --ocr needs --text")

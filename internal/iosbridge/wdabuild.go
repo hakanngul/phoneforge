@@ -12,7 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"phoneforge/internal/config"
+	"pocketlab/internal/brand"
+	"pocketlab/internal/config"
 )
 
 // Build modes.
@@ -45,14 +46,14 @@ const (
 	ringLines   = 400
 	maxLineLen  = 2000
 	statusTail  = 80
-	devBundleID = "com.phoneforge"
+	devBundleID = "com.pocketlab"
 )
 
 // BuildOptions selects what to build.
 type BuildOptions struct {
 	Mode string // ModeDevice (default) or ModeSim
 	// TeamID overrides discovery for this build (device mode); it is validated
-	// and, when SaveTeam is set, persisted in the PhoneForge settings.
+	// and, when SaveTeam is set, persisted in the Pocketlab settings.
 	TeamID   string
 	SaveTeam bool
 }
@@ -131,13 +132,13 @@ func (b *Builder) goos() string {
 
 func (b *Builder) getenv(k string) string {
 	if b.Env != nil {
-		return b.Env(k)
+		return brand.Lookup(b.Env, k)
 	}
-	return os.Getenv(k)
+	return brand.Getenv(k)
 }
 
 func (b *Builder) bundlePrefix() string {
-	if v := b.getenv("PF_BUNDLE_PREFIX"); v != "" {
+	if v := b.getenv("PL_BUNDLE_PREFIX"); v != "" {
 		return v
 	}
 	return devBundleID
@@ -211,7 +212,7 @@ func (b *Builder) environment(ctx context.Context, quick bool) Env {
 	return e
 }
 
-// SaveTeam validates and persists the team id in the PhoneForge settings.
+// SaveTeam validates and persists the team id in the Pocketlab settings.
 func (b *Builder) SaveTeam(id string) (string, error) {
 	n, ok := NormalizeTeamID(id)
 	if !ok {
@@ -335,7 +336,7 @@ func (b *Builder) Start(opts BuildOptions) (BuildStatus, error) {
 		return BuildStatus{}, fmt.Errorf("mode must be %q or %q", ModeDevice, ModeSim)
 	}
 	if b.goos() != "darwin" {
-		return BuildStatus{}, &Issue{Code: CodeRequiresMac, Message: "Building WebDriverAgent requires macOS with Xcode.", Hint: "Run PhoneForge on a Mac to control iPhones."}
+		return BuildStatus{}, &Issue{Code: CodeRequiresMac, Message: "Building WebDriverAgent requires macOS with Xcode.", Hint: "Run Pocketlab on a Mac to control iPhones."}
 	}
 	b.mu.Lock()
 	if b.st.State == BuildRunning {

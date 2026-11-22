@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // Discoverer lists currently-connected devices for one platform.

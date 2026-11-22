@@ -7,10 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"phoneforge/internal/config"
-	"phoneforge/internal/device"
-	"phoneforge/internal/registry"
-	"phoneforge/internal/uia2"
+	"pocketlab/internal/config"
+	"pocketlab/internal/device"
+	"pocketlab/internal/registry"
+	"pocketlab/internal/uia2"
 )
 
 type serialDev struct {

@@ -1,13 +1,13 @@
 ---
-name: phoneforge-store-screenshots
-description: Capture App Store / Google Play listing screenshots from a real device or simulator with PhoneForge - navigate to the key screens, capture them, resize to the store-required dimensions, and produce a folder plus a simple HTML gallery. Use for "app store screenshots", "play store screenshots", "store listing images", "capture marketing screens", or in Turkish "mağaza ekran görüntüleri", "App Store görselleri", "Play Store ekran görüntüsü hazırla".
+name: pocketlab-store-screenshots
+description: Capture App Store / Google Play listing screenshots from a real device or simulator with Pocketlab - navigate to the key screens, capture them, resize to the store-required dimensions, and produce a folder plus a simple HTML gallery. Use for "app store screenshots", "play store screenshots", "store listing images", "capture marketing screens", or in Turkish "mağaza ekran görüntüleri", "App Store görselleri", "Play Store ekran görüntüsü hazırla".
 ---
 
-# PhoneForge store screenshots
+# Pocketlab store screenshots
 
 Produces raw, unframed captures at store-valid sizes. Device framing, captions and marketing overlays are a
 separate design step; this skill gets the right pixels and an overview page.
-Sizes and rules: `references/store-sizes.md`. Navigation basics: `phoneforge-device-control`.
+Sizes and rules: `references/store-sizes.md`. Navigation basics: `pocketlab-device-control`.
 
 ## Pick the capture device first
 Store sizes are fixed; the cleanest result comes from capturing on a device whose native resolution already
@@ -27,7 +27,7 @@ Confirm size with `get_device` / the first screenshot's pixel dimensions (`sips 
    wait until the screen has settled (tree identical across two reads, spinners gone), confirm the expected title
    text with `ui_tree filter=...`, then `get_screenshot` and save it as
    `store-screenshots/<platform>/<NN>-<slug>.png`. How to save: the CLI does it directly:
-   `phoneforge screenshot -d <id> -o store-screenshots/ios/01-home.png`; via MCP, write the returned PNG to disk.
+   `pocketlab screenshot -d <id> -o store-screenshots/ios/01-home.png`; via MCP, write the returned PNG to disk.
 4. Review each capture (look at it): no keyboard, no system alert, no truncated data, correct locale. Retake
    bad ones; do not ship a capture you have not looked at.
 5. Normalize sizes if the capture does not already match a slot (below), keeping originals in `raw/`.

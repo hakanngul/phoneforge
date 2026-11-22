@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"phoneforge/internal/device"
-	"phoneforge/internal/registry"
+	"pocketlab/internal/device"
+	"pocketlab/internal/registry"
 )
 
 type fdev struct {

@@ -1,6 +1,6 @@
 package avcapture
 
-import "os"
+import "pocketlab/internal/brand"
 
-// envDisable returns PF_AVCAPTURE ("0"/"off" disables the native capture path).
-func envDisable() string { return os.Getenv("PF_AVCAPTURE") }
+// envDisable returns PL_AVCAPTURE ("0"/"off" disables the native capture path).
+func envDisable() string { return brand.Getenv("PL_AVCAPTURE") }

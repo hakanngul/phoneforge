@@ -7,8 +7,8 @@ import (
 	"sync"
 	"testing"
 
-	"phoneforge/internal/agent/llm"
-	"phoneforge/internal/device"
+	"pocketlab/internal/agent/llm"
+	"pocketlab/internal/device"
 )
 
 type fakeDevice struct {

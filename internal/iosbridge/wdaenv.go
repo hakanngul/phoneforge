@@ -13,7 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"phoneforge/internal/procutil"
+	"pocketlab/internal/brand"
+	"pocketlab/internal/procutil"
 )
 
 // Runner runs external commands (xcodebuild, security, ...). Tests replace it.
@@ -66,26 +67,26 @@ type TeamFinder struct {
 	Run  Runner
 	Home string // user home dir
 	Env  func(string) string
-	// Saved returns the team id stored in PhoneForge settings ("" if none).
+	// Saved returns the team id stored in Pocketlab settings ("" if none).
 	Saved func() string
 }
 
 func (f TeamFinder) env(k string) string {
 	if f.Env != nil {
-		return f.Env(k)
+		return brand.Lookup(f.Env, k)
 	}
-	return os.Getenv(k)
+	return brand.Getenv(k)
 }
 
-// Find searches: PF_TEAM_ID env, saved setting, Apple Development
+// Find searches: PL_TEAM_ID env, saved setting, Apple Development
 // certificate, provisioning profiles, Xcode preferences. It returns
-// (Team{}, false) when none yields a valid id. An invalid PF_TEAM_ID is
+// (Team{}, false) when none yields a valid id. An invalid PL_TEAM_ID is
 // reported through the error.
 func (f TeamFinder) Find(ctx context.Context) (Team, error) {
-	if v := f.env("PF_TEAM_ID"); v != "" {
+	if v := f.env("PL_TEAM_ID"); v != "" {
 		id, ok := NormalizeTeamID(v)
 		if !ok {
-			return Team{}, &Issue{Code: CodeTeamInvalid, Message: "PF_TEAM_ID is not a valid 10-character Team ID.", Hint: "Use the 10 letters/digits shown under Xcode > Settings > Accounts > Team, or unset PF_TEAM_ID."}
+			return Team{}, &Issue{Code: CodeTeamInvalid, Message: "PL_TEAM_ID is not a valid 10-character Team ID.", Hint: "Use the 10 letters/digits shown under Xcode > Settings > Accounts > Team, or unset PL_TEAM_ID."}
 		}
 		return Team{id, "env"}, nil
 	}
@@ -210,7 +211,7 @@ func teamFromXcodePrefs(b []byte) string {
 
 // ---- xcode -----------------------------------------------------------------
 
-const hintInstallXcode = "Install Xcode from the Mac App Store, open it once, then run this in Terminal (it needs your password, so PhoneForge cannot do it for you):\n  sudo xcode-select -s /Applications/Xcode.app/Contents/Developer"
+const hintInstallXcode = "Install Xcode from the Mac App Store, open it once, then run this in Terminal (it needs your password, so Pocketlab cannot do it for you):\n  sudo xcode-select -s /Applications/Xcode.app/Contents/Developer"
 
 // CheckXcode verifies that a full Xcode is installed and selected and that
 // xcodebuild is usable. It returns nil when everything is fine.
@@ -222,13 +223,13 @@ func CheckXcode(ctx context.Context, run Runner, statFn func(string) bool) *Issu
 	sel := strings.TrimSpace(string(out))
 	if err != nil || sel == "" {
 		if statFn("/Applications/Xcode.app") {
-			return &Issue{Code: CodeXcodeNotSelected, Message: "Xcode is installed but not selected.", Hint: "Run this in Terminal (it needs your password, so PhoneForge cannot do it for you):\n  sudo xcode-select -s /Applications/Xcode.app/Contents/Developer"}
+			return &Issue{Code: CodeXcodeNotSelected, Message: "Xcode is installed but not selected.", Hint: "Run this in Terminal (it needs your password, so Pocketlab cannot do it for you):\n  sudo xcode-select -s /Applications/Xcode.app/Contents/Developer"}
 		}
 		return &Issue{Code: CodeXcodeMissing, Message: "Xcode is not installed.", Hint: hintInstallXcode}
 	}
 	if strings.Contains(sel, "CommandLineTools") || !strings.Contains(sel, ".app/") {
 		if statFn("/Applications/Xcode.app") {
-			return &Issue{Code: CodeXcodeNotSelected, Message: "xcode-select points at the Command Line Tools, not at Xcode.", Hint: "Run this in Terminal (it needs your password, so PhoneForge cannot do it for you):\n  sudo xcode-select -s /Applications/Xcode.app/Contents/Developer"}
+			return &Issue{Code: CodeXcodeNotSelected, Message: "xcode-select points at the Command Line Tools, not at Xcode.", Hint: "Run this in Terminal (it needs your password, so Pocketlab cannot do it for you):\n  sudo xcode-select -s /Applications/Xcode.app/Contents/Developer"}
 		}
 		return &Issue{Code: CodeXcodeMissing, Message: "Only the Command Line Tools are installed; building WebDriverAgent needs the full Xcode.", Hint: hintInstallXcode}
 	}

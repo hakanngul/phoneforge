@@ -14,7 +14,7 @@ import (
 	"sync"
 	"testing"
 
-	"phoneforge/internal/lifecycle"
+	"pocketlab/internal/lifecycle"
 )
 
 const (
@@ -119,7 +119,7 @@ func TestGlobalFlagsAnywhereAndEnv(t *testing.T) {
 	// --server after the command, device from the environment.
 	var so, se bytes.Buffer
 	env := Env{Stdout: &so, Stderr: &se, Getenv: func(k string) string {
-		return map[string]string{"PHONEFORGE_URL": f.URL, "PHONEFORGE_DEVICE": "sm-g"}[k]
+		return map[string]string{"POCKETLAB_URL": f.URL, "POCKETLAB_DEVICE": "sm-g"}[k]
 	}}
 	f.json("GET /devices/android-AAA", `{"id":"android-AAA","name":"SM-G780G","platform":"android","state":"connected"}`)
 	if code := Main(context.Background(), []string{"device", "info"}, env); code != 0 {
@@ -214,7 +214,7 @@ func TestUnreachableExit4(t *testing.T) {
 	if code != ExitUnreachable {
 		t.Fatalf("code=%d", code)
 	}
-	if !strings.Contains(errOut, "phoneforged") {
+	if !strings.Contains(errOut, "pocketlabd") {
 		t.Errorf("missing hint: %q", errOut)
 	}
 }
@@ -666,7 +666,7 @@ func TestAgentStreamsAndRestoresModel(t *testing.T) {
 		b, _ := json.Marshal(map[string]any{"seq": seq, "type": typ, "data": data})
 		return fmt.Sprintf("id: %d\nevent: %s\ndata: %s\n\n", seq, typ, b)
 	}
-	asst := `{"type":"assistant","message":{"content":[{"type":"text","text":"Opening settings"},{"type":"tool_use","name":"mcp__phoneforge__tap","input":{"deviceId":"d","x":10,"y":20}}]}}`
+	asst := `{"type":"assistant","message":{"content":[{"type":"text","text":"Opening settings"},{"type":"tool_use","name":"mcp__pocketlab__tap","input":{"deviceId":"d","x":10,"y":20}}]}}`
 	res := `{"type":"result","result":"All good","is_error":false}`
 	f.h["GET /ai/runs/run1/events"] = func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -718,7 +718,7 @@ func TestAgentBuiltinFallback(t *testing.T) {
 
 func TestVersion(t *testing.T) {
 	code, out, _ := run(t, nil, "", "version")
-	if code != 0 || !strings.HasPrefix(out, "phoneforge ") {
+	if code != 0 || !strings.HasPrefix(out, "pocketlab ") {
 		t.Errorf("%d %q", code, out)
 	}
 }
@@ -769,13 +769,13 @@ func TestIOSBuildWDA(t *testing.T) {
 
 func TestServerStatusHistoryStop(t *testing.T) {
 	f := newFake(t)
-	f.json("GET /server/status", `{"running":true,"pid":4321,"version":"9.9","addr":"127.0.0.1:8700","startedAt":"2026-01-02T03:04:05Z","uptimeSec":3700,"startedVia":"phoneforged","owner":"cli","eventsFile":"/x/server-events.jsonl"}`)
+	f.json("GET /server/status", `{"running":true,"pid":4321,"version":"9.9","addr":"127.0.0.1:8700","startedAt":"2026-01-02T03:04:05Z","uptimeSec":3700,"startedVia":"pocketlabd","owner":"cli","eventsFile":"/x/server-events.jsonl"}`)
 	code, out, _ := run(t, f, "", "server", "status")
-	if code != 0 || !strings.Contains(out, "4321") || !strings.Contains(out, "phoneforged") || !strings.Contains(out, "1h1m") {
+	if code != 0 || !strings.Contains(out, "4321") || !strings.Contains(out, "pocketlabd") || !strings.Contains(out, "1h1m") {
 		t.Errorf("status: %d %q", code, out)
 	}
 
-	f.json("GET /server/history", `{"events":[{"time":"2026-01-02T05:00:00Z","event":"unexpected_exit","pid":4321,"reason":"previous run ended unexpectedly"},{"time":"2026-01-02T03:04:05Z","event":"start","pid":4321,"startedVia":"phoneforged","reason":"server started"}]}`)
+	f.json("GET /server/history", `{"events":[{"time":"2026-01-02T05:00:00Z","event":"unexpected_exit","pid":4321,"reason":"previous run ended unexpectedly"},{"time":"2026-01-02T03:04:05Z","event":"start","pid":4321,"startedVia":"pocketlabd","reason":"server started"}]}`)
 	code, out, _ = run(t, f, "", "server", "history", "--limit", "5")
 	if code != 0 || !strings.Contains(out, "unexpected_exit") || strings.Index(out, "start") > strings.Index(out, "unexpected_exit") || !strings.Contains(out, "!") {
 		t.Errorf("history (oldest first, unexpected marked): %d %q", code, out)
@@ -786,7 +786,7 @@ func TestServerStatusHistoryStop(t *testing.T) {
 
 	var origin string
 	f.h["POST /server/shutdown"] = func(w http.ResponseWriter, r *http.Request) {
-		origin = r.Header.Get("X-PhoneForge-Origin")
+		origin = r.Header.Get("X-Pocketlab-Origin")
 		w.WriteHeader(202)
 	}
 	if code, _, _ := run(t, f, "", "server", "stop"); code != 0 || origin != "cli" {
@@ -796,11 +796,11 @@ func TestServerStatusHistoryStop(t *testing.T) {
 
 func TestServerHistoryOffline(t *testing.T) {
 	dir := t.TempDir()
-	r := lifecycle.Begin(dir, lifecycle.Info{StartedVia: "phoneforged"})
+	r := lifecycle.Begin(dir, lifecycle.Info{StartedVia: "pocketlabd"})
 	r.SetStopReason("received signal terminated", "signal:SIGTERM", "SIGTERM")
 	r.Stop("x")
 	var so, se bytes.Buffer
-	env := Env{Stdout: &so, Stderr: &se, Getenv: func(k string) string { return map[string]string{"PHONEFORGE_HOME": dir}[k] }}
+	env := Env{Stdout: &so, Stderr: &se, Getenv: func(k string) string { return map[string]string{"POCKETLAB_HOME": dir}[k] }}
 	code := Main(context.Background(), []string{"--server", "http://127.0.0.1:1", "server", "history"}, env)
 	if code != 0 || !strings.Contains(so.String(), "received signal terminated") || !strings.Contains(so.String(), "server is not running") {
 		t.Errorf("offline history: %d %q %q", code, so.String(), se.String())

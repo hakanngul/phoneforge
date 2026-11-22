@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"phoneforge/internal/dsl"
+	"pocketlab/internal/dsl"
 )
 
 func stepJSON(t *testing.T, line string) string {

@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"phoneforge/internal/agent/llm"
-	"phoneforge/internal/device"
-	"phoneforge/internal/uitree"
+	"pocketlab/internal/agent/llm"
+	"pocketlab/internal/device"
+	"pocketlab/internal/uitree"
 )
 
 // Step is one recorded event of an agent run.

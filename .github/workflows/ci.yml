@@ -52,7 +52,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - run: CGO_ENABLED=0 go build -o /dev/null ./cmd/phoneforged
-      - run: CGO_ENABLED=0 go build -o /dev/null ./cmd/phoneforge
-      - run: CGO_ENABLED=0 GOARCH=arm64 go build -o /dev/null ./cmd/phoneforged
+      - run: CGO_ENABLED=0 go build -o /dev/null ./cmd/pocketlabd
+      - run: CGO_ENABLED=0 go build -o /dev/null ./cmd/pocketlab
+      - run: CGO_ENABLED=0 GOARCH=arm64 go build -o /dev/null ./cmd/pocketlabd
       - run: go test ./internal/cli/... ./internal/dsl/... ./internal/httpapi/...

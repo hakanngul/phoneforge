@@ -13,8 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"phoneforge/internal/lifecycle"
-	"phoneforge/internal/procutil"
+	"pocketlab/internal/brand"
+	"pocketlab/internal/lifecycle"
+	"pocketlab/internal/procutil"
 )
 
 // serverStatus mirrors GET /server/status.
@@ -42,7 +43,7 @@ func cmdServer(c *call) error {
 		return err
 	}
 	if len(pos) != 1 {
-		return usagef("usage: phoneforge server status|history|start|stop")
+		return usagef("usage: pocketlab server status|history|start|stop")
 	}
 	switch pos[0] {
 	case "stop":
@@ -59,7 +60,7 @@ func cmdServer(c *call) error {
 	case "start":
 		return serverStartCmd(c, *bin)
 	}
-	return usagef("usage: phoneforge server status|history|start|stop")
+	return usagef("usage: pocketlab server status|history|start|stop")
 }
 
 func isUnreachable(err error) bool {
@@ -118,15 +119,9 @@ func legacyStatus(c *call, ctx context.Context) error {
 	return nil
 }
 
-// localHome is the state directory, honouring PHONEFORGE_HOME.
+// localHome is the state directory, honouring POCKETLAB_HOME.
 func localHome(c *call) string {
-	if h := c.env.getenv("PHONEFORGE_HOME"); h != "" {
-		return h
-	}
-	if h, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(h, ".phoneforge")
-	}
-	return ".phoneforge"
+	return brand.HomeFrom(c.env.getenv)
 }
 
 // printOffline tells what the local lifecycle log knows when the server is down.
@@ -215,7 +210,7 @@ func fmtDur(sec int64) string {
 	return fmt.Sprintf("%ds", sec)
 }
 
-// serverStartCmd launches phoneforged detached and waits for it to answer /health.
+// serverStartCmd launches pocketlabd detached and waits for it to answer /health.
 func serverStartCmd(c *call, bin string) error {
 	hctx, hcancel := c.ctxFor(3 * time.Second)
 	err := c.client().do(hctx, "GET", "/health", nil, nil)
@@ -244,7 +239,7 @@ func serverStartCmd(c *call, bin string) error {
 	}
 	home := localHome(c)
 	_ = os.MkdirAll(home, 0o700)
-	logPath := filepath.Join(home, "phoneforged.log")
+	logPath := filepath.Join(home, "pocketlabd.log")
 	lf, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("open %s: %w", logPath, err)
@@ -252,8 +247,8 @@ func serverStartCmd(c *call, bin string) error {
 	defer lf.Close()
 	cmd := exec.Command(path, "-addr", addr)
 	cmd.Stdout, cmd.Stderr = lf, lf
-	cmd.Env = append(os.Environ(), fmt.Sprintf("PHONEFORGE_STARTED_VIA=phoneforge server start (cli pid %d)", os.Getpid()))
-	if tok := c.env.getenv("PHONEFORGE_TOKEN"); tok != "" {
+	cmd.Env = append(os.Environ(), fmt.Sprintf("POCKETLAB_STARTED_VIA=pocketlab server start (cli pid %d)", os.Getpid()))
+	if tok := c.env.getenv("POCKETLAB_TOKEN"); tok != "" {
 		cmd.Args = append(cmd.Args, "-token", tok)
 	}
 	procutil.Detach(cmd)
@@ -266,7 +261,7 @@ func serverStartCmd(c *call, bin string) error {
 	for time.Now().Before(deadline) {
 		select {
 		case werr := <-exited:
-			return fmt.Errorf("phoneforged exited right after start (%v); see %s", werr, logPath)
+			return fmt.Errorf("pocketlabd exited right after start (%v); see %s", werr, logPath)
 		case <-c.ctx.Done():
 			return c.ctx.Err()
 		case <-time.After(300 * time.Millisecond):
@@ -282,14 +277,14 @@ func serverStartCmd(c *call, bin string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("phoneforged did not become healthy within 20s; see %s", logPath)
+	return fmt.Errorf("pocketlabd did not become healthy within 20s; see %s", logPath)
 }
 
 func findServerBinary(explicit string) (string, error) {
 	if explicit != "" {
 		return explicit, nil
 	}
-	name := "phoneforged"
+	name := "pocketlabd"
 	if exe, err := os.Executable(); err == nil {
 		cand := filepath.Join(filepath.Dir(exe), name)
 		if _, err := os.Stat(cand); err == nil {
@@ -299,5 +294,5 @@ func findServerBinary(explicit string) (string, error) {
 	if p, err := exec.LookPath(name); err == nil {
 		return p, nil
 	}
-	return "", fmt.Errorf("phoneforged not found next to this binary or in PATH; pass --bin PATH")
+	return "", fmt.Errorf("pocketlabd not found next to this binary or in PATH; pass --bin PATH")
 }

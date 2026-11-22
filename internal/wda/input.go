@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 func pmove(x, y, dur int) map[string]any {

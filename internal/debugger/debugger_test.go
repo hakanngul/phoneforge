@@ -13,7 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 func TestParseFrame(t *testing.T) {

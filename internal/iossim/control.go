@@ -16,10 +16,11 @@ import (
 
 	"github.com/danielpaulus/go-ios/ios"
 
-	"phoneforge/internal/device"
-	"phoneforge/internal/iosbridge"
-	"phoneforge/internal/procutil"
-	"phoneforge/internal/wda"
+	"pocketlab/internal/brand"
+	"pocketlab/internal/device"
+	"pocketlab/internal/iosbridge"
+	"pocketlab/internal/procutil"
+	"pocketlab/internal/wda"
 )
 
 // Simulator WDA port ranges (host network is shared, so these are host ports).
@@ -35,7 +36,7 @@ const (
 )
 
 // ErrNotBuilt means the simulator WDA build is missing.
-var ErrNotBuilt = errors.New("iossim: simulator WebDriverAgent is not built yet: use \"Build WDA\" in PhoneForge (Integrations > iOS Simulators, needs Xcode) or run `phoneforge ios build-wda --sim`")
+var ErrNotBuilt = errors.New("iossim: simulator WebDriverAgent is not built yet: use \"Build WDA\" in Pocketlab (Integrations > iOS Simulators, needs Xcode) or run `pocketlab ios build-wda --sim`")
 
 // ErrWDAStarting means WDA is still coming up; the caller should retry shortly.
 var ErrWDAStarting = errors.New("iossim: starting WDA on the simulator, retry shortly")
@@ -70,7 +71,7 @@ type startCall struct {
 }
 
 // New returns a Control. stateDir is unused for now (reserved); wdaHome ""
-// means $PF_WDA_HOME or ~/.phoneforge/wda.
+// means $PL_WDA_HOME or ~/.pocketlab/wda.
 func New(wdaHome string) *Control {
 	c := &Control{Run: ExecRunner, wdaHome: wdaHome, clients: map[string]*wda.Client{}, known: map[string]bool{}, slots: map[string]int{}, starts: map[string]*startCall{}}
 	c.Mgr = iosbridge.NewManagerWithDeps("", iosbridge.Deps{
@@ -88,11 +89,10 @@ func (c *Control) WDAHome() string {
 	if c.wdaHome != "" {
 		return c.wdaHome
 	}
-	if v := os.Getenv("PF_WDA_HOME"); v != "" {
+	if v := brand.Getenv("PL_WDA_HOME"); v != "" {
 		return v
 	}
-	h, _ := os.UserHomeDir()
-	return filepath.Join(h, ".phoneforge", "wda")
+	return filepath.Join(brand.DataDir(), "wda")
 }
 
 // XCTestRun returns the path of the simulator .xctestrun file, or "".
@@ -274,9 +274,9 @@ func (c *Control) UserStop(udid string) iosbridge.Status {
 	return c.Mgr.Status(udid)
 }
 
-// AutoWDAEnabled reports whether lazy WDA start is on (PF_SIM_AUTOWDA=0 disables).
+// AutoWDAEnabled reports whether lazy WDA start is on (PL_SIM_AUTOWDA=0 disables).
 func AutoWDAEnabled() bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv("PF_SIM_AUTOWDA"))) {
+	switch strings.ToLower(strings.TrimSpace(brand.Getenv("PL_SIM_AUTOWDA"))) {
 	case "0", "false", "off", "no":
 		return false
 	}
@@ -286,7 +286,7 @@ func AutoWDAEnabled() bool {
 // EnsureWDA makes sure WDA is running for the booted simulator udid, starting
 // it if needed and blocking up to ~60 s for it to come up (the start itself
 // continues in the background past that and ErrWDAStarting is returned). It is
-// a no-op when WDA is already running or PF_SIM_AUTOWDA=0.
+// a no-op when WDA is already running or PL_SIM_AUTOWDA=0.
 func (c *Control) EnsureWDA(ctx context.Context, udid string) error {
 	if c.Active(udid)() || !AutoWDAEnabled() {
 		return nil

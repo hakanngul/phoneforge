@@ -1,17 +1,17 @@
-// pf-ios-install installs a signed .app (or .ipa) onto a connected iOS device
-// using go-ios zipconduit. Usage: pf-ios-install <udid> <path/to/App.app>
+// pl-ios-install installs a signed .app (or .ipa) onto a connected iOS device
+// using go-ios zipconduit. Usage: pl-ios-install <udid> <path/to/App.app>
 package main
 
 import (
 	"fmt"
 	"os"
 
-	"phoneforge/internal/iosbridge"
+	"pocketlab/internal/iosbridge"
 )
 
 func main() {
 	if len(os.Args) != 3 {
-		fmt.Fprintln(os.Stderr, "usage: pf-ios-install <udid> <path/to/App.app>")
+		fmt.Fprintln(os.Stderr, "usage: pl-ios-install <udid> <path/to/App.app>")
 		os.Exit(2)
 	}
 	udid, app := os.Args[1], os.Args[2]

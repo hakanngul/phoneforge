@@ -5,11 +5,11 @@
   'use strict';
   var PF = window.PF, $ = PF.$;
   var LS = 'pf.lastServer';
-  var START_CMD = 'phoneforge server start';
+  var START_CMD = 'pocketlab server start';
   var fails = 0, banner = null, lastStatus = null, lastSeen = null, shuttingDown = false, timer = null;
 
-  function inDesktop() { return window.PF_ORIGIN === 'desktop-ui'; }
-  PF.originLabel = function () { return window.PF_ORIGIN || 'web-ui'; };
+  function inDesktop() { return window.PL_ORIGIN === 'desktop-ui'; }
+  PF.originLabel = function () { return window.PL_ORIGIN || 'web-ui'; };
 
   try {
     var saved = JSON.parse(localStorage.getItem(LS) || 'null');
@@ -53,17 +53,17 @@
     b.appendChild(PF.el('div', 'srv-line', bits.length ? 'Last known: ' + bits.join(' · ') : 'No earlier status was seen by this page.'));
     var how = PF.el('div', 'srv-line');
     if (inDesktop()) {
-      how.textContent = 'Use the PhoneForge app: Server menu ▸ Start server (or the menu-bar icon).';
+      how.textContent = 'Use the Pocketlab app: Server menu ▸ Start server (or the menu-bar icon).';
     } else {
       how.appendChild(document.createTextNode('A web page cannot start the server. In a terminal run '));
       how.appendChild(PF.el('code', '', START_CMD));
       how.appendChild(document.createTextNode(' (or '));
-      how.appendChild(PF.el('code', '', 'phoneforged'));
-      how.appendChild(document.createTextNode('), or open the PhoneForge app. '));
+      how.appendChild(PF.el('code', '', 'pocketlabd'));
+      how.appendChild(document.createTextNode('), or open the Pocketlab app. '));
       how.appendChild(PF.btn('Copy command', 'sm', function () { PF.copyText(START_CMD, 'command'); }));
     }
     b.appendChild(how);
-    b.appendChild(PF.el('div', 'srv-line muted', 'Why it stopped is recorded in ~/.phoneforge/server-events.jsonl (phoneforge server history). This page reconnects automatically.'));
+    b.appendChild(PF.el('div', 'srv-line muted', 'Why it stopped is recorded in ~/.pocketlab/server-events.jsonl (pocketlab server history). This page reconnects automatically.'));
     b.hidden = false;
     setDot('down');
   }
@@ -99,13 +99,13 @@
   PF.quitServer = function (btn) {
     PF.confirm('This stops the server and closes the app; devices will no longer be controllable.', function () {
       if (btn) btn.disabled = true;
-      fetch('/api/v1/server/shutdown', { method: 'POST', headers: { 'X-PhoneForge-Action': 'shutdown', 'X-PhoneForge-Origin': PF.originLabel() } }).then(function (r) {
+      fetch('/api/v1/server/shutdown', { method: 'POST', headers: { 'X-Pocketlab-Action': 'shutdown', 'X-Pocketlab-Origin': PF.originLabel() } }).then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         clearTimeout(timer);
-        document.title = 'PhoneForge stopped';
-        document.body.innerHTML = '<div style="display:flex;height:100vh;align-items:center;justify-content:center;flex-direction:column;font-family:system-ui,sans-serif;color:#ccc;background:#0e0d14"><h2>PhoneForge stopped</h2><p>You can close this tab. Start it again with <code>phoneforge server start</code> or the PhoneForge app.</p></div>';
-      }).catch(function (e) { if (btn) btn.disabled = false; PF.toast('Could not stop PhoneForge: ' + e.message); });
-    }, { title: 'Quit PhoneForge?', okLabel: 'Quit', danger: true });
+        document.title = 'Pocketlab stopped';
+        document.body.innerHTML = '<div style="display:flex;height:100vh;align-items:center;justify-content:center;flex-direction:column;font-family:system-ui,sans-serif;color:#ccc;background:#0e0d14"><h2>Pocketlab stopped</h2><p>You can close this tab. Start it again with <code>pocketlab server start</code> or the Pocketlab app.</p></div>';
+      }).catch(function (e) { if (btn) btn.disabled = false; PF.toast('Could not stop Pocketlab: ' + e.message); });
+    }, { title: 'Quit Pocketlab?', okLabel: 'Quit', danger: true });
   };
 
   /* ---------- panel ---------- */
@@ -118,11 +118,11 @@
     var statusBox = PF.el('div'), histBox = PF.el('div');
     var bar = PF.el('div', 'btn-row');
     bar.appendChild(PF.btn('Refresh', 'sm', load));
-    bar.appendChild(PF.btn('⏻ Quit PhoneForge (stop server)', 'sm danger', function (e) { PF.quitServer(e.currentTarget); }));
+    bar.appendChild(PF.btn('⏻ Quit Pocketlab (stop server)', 'sm danger', function (e) { PF.quitServer(e.currentTarget); }));
     m.body.appendChild(statusBox); m.body.appendChild(bar);
     var hint = PF.el('p', 'muted');
     if (inDesktop()) hint.textContent = 'This app can also start, stop and restart its server from the Server menu.';
-    else { hint.appendChild(document.createTextNode('A web page can stop the server but cannot start it again. To start it: ')); hint.appendChild(PF.el('code', '', START_CMD)); hint.appendChild(document.createTextNode(' (or open the PhoneForge app).')); }
+    else { hint.appendChild(document.createTextNode('A web page can stop the server but cannot start it again. To start it: ')); hint.appendChild(PF.el('code', '', START_CMD)); hint.appendChild(document.createTextNode(' (or open the Pocketlab app).')); }
     m.body.appendChild(hint);
     m.body.appendChild(PF.section('Start / stop history'));
     m.body.appendChild(histBox);

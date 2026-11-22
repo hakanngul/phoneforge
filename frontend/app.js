@@ -1,5 +1,5 @@
 /*
- * PhoneForge web UI entry point (vanilla JS, no dependencies).
+ * Pocketlab web UI entry point (vanilla JS, no dependencies).
  * Files: api.js, ui.js (modal/forms), automation.js, multiwindow.js, apps.js, testing.js,
  * nodes.js, webhooks.js, farms.js, credentials.js, integrations.js, app.js.
  *

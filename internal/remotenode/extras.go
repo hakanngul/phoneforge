@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // Long-lived calls must not be cut off by httpClient's 60s timeout.

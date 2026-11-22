@@ -12,12 +12,13 @@ import (
 	"sync"
 	"time"
 
-	"phoneforge/internal/avcapture"
-	"phoneforge/internal/device"
-	"phoneforge/internal/events"
-	"phoneforge/internal/iosbridge"
-	"phoneforge/internal/iossim"
-	"phoneforge/internal/wda"
+	"pocketlab/internal/avcapture"
+	"pocketlab/internal/brand"
+	"pocketlab/internal/device"
+	"pocketlab/internal/events"
+	"pocketlab/internal/iosbridge"
+	"pocketlab/internal/iossim"
+	"pocketlab/internal/wda"
 )
 
 // firstFrameWidth / firstFrameQuality shape the immediate screenshot frame the
@@ -309,7 +310,7 @@ func (a *api) iosBridgeInstall(w http.ResponseWriter, r *http.Request, dev devic
 		return
 	}
 	if a.ios.isSim(udid) {
-		writeErr(w, "IOSBRIDGE_SIM_NO_INSTALL", http.StatusConflict, "simulators need no helper install: build the simulator WDA from PhoneForge (Simulators > Build WDA) and use Start WDA")
+		writeErr(w, "IOSBRIDGE_SIM_NO_INSTALL", http.StatusConflict, "simulators need no helper install: build the simulator WDA from Pocketlab (Simulators > Build WDA) and use Start WDA")
 		return
 	}
 	install := a.ios.Install
@@ -332,9 +333,9 @@ func (a *api) iosBridgeInstall(w http.ResponseWriter, r *http.Request, dev devic
 		events.Errorf("WDA helper install failed on %s: %v", name, err)
 		if errors.Is(err, iosbridge.ErrRunnerNotBuilt) {
 			writeJSON(w, http.StatusConflict, map[string]any{
-				"error": "WebDriverAgent runner has not been built yet: use \"Build WDA\" in PhoneForge, then try again",
+				"error": "WebDriverAgent runner has not been built yet: use \"Build WDA\" in Pocketlab, then try again",
 				"code":  "IOSBRIDGE_RUNNER_NOT_BUILT",
-				"hint":  "PhoneForge builds WebDriverAgent on this Mac with your own Apple team (needs Xcode).",
+				"hint":  "Pocketlab builds WebDriverAgent on this Mac with your own Apple team (needs Xcode).",
 			})
 			return
 		}
@@ -542,12 +543,13 @@ func (a *api) mjpegInfo(w http.ResponseWriter, r *http.Request, dev device.Devic
 // Each part is closed with the next boundary right away so browsers paint it
 // without waiting for the following frame.
 // wantRawMJPEG reports whether the client asked for the opaque-content-type
-// variant of the stream (?format=raw or Accept: application/x-pf-mjpeg).
+// variant of the stream (?format=raw or Accept: application/x-pl-mjpeg).
 func wantRawMJPEG(r *http.Request) bool {
 	if strings.EqualFold(r.URL.Query().Get("format"), "raw") {
 		return true
 	}
-	return strings.Contains(strings.ToLower(r.Header.Get("Accept")), "application/x-pf-mjpeg")
+	accept := strings.ToLower(r.Header.Get("Accept"))
+	return strings.Contains(accept, "application/x-pl-mjpeg") || strings.Contains(accept, brand.LegacyMJPEGAccept)
 }
 
 func serveMJPEG(w http.ResponseWriter, r *http.Request, flusher http.Flusher,

@@ -1,5 +1,5 @@
 /*
- * PhoneForge Automation tab: devices, live mirror, element picker, activity, agent.
+ * Pocketlab Automation tab: devices, live mirror, element picker, activity, agent.
  *
  * TAP COORDINATE MATH
  *   The mirror <img> uses object-fit: contain, so the bitmap is scaled uniformly
@@ -788,7 +788,7 @@
   }
   function tAdd(node) { var t = $('transcript'); t.hidden = false; t.appendChild(node); t.scrollTop = t.scrollHeight; }
   function tErr(msg) { tAdd(stepLine({ type: 'error', text: msg })); if (agentSink) agentSink.line('[error] ' + msg); }
-  var NO_LLM_MSG = 'No LLM provider configured for the built-in agent. Set ANTHROPIC_API_KEY or run Ollama, then restart PhoneForge \u2014 or select an external agent such as Claude Code in Integrations \u2192 AI Configuration.';
+  var NO_LLM_MSG = 'No LLM provider configured for the built-in agent. Set ANTHROPIC_API_KEY or run Ollama, then restart Pocketlab \u2014 or select an external agent such as Claude Code in Integrations \u2192 AI Configuration.';
   function noLLM(s) { return /no llm provider|not configured|ANTHROPIC_API_KEY/i.test(s); }
   function handleAgentEvent(ev) {
     var s = JSON.stringify(ev);
@@ -984,7 +984,7 @@
     if (j.type === 'assistant') {
       content.forEach(function (c) {
         if (c.type === 'text' && c.text) out.push({ type: 'thought', text: c.text });
-        else if (c.type === 'tool_use') out.push({ type: 'action', tool: String(c.name || '').replace(/^mcp__phoneforge__/, ''), args: c.input || {} });
+        else if (c.type === 'tool_use') out.push({ type: 'action', tool: String(c.name || '').replace(/^mcp__pocketlab__/, ''), args: c.input || {} });
       });
     } else if (j.type === 'user') {
       content.forEach(function (c) {

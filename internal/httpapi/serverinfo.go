@@ -8,12 +8,13 @@ import (
 	"strconv"
 	"strings"
 
-	"phoneforge/internal/lifecycle"
+	"pocketlab/internal/brand"
+	"pocketlab/internal/lifecycle"
 )
 
 // OriginHeader optionally names who is asking the server to stop (web-ui,
 // desktop, cli, ...). A JSON body {"origin": "...", "reason": "..."} works too.
-const OriginHeader = "X-PhoneForge-Origin"
+const OriginHeader = "X-Pocketlab-Origin"
 
 // cleanOrigin trims and restricts a client-supplied label so the history stays readable.
 func cleanOrigin(s string) string {
@@ -36,7 +37,7 @@ func (a *api) noteShutdown(r *http.Request) {
 	if a.life == nil {
 		return
 	}
-	origin := cleanOrigin(r.Header.Get(OriginHeader))
+	origin := cleanOrigin(brand.HeaderAny(r.Header.Get, OriginHeader, brand.LegacyOriginHeader))
 	reason := ""
 	if r.Body != nil && r.ContentLength != 0 {
 		var body struct {

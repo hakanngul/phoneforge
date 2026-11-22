@@ -5,8 +5,8 @@ import (
 	"log"
 	"sync"
 
-	"phoneforge/internal/device"
-	"phoneforge/internal/registry"
+	"pocketlab/internal/device"
+	"pocketlab/internal/registry"
 )
 
 type discoverer struct {

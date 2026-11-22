@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // actionAliases maps every documented action name or alias (normalized: no
-// case, underscores, hyphens or spaces) to PhoneForge's canonical action.
+// case, underscores, hyphens or spaces) to Pocketlab's canonical action.
 var actionAliases = buildAliases(map[string][]string{
 	"launch_app":            {"open_app", "launch_app", "start_app", "app"},
 	"stop_app":              {"kill_app", "terminate_app", "close_app", "stop_app", "force_stop"},
@@ -99,7 +99,7 @@ func canonicalAction(name string) (string, bool) {
 }
 
 // CanonicalAction resolves an action name or alias (case, underscores and
-// hyphens are ignored) to PhoneForge's canonical action name.
+// hyphens are ignored) to Pocketlab's canonical action name.
 func CanonicalAction(name string) (string, bool) { return canonicalAction(name) }
 
 // ActionNames returns every accepted action name as (alias -> canonical),

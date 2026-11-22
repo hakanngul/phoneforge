@@ -1,6 +1,6 @@
 // Package avcapture mirrors real iPhones through macOS's native USB screen
 // capture (CoreMediaIO + AVCaptureSession, the mechanism QuickTime uses) via a
-// small Swift helper, pfcapture, compiled on demand.
+// small Swift helper, plcapture, compiled on demand.
 package avcapture
 
 import (
@@ -17,18 +17,20 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"pocketlab/internal/brand"
 )
 
-//go:embed helper/pfcapture.swift
+//go:embed helper/plcapture.swift
 var swiftSource []byte
 
 // infoPlist is linked into the helper so macOS can show the Camera prompt.
 const infoPlist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>CFBundleIdentifier</key><string>dev.phoneforge.pfcapture</string>
-<key>CFBundleName</key><string>pfcapture</string>
-<key>NSCameraUsageDescription</key><string>PhoneForge mirrors the screen of a connected iPhone.</string>
+<key>CFBundleIdentifier</key><string>dev.pocketlab.plcapture</string>
+<key>CFBundleName</key><string>plcapture</string>
+<key>NSCameraUsageDescription</key><string>Pocketlab mirrors the screen of a connected iPhone.</string>
 </dict></plist>
 `
 
@@ -41,17 +43,13 @@ func sourceHash() string {
 	return hex.EncodeToString(h[:])
 }
 
-// HelperPath is where the compiled helper lives (PHONEFORGE_AVCAPTURE_BIN
-// overrides; default ~/.phoneforge/bin/pfcapture).
+// HelperPath is where the compiled helper lives (POCKETLAB_AVCAPTURE_BIN
+// overrides; default ~/.pocketlab/bin/plcapture).
 func HelperPath() string {
-	if p := os.Getenv("PHONEFORGE_AVCAPTURE_BIN"); p != "" {
+	if p := brand.Getenv("POCKETLAB_AVCAPTURE_BIN"); p != "" {
 		return p
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		home = os.TempDir()
-	}
-	return filepath.Join(home, ".phoneforge", "bin", "pfcapture")
+	return filepath.Join(brand.DataDir(), "bin", "plcapture")
 }
 
 func helperCompiled(bin string) bool {
@@ -78,7 +76,7 @@ func EnsureHelper(ctx context.Context) (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	src, err := os.CreateTemp(dir, "pfcapture-*.swift")
+	src, err := os.CreateTemp(dir, "plcapture-*.swift")
 	if err != nil {
 		return "", err
 	}
@@ -118,7 +116,7 @@ func EnsureHelper(ctx context.Context) (string, error) {
 	return bin, nil
 }
 
-// CaptureDevice is one entry of `pfcapture list`.
+// CaptureDevice is one entry of `plcapture list`.
 type CaptureDevice struct {
 	ID           string `json:"id"` // AVCaptureDevice.uniqueID (a GUID, not the UDID)
 	Name         string `json:"name"`
@@ -129,13 +127,13 @@ type CaptureDevice struct {
 	Suspended    bool   `json:"suspended"`
 }
 
-// Listing is the JSON `pfcapture list` prints.
+// Listing is the JSON `plcapture list` prints.
 type Listing struct {
 	Authorization string          `json:"authorization"` // authorized|denied|restricted|notDetermined
 	Devices       []CaptureDevice `json:"devices"`
 }
 
-// ParseListing decodes `pfcapture list` output.
+// ParseListing decodes `plcapture list` output.
 func ParseListing(b []byte) (Listing, error) {
 	var l Listing
 	err := json.Unmarshal(bytes.TrimSpace(b), &l)

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"phoneforge/internal/avcapture"
+	"pocketlab/internal/avcapture"
 )
 
 type fakeAV struct {
@@ -122,7 +122,7 @@ func TestNoProbeWhileProbingOrKnownGoodOrUnsupported(t *testing.T) {
 	g2, _ := newTestGate()
 	g2.supported = func() bool { return false }
 	if g2.shouldProbe("u") {
-		t.Fatal("unsupported (PF_AVCAPTURE=0) must not probe")
+		t.Fatal("unsupported (PL_AVCAPTURE=0) must not probe")
 	}
 }
 

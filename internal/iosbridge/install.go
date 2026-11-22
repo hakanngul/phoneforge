@@ -12,10 +12,10 @@ import (
 
 // ErrRunnerNotBuilt means the signed WebDriverAgent runner .app does not exist
 // on this machine yet.
-var ErrRunnerNotBuilt = errors.New("iosbridge: WebDriverAgent runner app has not been built yet; use \"Build WDA\" in PhoneForge (or `phoneforge ios build-wda`)")
+var ErrRunnerNotBuilt = errors.New("iosbridge: WebDriverAgent runner app has not been built yet; use \"Build WDA\" in Pocketlab (or `pocketlab ios build-wda`)")
 
 // DefaultRunnerAppPath is where the WDA build leaves the signed runner
-// ($PF_WDA_HOME or ~/.phoneforge/wda, then build/Build/Products/...).
+// ($PL_WDA_HOME or ~/.pocketlab/wda, then build/Build/Products/...).
 func DefaultRunnerAppPath() string {
 	return filepath.Join(WDAHome(), "build", "Build", "Products", "Debug-iphoneos", "WebDriverAgentRunner-Runner.app")
 }

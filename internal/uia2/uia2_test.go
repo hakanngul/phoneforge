@@ -13,7 +13,7 @@ import (
 	"sync"
 	"testing"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 const sampleXML = `<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
@@ -361,7 +361,7 @@ func TestEnsureStartedRespectsUserStop(t *testing.T) {
 
 func TestWrapUITreeAutoStarts(t *testing.T) {
 	b, _, _ := newIdleBridge(t)
-	t.Setenv("PF_ANDROID_AUTOBRIDGE", "")
+	t.Setenv("PL_ANDROID_AUTOBRIDGE", "")
 	base := &baseDev{}
 	w := Wrap(base, b)
 	el, err := w.UITree(context.Background())
@@ -378,7 +378,7 @@ func TestWrapUITreeAutoStarts(t *testing.T) {
 
 func TestWrapUITreeAutoBridgeDisabled(t *testing.T) {
 	b, _, _ := newIdleBridge(t)
-	t.Setenv("PF_ANDROID_AUTOBRIDGE", "0")
+	t.Setenv("PL_ANDROID_AUTOBRIDGE", "0")
 	base := &baseDev{}
 	w := Wrap(base, b)
 	if _, err := w.UITree(context.Background()); err != nil {

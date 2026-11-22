@@ -1,4 +1,4 @@
-// Package device defines PhoneForge's stable device-automation contract.
+// Package device defines Pocketlab's stable device-automation contract.
 // All drivers (Android now; iOS later) implement Device; the DSL engine,
 // HTTP API and MCP server depend only on these types.
 package device

@@ -1,17 +1,17 @@
 ---
-name: phoneforge-device-control
-description: Drive a real Android/iOS phone, tablet, emulator or simulator through PhoneForge (MCP tools or the phoneforge CLI) - observe the screen, tap, swipe, type, launch apps, verify results. Use when the user says "on the phone", "on the device", "tap", "swipe", "open the app", "take a screenshot", "ui tree", "run this on my iPhone/Android", or in Turkish "telefonda", "uygulamayı aç", "ekran görüntüsü", "cihazda dene", "butona tıkla", "kaydır".
+name: pocketlab-device-control
+description: Drive a real Android/iOS phone, tablet, emulator or simulator through Pocketlab (MCP tools or the pocketlab CLI) - observe the screen, tap, swipe, type, launch apps, verify results. Use when the user says "on the phone", "on the device", "tap", "swipe", "open the app", "take a screenshot", "ui tree", "run this on my iPhone/Android", or in Turkish "telefonda", "uygulamayı aç", "ekran görüntüsü", "cihazda dene", "butona tıkla", "kaydır".
 ---
 
-# PhoneForge device control
+# Pocketlab device control
 
-PhoneForge is a local server (`http://127.0.0.1:8700`) that exposes connected devices over REST and an
-MCP endpoint (`/mcp`, server name `phoneforge`). This skill is the core observe -> act -> verify loop.
-Full tool list: `references/mcp-tools.md`. Shell equivalents: see the `phoneforge-cli` skill.
+Pocketlab is a local server (`http://127.0.0.1:8700`) that exposes connected devices over REST and an
+MCP endpoint (`/mcp`, server name `pocketlab`). This skill is the core observe -> act -> verify loop.
+Full tool list: `references/mcp-tools.md`. Shell equivalents: see the `pocketlab-cli` skill.
 
 ## 0. Preflight
-1. `list_devices` (CLI: `phoneforge devices`). If the call fails with connection refused, the server is not
-   running: start it with `go run ./cmd/phoneforged -addr 127.0.0.1:8700` (or the built `phoneforged`) and retry.
+1. `list_devices` (CLI: `pocketlab devices`). If the call fails with connection refused, the server is not
+   running: start it with `go run ./cmd/pocketlabd -addr 127.0.0.1:8700` (or the built `pocketlabd`) and retry.
 2. Pick the device id. One device: use it. Several: ask the user which one, never guess. Simulators appear as
    `sim-<udid>`; shut-down simulators are only visible in `list_simulators` until `boot_simulator`.
 3. `get_device` to learn platform and screen size.
@@ -87,13 +87,13 @@ Once the path is known, send several steps in one `execute_dsl` call (the `scrip
 ```
 The result lists per-step status, error code (`NO_MATCH`, `TIMEOUT`, `ASSERTION_FAILED`...) and a screenshot of the
 failing step. Selector taps resolve coordinates for you, so no tree read is needed. Full syntax:
-the `phoneforge-test-authoring` skill. Keep exploring unknown screens step by step instead.
+the `pocketlab-test-authoring` skill. Keep exploring unknown screens step by step instead.
 
 ## 8. CLI alternative
-Same loop from a shell (set `PHONEFORGE_DEVICE` once, or pass `-d <id>`; `-d` matches id/name exactly, by prefix or by substring and exits 3 when ambiguous, e.g. `-d iphone` with a simulator booted: use `-d "iphone 15"` or the id):
-`phoneforge devices`, `phoneforge tree --filter "Sign in"`, `phoneforge tap --text "Sign in"`,
-`phoneforge tap 540 1620`, `phoneforge wait --text "Home"`, `phoneforge swipe up` (finger direction), `phoneforge type "hello"`, `phoneforge key back`,
-`phoneforge launch <id>`, `phoneforge screenshot -o shot.png`. See `phoneforge-cli`.
+Same loop from a shell (set `POCKETLAB_DEVICE` once, or pass `-d <id>`; `-d` matches id/name exactly, by prefix or by substring and exits 3 when ambiguous, e.g. `-d iphone` with a simulator booted: use `-d "iphone 15"` or the id):
+`pocketlab devices`, `pocketlab tree --filter "Sign in"`, `pocketlab tap --text "Sign in"`,
+`pocketlab tap 540 1620`, `pocketlab wait --text "Home"`, `pocketlab swipe up` (finger direction), `pocketlab type "hello"`, `pocketlab key back`,
+`pocketlab launch <id>`, `pocketlab screenshot -o shot.png`. See `pocketlab-cli`.
 
 ## Rules of thumb
 - Read before acting, verify after acting; narrow trees, few screenshots.

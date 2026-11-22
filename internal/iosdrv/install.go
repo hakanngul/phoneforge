@@ -13,7 +13,7 @@ import (
 	"github.com/danielpaulus/go-ios/ios/installationproxy"
 	"github.com/danielpaulus/go-ios/ios/zipconduit"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 var _ device.AppInstaller = (*iosDevice)(nil)

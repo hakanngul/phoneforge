@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"phoneforge/internal/device"
-	"phoneforge/internal/dsl"
+	"pocketlab/internal/device"
+	"pocketlab/internal/dsl"
 )
 
 type fake struct {

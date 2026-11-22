@@ -171,7 +171,7 @@ func cmdAgent(c *call) error {
 		return err
 	}
 	if len(pos) == 0 {
-		return usagef("usage: phoneforge agent \"prompt\" [--model haiku] [--agent claude]")
+		return usagef("usage: pocketlab agent \"prompt\" [--model haiku] [--agent claude]")
 	}
 	prompt := strings.Join(pos, " ")
 	ctx, cancel := c.ctxFor(0)

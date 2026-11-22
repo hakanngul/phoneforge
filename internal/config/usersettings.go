@@ -9,7 +9,7 @@ import (
 )
 
 // UserSettingsFile is the file name of the small per-user settings store that
-// lives in the PhoneForge state directory (~/.phoneforge by default).
+// lives in the Pocketlab state directory (~/.pocketlab by default).
 const UserSettingsFile = "settings.json"
 
 // Keys used in the user settings file.

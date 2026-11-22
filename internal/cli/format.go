@@ -7,7 +7,7 @@ import (
 	"text/tabwriter"
 	"unicode/utf8"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // table prints rows with aligned columns.

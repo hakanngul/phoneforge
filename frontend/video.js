@@ -1,5 +1,5 @@
 /*
- * PhoneForge H.264 live player (WebCodecs).
+ * Pocketlab H.264 live player (WebCodecs).
  *
  * Pipeline: fetch(stream.h264) -> ReadableStream reader -> Annex-B NAL splitter ->
  * access-unit grouping -> VideoDecoder -> <canvas>.

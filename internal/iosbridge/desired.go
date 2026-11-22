@@ -17,7 +17,7 @@ type stateFile struct {
 }
 
 // desiredStore remembers which devices should have their WDA bridge running
-// across server restarts (~/.phoneforge/iosbridge-state.json). An empty path
+// across server restarts (~/.pocketlab/iosbridge-state.json). An empty path
 // keeps the state in memory only.
 type desiredStore struct {
 	mu   sync.Mutex

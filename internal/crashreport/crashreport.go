@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // ErrNotFound means no report with the requested name exists.

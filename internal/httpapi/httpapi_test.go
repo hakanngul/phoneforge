@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"phoneforge/internal/config"
-	"phoneforge/internal/device"
-	"phoneforge/internal/registry"
+	"pocketlab/internal/config"
+	"pocketlab/internal/device"
+	"pocketlab/internal/registry"
 )
 
 type stubDev struct{}
@@ -61,7 +61,7 @@ func TestHealth(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &m); err != nil {
 		t.Fatal(err)
 	}
-	if m["service"] != "phoneforge" || m["deviceCount"].(float64) != 1 {
+	if m["service"] != "pocketlab" || m["deviceCount"].(float64) != 1 {
 		t.Fatalf("bad body %v", m)
 	}
 }

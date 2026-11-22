@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 	"unicode"
+
+	"pocketlab/internal/brand"
 )
 
 // Errors returned by Store; routes map them to HTTP statuses.
@@ -59,13 +61,12 @@ type Store struct {
 	mu   sync.Mutex
 }
 
-// DefaultRoot is ~/.phoneforge/tests.
+// DefaultRoot is ~/.pocketlab/tests.
 func DefaultRoot() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
+	if _, err := os.UserHomeDir(); err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".phoneforge", "tests"), nil
+	return filepath.Join(brand.DataDir(), "tests"), nil
 }
 
 // NewStore opens (creating if needed) a store rooted at dir.

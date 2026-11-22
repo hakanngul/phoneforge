@@ -34,7 +34,7 @@ func cmdIOS(c *call) error {
 		return err
 	}
 	if len(pos) != 1 || pos[0] != "build-wda" {
-		return usagef("usage: phoneforge ios build-wda [--sim] [--install UDID] [--team TEAMID]")
+		return usagef("usage: pocketlab ios build-wda [--sim] [--install UDID] [--team TEAMID]")
 	}
 	if *sim && *install != "" {
 		return usagef("--install needs a device build; simulators need no install (drop --sim or --install)")
@@ -119,7 +119,7 @@ func cmdIOS(c *call) error {
 			fmt.Fprintln(c.out, "Installed. If starting WDA fails with an untrusted developer, trust your profile on the phone:")
 			fmt.Fprintln(c.out, "Settings > General > VPN & Device Management.")
 		} else {
-			fmt.Fprintln(c.out, "Install it with: phoneforge ios build-wda --install <device>, or use Install helper in the app.")
+			fmt.Fprintln(c.out, "Install it with: pocketlab ios build-wda --install <device>, or use Install helper in the app.")
 		}
 	}
 	return nil

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 // UnmarshalJSON decodes a near predicate: the anchor's predicate keys plus

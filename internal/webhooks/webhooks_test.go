@@ -11,13 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"phoneforge/internal/events"
+	"pocketlab/internal/events"
 )
 
 type capture struct {
-	body []byte
-	sig  string
-	ct   string
+	body      []byte
+	sig       string
+	ct        string
+	legacySig string
 }
 
 func receiver(t *testing.T) (*httptest.Server, chan capture) {
@@ -26,7 +27,7 @@ func receiver(t *testing.T) (*httptest.Server, chan capture) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var buf bytes.Buffer
 		_, _ = buf.ReadFrom(r.Body)
-		ch <- capture{buf.Bytes(), r.Header.Get("X-PhoneForge-Signature"), r.Header.Get("Content-Type")}
+		ch <- capture{buf.Bytes(), r.Header.Get("X-Pocketlab-Signature"), r.Header.Get("Content-Type"), r.Header.Get("X-PhoneForge-Signature")}
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	t.Cleanup(srv.Close)
@@ -58,11 +59,14 @@ func TestDeliverSignedAndUnsigned(t *testing.T) {
 	if c.ct != "application/json" {
 		t.Fatalf("content-type %q", c.ct)
 	}
+	if c.sig == "" || c.legacySig != c.sig {
+		t.Fatalf("signature headers: new=%q legacy=%q (receivers written before the rename read the legacy one)", c.sig, c.legacySig)
+	}
 	var p Payload
 	if err := json.Unmarshal(c.body, &p); err != nil {
 		t.Fatal(err)
 	}
-	if p.Source != "phoneforge" || p.ID == "" || p.Message == "" || p.Level != "info" {
+	if p.Source != "pocketlab" || p.ID == "" || p.Message == "" || p.Level != "info" {
 		t.Fatalf("payload %+v", p)
 	}
 	if c.sig != Sign(c.body, "topsecret") || len(c.sig) != 64 {

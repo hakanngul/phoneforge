@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Install PhoneForge's Claude Code skills (skills/phoneforge-*) into ~/.claude/skills.
+# Install Pocketlab's Claude Code skills (skills/pocketlab-*) into ~/.claude/skills.
 #
 #   scripts/install-skills.sh              symlink each skill (updates with the repo)
 #   scripts/install-skills.sh --copy       copy instead of symlink
-#   scripts/install-skills.sh --uninstall  remove the PhoneForge skills this script installed
+#   scripts/install-skills.sh --uninstall  remove the Pocketlab skills this script installed
 #   scripts/install-skills.sh --dest DIR   target directory (default: $CLAUDE_SKILLS_DIR or ~/.claude/skills)
 #   scripts/install-skills.sh --dry-run    print what would happen, change nothing
 #
-# Only folders named phoneforge-* from this repo are touched. An existing entry with the same
-# name is replaced only if it is a symlink or a copy of a PhoneForge skill (SKILL.md "name:" equals
+# Only folders named pocketlab-* from this repo are touched. An existing entry with the same
+# name is replaced only if it is a symlink or a copy of a Pocketlab skill (SKILL.md "name:" equals
 # the folder name); anything else is left alone and reported.
 set -euo pipefail
 
@@ -47,10 +47,10 @@ is_ours() { # $1 = existing path in dest, $2 = folder name
   return 1
 }
 
-echo "PhoneForge skills: $action ($mode) -> $dest"
+echo "Pocketlab skills: $action ($mode) -> $dest"
 [ "$dry" = 1 ] || mkdir -p "$dest"
 count=0 skipped=0
-for dir in "$src_root"/phoneforge-*/; do
+for dir in "$src_root"/pocketlab-*/; do
   [ -f "$dir/SKILL.md" ] || continue
   name="$(basename "$dir")"
   target="$dest/$name"
@@ -59,7 +59,7 @@ for dir in "$src_root"/phoneforge-*/; do
       if is_ours "$target" "$name"; then
         echo "removed   $name"; run rm -rf "$target"; count=$((count+1))
       else
-        echo "skipped   $name (not a PhoneForge skill, left in place)"; skipped=$((skipped+1))
+        echo "skipped   $name (not a Pocketlab skill, left in place)"; skipped=$((skipped+1))
       fi
     fi
     continue
@@ -68,7 +68,7 @@ for dir in "$src_root"/phoneforge-*/; do
     if is_ours "$target" "$name"; then
       run rm -rf "$target"
     else
-      echo "skipped   $name ($target exists and is not a PhoneForge skill)"; skipped=$((skipped+1)); continue
+      echo "skipped   $name ($target exists and is not a Pocketlab skill)"; skipped=$((skipped+1)); continue
     fi
   fi
   if [ "$mode" = copy ]; then
@@ -78,4 +78,17 @@ for dir in "$src_root"/phoneforge-*/; do
   fi
   count=$((count+1))
 done
+
+# Pre-rename leftovers: skills were called phoneforge-* before the rebrand. Remove ones this script
+# installed (a symlink into this repo's skills/ folder, or a copy whose SKILL.md name matches).
+legacy=0
+for target in "$dest"/phoneforge-*; do
+  [ -e "$target" ] || [ -L "$target" ] || continue
+  lname="$(basename "$target")"
+  if { [ -L "$target" ] && case "$(readlink "$target")" in "$repo"/skills/*) true ;; *) false ;; esac; } \
+     || { [ -d "$target" ] && [ ! -L "$target" ] && [ "$(skill_name "$target/SKILL.md")" = "$lname" ]; }; then
+    echo "removed   $lname (renamed to pocketlab-${lname#phoneforge-})"; run rm -rf "$target"; legacy=$((legacy+1))
+  fi
+done
+[ "$legacy" = 0 ] || echo "removed $legacy pre-rename phoneforge-* skills"
 echo "done: $count $action, $skipped skipped"

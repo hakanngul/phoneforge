@@ -17,6 +17,6 @@
 //
 // User prerequisites that no code can remove: Developer Mode enabled on the
 // phone, the Developer Disk Image mounted, and the WDA runner app
-// (default com.phoneforge.WebDriverAgentRunner.xctrunner) built and installed
+// (default com.pocketlab.WebDriverAgentRunner.xctrunner) built and installed
 // with the user's own signing identity.
 package iosbridge

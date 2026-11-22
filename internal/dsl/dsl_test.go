@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"phoneforge/internal/device"
+	"pocketlab/internal/device"
 )
 
 type tap struct{ x, y int }

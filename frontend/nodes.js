@@ -72,7 +72,7 @@
   $('shareBtn').addEventListener('click', function () {
     var m = PF.modal.open('Share my devices');
     var b = m.body;
-    b.appendChild(PF.note('Sharing is not a switch in this UI. Devices are shared by running the PhoneForge server bound to a LAN or Tailscale address, protected with a token. Other PhoneForge instances then add it as a Remote node.', 'info'));
+    b.appendChild(PF.note('Sharing is not a switch in this UI. Devices are shared by running the Pocketlab server bound to a LAN or Tailscale address, protected with a token. Other Pocketlab instances then add it as a Remote node.', 'info'));
     var cur = PF.el('p', 'muted', 'Checking current bind address...');
     b.appendChild(cur);
     PF.api('GET', '/health').then(function (h) {
@@ -83,10 +83,10 @@
       cur.textContent = 'Current server — ' + parts.join(' · ') + (parts.length === 1 ? '' : '') + '.';
     }, function () { cur.textContent = 'Could not read /health. This page was loaded from ' + location.host + '.'; });
     b.appendChild(PF.section('1. Start the server on a reachable address'));
-    b.appendChild(PF.codeBlock('phoneforged -addr 0.0.0.0:8700 -token <token>', 'command'));
+    b.appendChild(PF.codeBlock('pocketlabd -addr 0.0.0.0:8700 -token <token>', 'command'));
     b.appendChild(PF.el('p', 'muted', 'Use your Tailscale IP (e.g. 100.x.y.z:8700) instead of 0.0.0.0 to limit exposure to your tailnet. Always set a long random token; without one anyone who can reach the port can control your phones.'));
     b.appendChild(PF.section('2. Connect from another machine'));
-    b.appendChild(PF.el('p', 'muted', 'On the other PhoneForge, open Automation → Remote → Nodes, enter http://<your-ip>:8700 and the token, then press Test.'));
+    b.appendChild(PF.el('p', 'muted', 'On the other Pocketlab, open Automation → Remote → Nodes, enter http://<your-ip>:8700 and the token, then press Test.'));
   });
 
   load();

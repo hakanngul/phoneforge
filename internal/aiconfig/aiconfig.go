@@ -1,5 +1,5 @@
-// Package aiconfig implements PhoneForge's "AI Configuration": detection of
-// external coding-agent CLIs, registration of PhoneForge's MCP server in them,
+// Package aiconfig implements Pocketlab's "AI Configuration": detection of
+// external coding-agent CLIs, registration of Pocketlab's MCP server in them,
 // persisted agent settings, and a runner that executes a CLI agent
 // non-interactively and streams its output.
 package aiconfig
@@ -11,14 +11,18 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"phoneforge/internal/agent/llm"
+	"pocketlab/internal/agent/llm"
 	"strings"
 	"sync"
 	"time"
 )
 
-// MCPName is the name PhoneForge's MCP server is registered under.
-const MCPName = "phoneforge"
+// MCPName is the name Pocketlab's MCP server is registered under.
+const MCPName = "pocketlab"
+
+// LegacyMCPName is the name the server was registered under before the rename
+// from PhoneForge. Connect replaces such an entry and Disconnect removes it.
+const LegacyMCPName = "phoneforge"
 
 // DefaultMCPURL is the default MCP endpoint.
 const DefaultMCPURL = "http://127.0.0.1:8700/mcp"
@@ -36,7 +40,7 @@ const (
 
 // runDirEnv is a reserved env entry understood by osExec.Stream: its value is
 // the working directory for the child (not passed to the child).
-const runDirEnv = "PHONEFORGE_RUN_DIR="
+const runDirEnv = "POCKETLAB_RUN_DIR="
 
 // agentSpec describes one external CLI.
 type agentSpec struct {

@@ -1,4 +1,4 @@
-// Package httpapi exposes the PhoneForge REST API under /api/v1.
+// Package httpapi exposes the Pocketlab REST API under /api/v1.
 package httpapi
 
 import (
@@ -15,15 +15,16 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"phoneforge/internal/agent"
-	"phoneforge/internal/config"
-	"phoneforge/internal/device"
-	"phoneforge/internal/dsl"
-	"phoneforge/internal/events"
-	"phoneforge/internal/iossim"
-	"phoneforge/internal/lifecycle"
-	"phoneforge/internal/registry"
-	"phoneforge/internal/uia2"
+	"pocketlab/internal/agent"
+	"pocketlab/internal/brand"
+	"pocketlab/internal/config"
+	"pocketlab/internal/device"
+	"pocketlab/internal/dsl"
+	"pocketlab/internal/events"
+	"pocketlab/internal/iossim"
+	"pocketlab/internal/lifecycle"
+	"pocketlab/internal/registry"
+	"pocketlab/internal/uia2"
 )
 
 // allowedOrigins are the only origins that receive CORS headers.
@@ -241,7 +242,7 @@ func authMiddleware(token string) func(http.Handler) http.Handler {
 
 func (a *api) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"service":      "phoneforge",
+		"service":      "pocketlab",
 		"status":       "ok",
 		"version":      a.cfg.Version,
 		"deviceCount":  len(a.reg.List()),
@@ -473,8 +474,8 @@ func (a *api) agentRun(w http.ResponseWriter, r *http.Request, dev device.Device
 
 // shutdownHeader must be present (value "shutdown") on POST /server/shutdown.
 // A custom header forces a CORS preflight for cross-origin browser requests,
-// which this server never grants, so other websites cannot stop PhoneForge.
-const shutdownHeader = "X-PhoneForge-Action"
+// which this server never grants, so other websites cannot stop Pocketlab.
+const shutdownHeader = "X-Pocketlab-Action"
 
 // shutdownOriginOK reports whether the request may stop the server: a missing
 // Origin (curl, CLI, MCP) is fine; otherwise it must be this server's own
@@ -501,7 +502,7 @@ func (a *api) serverShutdown(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, "UNSUPPORTED", http.StatusNotImplemented, "shutdown is not available on this server")
 		return
 	}
-	if r.Header.Get(shutdownHeader) != "shutdown" {
+	if brand.HeaderAny(r.Header.Get, shutdownHeader, brand.LegacyActionHeader) != "shutdown" {
 		writeErr(w, "FORBIDDEN", http.StatusForbidden, "missing "+shutdownHeader+": shutdown header")
 		return
 	}

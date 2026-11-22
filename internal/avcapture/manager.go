@@ -43,7 +43,7 @@ type Manager struct {
 	IdleStop     time.Duration // stop capture this long after the last viewer leaves (default 4s)
 	FirstFrame   time.Duration // Subscribe waits this long for a first frame (default 15s)
 	FailureTTL   time.Duration // remember fatal failures this long (default 30s)
-	ListTTL      time.Duration // cache `pfcapture list` this long (default 5s)
+	ListTTL      time.Duration // cache `plcapture list` this long (default 5s)
 	MaxRestarts  int           // consecutive frameless restarts before giving up (default 3)
 	RestartDelay time.Duration // base delay between restarts (default 500ms)
 
@@ -169,7 +169,7 @@ func (m *Manager) check(ctx context.Context, udid string, names ...string) (Capt
 		return CaptureDevice{}, &Error{"HELPER_FAILED", err.Error()}
 	}
 	if l.Authorization == "denied" || l.Authorization == "restricted" {
-		return CaptureDevice{}, &Error{"TCC_DENIED", "camera permission " + l.Authorization + ": allow the app running PhoneForge in System Settings > Privacy & Security > Camera"}
+		return CaptureDevice{}, &Error{"TCC_DENIED", "camera permission " + l.Authorization + ": allow the app running Pocketlab in System Settings > Privacy & Security > Camera"}
 	}
 	d, ok := Resolve(l, udid, names...)
 	if !ok {
@@ -480,7 +480,7 @@ func (s *stream) run() {
 	}
 }
 
-// execSpawn runs the real pfcapture helper.
+// execSpawn runs the real plcapture helper.
 func execSpawn(ctx context.Context, id string, o Options) (io.ReadCloser, func() *Error, func(), error) {
 	bin, err := EnsureHelper(ctx)
 	if err != nil {

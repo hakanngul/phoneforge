@@ -1,9 +1,9 @@
 ---
-name: phoneforge-test-authoring
-description: Write, validate and run PhoneForge UI tests - `.mob` line scripts and JSON DSL scripts (version 0.2) - for Android and iOS apps, including selectors, waits, assertions, params, secrets, loops, and test projects. Use for "write a mob test", "automate this flow", "DSL script", "execute_dsl", "repeatable UI test", "regression test on device", or in Turkish "test senaryosu yaz", ".mob testi", "otomasyon scripti", "UI testi yaz".
+name: pocketlab-test-authoring
+description: Write, validate and run Pocketlab UI tests - `.mob` line scripts and JSON DSL scripts (version 0.2) - for Android and iOS apps, including selectors, waits, assertions, params, secrets, loops, and test projects. Use for "write a mob test", "automate this flow", "DSL script", "execute_dsl", "repeatable UI test", "regression test on device", or in Turkish "test senaryosu yaz", ".mob testi", "otomasyon scripti", "UI testi yaz".
 ---
 
-# PhoneForge test authoring
+# Pocketlab test authoring
 
 Two equivalent script formats run on the same engine (`internal/dsl`):
 - **`.mob`**: one action per line, compact, good for humans and for stored tests. Compiled to the JSON DSL.
@@ -13,7 +13,7 @@ Syntax details and every action: `references/mob-syntax.md` and `references/dsl-
 writing anything beyond the examples here.
 
 ## Workflow
-1. **Explore the real screens first** (`phoneforge-device-control`): read `ui_tree` for each screen to get actual
+1. **Explore the real screens first** (`pocketlab-device-control`): read `ui_tree` for each screen to get actual
    texts and ids. Never write selectors from imagination.
 2. Draft the script. Prefer stable selectors in this order: `#accessibilityId` / `resource_id` > exact
    `"text"` > `~"contains"` > regex > `index`/coordinates (last resort, breaks across screen sizes).
@@ -21,8 +21,8 @@ writing anything beyond the examples here.
    every meaningful step. Do not use fixed `delay` except for animations you cannot observe.
 4. **Validate before running**: `POST /api/v1/tests/validate?kind=mob` (body = script text; add
    `&projectId=<id>` when it uses `run`). It returns line-numbered errors. The CLI has no validate command:
-   `phoneforge run file.mob` saves the script into the server test project `cli` and runs it.
-5. Run on a device: `execute_dsl` (JSON), `phoneforge run flow.mob` (saved to server project `cli`, or `--project NAME`) / `phoneforge dsl flow.json`, or store it in a
+   `pocketlab run file.mob` saves the script into the server test project `cli` and runs it.
+5. Run on a device: `execute_dsl` (JSON), `pocketlab run flow.mob` (saved to server project `cli`, or `--project NAME`) / `pocketlab dsl flow.json`, or store it in a
    test project and use `test_run`.
 6. Read the result per step (`status`, `code`, `error`, failure screenshot) and fix the *selector or wait*, not by
    adding sleeps. Re-run until it passes twice in a row.
@@ -73,7 +73,7 @@ validation instead of being ignored.
 - In `type_secret` never put the real secret in the script; it references a stored secret id.
 
 ## Test projects
-Stored under `~/.phoneforge/tests/<project>/` as `.mob` or `.json` files, managed through
+Stored under `~/.pocketlab/tests/<project>/` as `.mob` or `.json` files, managed through
 `/api/v1/tests/projects` (REST) and MCP `test_list_projects`, `test_list_scripts`, `test_run`, `test_list_runs`.
 Share steps with `run "./login.mob" email="a@b.c"` (same project only, max depth 4, no recursion);
 parameters flow into the included script's `${...}`. History: `GET /api/v1/tests/runs`.

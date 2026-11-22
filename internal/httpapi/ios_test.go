@@ -7,10 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"phoneforge/internal/config"
-	"phoneforge/internal/device"
-	"phoneforge/internal/iosbridge"
-	"phoneforge/internal/registry"
+	"pocketlab/internal/config"
+	"pocketlab/internal/device"
+	"pocketlab/internal/iosbridge"
+	"pocketlab/internal/registry"
 )
 
 type fakeInstaller struct{ ok bool }
