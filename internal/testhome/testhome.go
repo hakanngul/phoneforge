@@ -1,5 +1,5 @@
 // Package testhome isolates a test binary from the developer's real home:
-// HOME and POCKETLAB_HOME point at a throwaway directory, so nothing under
+// HOME, USERPROFILE (Windows) and POCKETLAB_HOME point at a throwaway directory, so nothing under
 // ~/.pocketlab can be read or written by `go test`.
 package testhome
 
@@ -20,6 +20,7 @@ func Run(run func() int) int {
 	home := filepath.Join(tmp, "home")
 	os.MkdirAll(home, 0o755)
 	os.Setenv("HOME", home)
+	os.Setenv("USERPROFILE", home) // os.UserHomeDir on Windows
 	os.Setenv("POCKETLAB_HOME", filepath.Join(home, ".pocketlab"))
 	os.Unsetenv("PHONEFORGE_HOME")
 	return run()

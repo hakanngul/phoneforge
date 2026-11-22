@@ -7,6 +7,14 @@ import (
 	"testing"
 )
 
+// setHome points os.UserHomeDir at dir on every OS: it reads $HOME on Unix
+// and %USERPROFILE% on Windows.
+func setHome(t *testing.T, dir string) {
+	t.Helper()
+	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
+}
+
 func mapEnv(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
 
 func TestLegacyEnvName(t *testing.T) {
@@ -196,7 +204,7 @@ func TestMergeFullyMovedRemovesEmptyLegacy(t *testing.T) {
 func TestDataDirOverrideSkipsMigration(t *testing.T) {
 	captureLog(t)
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setHome(t, home)
 	t.Setenv("POCKETLAB_HOME", filepath.Join(home, "elsewhere"))
 	writeFile(t, filepath.Join(home, LegacyDirName, "settings.json"), "old")
 	DataDir()
@@ -216,11 +224,11 @@ func TestHomeFollowsHOMEChange(t *testing.T) {
 	a, b := t.TempDir(), t.TempDir()
 	t.Setenv("POCKETLAB_HOME", "")
 	t.Setenv("PHONEFORGE_HOME", "")
-	t.Setenv("HOME", a)
+	setHome(t, a)
 	if Home() != filepath.Join(a, DirName) {
 		t.Fatal("home a")
 	}
-	t.Setenv("HOME", b)
+	setHome(t, b)
 	if Home() != filepath.Join(b, DirName) {
 		t.Fatalf("stale cached home: %s", Home())
 	}
