@@ -11,6 +11,7 @@ import (
 
 	"pocketlab/internal/device"
 	"pocketlab/internal/iosbridge"
+	"pocketlab/internal/iossim/slim"
 )
 
 // SimStatus is the REST shape of one simulator.
@@ -18,12 +19,20 @@ type SimStatus struct {
 	Sim
 	DeviceID string           `json:"deviceId,omitempty"` // set when booted (iOS)
 	WDA      iosbridge.Status `json:"wda"`
+	// Slim is set when the simulator has a slim record; MemoryMB is the last
+	// host footprint of a booted simulator (refreshed in the background).
+	Slim     *slimBrief `json:"slim,omitempty"`
+	MemoryMB float64    `json:"memoryMB,omitempty"`
 }
 
 func (c *Control) status(s Sim) SimStatus {
 	st := SimStatus{Sim: s, WDA: c.Mgr.Status(s.UDID)}
 	if s.Booted() && s.Platform == "iOS" {
 		st.DeviceID = FormatID(s.UDID)
+		st.Slim = c.slimBriefFor(s.UDID)
+		st.MemoryMB = c.cachedMemoryMB(s.UDID)
+	} else if s.Platform == "iOS" {
+		st.Slim = c.slimBriefFor(s.UDID)
 	}
 	return st
 }
@@ -51,6 +60,14 @@ func fail(w http.ResponseWriter, err error) {
 		writeErr(w, "SIMULATOR_WDA_STARTING", http.StatusServiceUnavailable, err.Error())
 	case errors.Is(err, iosbridge.ErrBusy):
 		writeErr(w, "IOSBRIDGE_BUSY", http.StatusConflict, err.Error())
+	case errors.Is(err, ErrNotIOS):
+		writeErr(w, "SIMULATOR_NOT_IOS", http.StatusBadRequest, err.Error())
+	case errors.Is(err, ErrMacOnly):
+		writeErr(w, "REQUIRES_MACOS", http.StatusNotImplemented, err.Error())
+	case errors.Is(err, slim.ErrNotSlimmed):
+		writeErr(w, "SIMULATOR_NOT_SLIMMED", http.StatusConflict, err.Error())
+	case isInputErr(err):
+		writeErr(w, "INVALID_REQUEST", http.StatusBadRequest, err.Error())
 	default:
 		writeErr(w, "SIMULATOR_ERROR", http.StatusInternalServerError, err.Error())
 	}
@@ -90,6 +107,54 @@ func (c *Control) Routes() http.Handler {
 			}
 			writeJSON(w, http.StatusOK, c.status(s))
 		})
+		r.Post("/slim", func(w http.ResponseWriter, req *http.Request) {
+			var body struct {
+				Profile string   `json:"profile"`
+				Groups  []string `json:"groups"`
+				DryRun  bool     `json:"dryRun"`
+			}
+			if req.Body != nil {
+				_ = json.NewDecoder(http.MaxBytesReader(w, req.Body, 1<<16)).Decode(&body)
+			}
+			ctx, cancel := context.WithTimeout(req.Context(), 3*time.Minute)
+			defer cancel()
+			res, err := c.Slim(ctx, chi.URLParam(req, "udid"), slim.Options{Preset: body.Profile, Groups: body.Groups, DryRun: body.DryRun})
+			if err != nil {
+				fail(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, res)
+		})
+		r.Get("/slim", func(w http.ResponseWriter, req *http.Request) {
+			ctx, cancel := context.WithTimeout(req.Context(), 30*time.Second)
+			defer cancel()
+			st, err := c.SlimStatus(ctx, chi.URLParam(req, "udid"))
+			if err != nil {
+				fail(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, st)
+		})
+		r.Post("/unslim", func(w http.ResponseWriter, req *http.Request) {
+			ctx, cancel := context.WithTimeout(req.Context(), 5*time.Minute)
+			defer cancel()
+			res, err := c.Unslim(ctx, chi.URLParam(req, "udid"))
+			if err != nil {
+				fail(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, res)
+		})
+		r.Get("/memory", func(w http.ResponseWriter, req *http.Request) {
+			ctx, cancel := context.WithTimeout(req.Context(), 30*time.Second)
+			defer cancel()
+			m, err := c.Memory(ctx, chi.URLParam(req, "udid"))
+			if err != nil {
+				fail(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, m)
+		})
 		r.Post("/wda/start", func(w http.ResponseWriter, req *http.Request) {
 			var o iosbridge.Options
 			if req.Body != nil {
@@ -115,4 +180,9 @@ func (c *Control) Routes() http.Handler {
 		})
 	})
 	return r
+}
+
+func isInputErr(err error) bool {
+	var ie *slim.InputError
+	return errors.As(err, &ie)
 }

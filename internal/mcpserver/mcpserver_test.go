@@ -16,8 +16,8 @@ func TestNewRegistersTools(t *testing.T) {
 	if s == nil {
 		t.Fatal("nil server")
 	}
-	if n := len(s.ListTools()); n != 48 {
-		t.Fatalf("want 48 tools, got %d", n)
+	if n := len(s.ListTools()); n != 51 {
+		t.Fatalf("want 51 tools, got %d", n)
 	}
 	if Handler(s) == nil {
 		t.Fatal("nil handler")
@@ -104,5 +104,53 @@ func TestUITreeCompactAndJSON(t *testing.T) {
 	}
 	if out := call(map[string]any{"format": "json"}); out != tree {
 		t.Fatalf("json should be unchanged below the limit: %s", out)
+	}
+}
+
+func TestSimulatorSlimTools(t *testing.T) {
+	type hit struct{ Method, Path, Body string }
+	var hits []hit
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		hits = append(hits, hit{r.Method, r.URL.Path, string(b)})
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer ts.Close()
+	s := New(ts.URL+"/api/v1", "test")
+	tools := s.ListTools()
+	call := func(name string, args map[string]any) {
+		t.Helper()
+		tool, ok := tools[name]
+		if !ok {
+			t.Fatalf("tool %s missing", name)
+		}
+		var req mcp.CallToolRequest
+		req.Params.Name = name
+		req.Params.Arguments = args
+		res, err := tool.Handler(context.Background(), req)
+		if err != nil || res.IsError {
+			t.Fatalf("%s: %v %+v", name, err, res)
+		}
+	}
+	call("boot_simulator", map[string]any{"udid": "U"})
+	call("boot_simulator", map[string]any{"udid": "U", "slim": true, "profile": "aggressive"})
+	call("slim_simulator", map[string]any{"udid": "U", "groups": "siri, photos", "dry_run": true})
+	call("unslim_simulator", map[string]any{"udid": "U"})
+	call("simulator_memory", map[string]any{"udid": "U"})
+	want := []hit{
+		{"POST", "/api/v1/simulators/U/boot", ""},
+		{"POST", "/api/v1/simulators/U/boot", ""},
+		{"POST", "/api/v1/simulators/U/slim", `{"profile":"aggressive"}`},
+		{"POST", "/api/v1/simulators/U/slim", `{"dryRun":true,"groups":["siri","photos"]}`},
+		{"POST", "/api/v1/simulators/U/unslim", ""},
+		{"GET", "/api/v1/simulators/U/memory", ""},
+	}
+	if len(hits) != len(want) {
+		t.Fatalf("hits: %+v", hits)
+	}
+	for i := range want {
+		if hits[i] != want[i] {
+			t.Errorf("hit %d: got %+v want %+v", i, hits[i], want[i])
+		}
 	}
 }

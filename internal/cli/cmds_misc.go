@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"pocketlab/internal/dsl"
+	"pocketlab/internal/iossim"
 
 	"pocketlab/internal/version"
 )
@@ -502,16 +503,31 @@ func pickSim(sims []simRow, want string) (simRow, error) {
 	return simRow{}, deviceErrf("simulator %q not found (see 'pocketlab sims')", want)
 }
 
+const simUsage = "usage: pocketlab sim boot|shutdown|unslim|mem <udid|name>   |   pocketlab sim slim <udid|name> [--profile minimal-safe|aggressive|custom] [--groups a,b] [--dry-run]"
+
 func cmdSim(c *call) error {
-	pos, err := c.parse(newFlagSet(c.name), c.args)
+	fs := newFlagSet(c.name)
+	profile := fs.String("profile", "", "slim profile: minimal-safe (default), aggressive or custom")
+	groups := fs.String("groups", "", "comma-separated slim groups (implies --profile custom)")
+	dry := fs.Bool("dry-run", false, "slim: show what would be disabled without changing anything")
+	discover := fs.Bool("discover", false, "slim: list launchd labels with memory (diagnostic, runs locally)")
+	pos, err := c.parse(fs, c.args)
 	if err != nil {
 		return err
 	}
-	if len(pos) != 2 || (pos[0] != "boot" && pos[0] != "shutdown") {
-		return usagef("usage: pocketlab sim boot|shutdown <udid|name>")
+	verbs := map[string]bool{"boot": true, "shutdown": true, "slim": true, "unslim": true, "mem": true}
+	if len(pos) != 2 || !verbs[pos[0]] {
+		return usagef("%s", simUsage)
 	}
-	ctx, cancel := c.ctxFor(3 * time.Minute)
+	verb := pos[0]
+	if (*profile != "" || *groups != "" || *dry || *discover) && verb != "slim" {
+		return usagef("--profile, --groups, --dry-run and --discover only apply to 'sim slim'")
+	}
+	ctx, cancel := c.ctxFor(5 * time.Minute)
 	defer cancel()
+	if verb == "slim" && *discover {
+		return simDiscover(ctx, c, pos[1])
+	}
 	sims, _, err := listSims(ctx, c)
 	if err != nil {
 		return err
@@ -520,8 +536,69 @@ func cmdSim(c *call) error {
 	if err != nil {
 		return err
 	}
+	base := "/simulators/" + url.PathEscape(s.UDID)
 	var raw json.RawMessage
-	if err := c.client().do(ctx, "POST", "/simulators/"+url.PathEscape(s.UDID)+"/"+pos[0], nil, &raw); err != nil {
+	switch verb {
+	case "slim":
+		body := map[string]any{"dryRun": *dry}
+		if *profile != "" {
+			body["profile"] = *profile
+		}
+		if *groups != "" {
+			var gs []string
+			for _, g := range strings.Split(*groups, ",") {
+				if g = strings.TrimSpace(g); g != "" {
+					gs = append(gs, g)
+				}
+			}
+			body["groups"] = gs
+		}
+		if err := c.client().do(ctx, "POST", base+"/slim", body, &raw); err != nil {
+			return err
+		}
+		if c.g.json {
+			return c.printRaw(raw)
+		}
+		return printSlimResult(c, s, raw)
+	case "unslim":
+		if err := c.client().do(ctx, "POST", base+"/unslim", nil, &raw); err != nil {
+			return err
+		}
+		if c.g.json {
+			return c.printRaw(raw)
+		}
+		var r struct {
+			Enabled  []string `json:"enabled"`
+			Failed   []string `json:"failed"`
+			Rebooted bool     `json:"rebooted"`
+		}
+		_ = json.Unmarshal(raw, &r)
+		fmt.Fprintf(c.out, "%s (%s): unslimmed, %d labels re-enabled", s.Name, s.UDID, len(r.Enabled))
+		if len(r.Failed) > 0 {
+			fmt.Fprintf(c.out, ", %d failed", len(r.Failed))
+		}
+		if r.Rebooted {
+			fmt.Fprint(c.out, ", rebooted")
+		}
+		fmt.Fprintln(c.out)
+		return nil
+	case "mem":
+		if err := c.client().do(ctx, "GET", base+"/memory", nil, &raw); err != nil {
+			return err
+		}
+		if c.g.json {
+			return c.printRaw(raw)
+		}
+		var m struct {
+			RSSMB       float64 `json:"rssMB"`
+			FootprintMB float64 `json:"footprintMB"`
+			ProcCount   int     `json:"procCount"`
+		}
+		_ = json.Unmarshal(raw, &m)
+		fmt.Fprintf(c.out, "%s (%s): footprint %.0f MB, RSS %.0f MB (overcounts shared pages), %d processes\n", s.Name, s.UDID, m.FootprintMB, m.RSSMB, m.ProcCount)
+		return nil
+	}
+	if err := c.client().do(ctx, "POST", base+"/"+verb, nil, &raw); err != nil {
 		return err
 	}
 	if c.g.json {
@@ -529,7 +606,84 @@ func cmdSim(c *call) error {
 	}
 	var after simRow
 	_ = json.Unmarshal(raw, &after)
-	fmt.Fprintf(c.out, "%s (%s): %s\n", s.Name, s.UDID, firstNonEmpty(after.State, pos[0]))
+	fmt.Fprintf(c.out, "%s (%s): %s\n", s.Name, s.UDID, firstNonEmpty(after.State, verb))
+	return nil
+}
+
+func printSlimResult(c *call, s simRow, raw json.RawMessage) error {
+	var r struct {
+		Profile    string   `json:"profile"`
+		Groups     []string `json:"groups"`
+		Applied    []string `json:"applied"`
+		Missing    []string `json:"missing"`
+		Failed     []string `json:"failed"`
+		Protected  []string `json:"protected"`
+		DryRun     bool     `json:"dryRun"`
+		BaselineMB float64  `json:"baselineMB"`
+	}
+	_ = json.Unmarshal(raw, &r)
+	verb := "disabled"
+	if r.DryRun {
+		verb = "would disable"
+	}
+	fmt.Fprintf(c.out, "%s (%s): profile %s (%s)\n", s.Name, s.UDID, r.Profile, strings.Join(r.Groups, ", "))
+	fmt.Fprintf(c.out, "  %s %d labels, %d missing, %d failed, %d protected by the keep list\n", verb, len(r.Applied), len(r.Missing), len(r.Failed), len(r.Protected))
+	if r.BaselineMB > 0 {
+		fmt.Fprintf(c.out, "  footprint before: %.0f MB (check 'pocketlab sim mem' in ~30 s)\n", r.BaselineMB)
+	}
+	if r.DryRun {
+		for _, l := range r.Applied {
+			fmt.Fprintln(c.out, "    "+l)
+		}
+	}
+	for _, l := range r.Failed {
+		fmt.Fprintln(c.out, "  failed: "+l)
+	}
+	return nil
+}
+
+// simDiscover is the hidden `sim slim <udid> --discover`: label inventory of a
+// booted simulator joined with per-process memory (runs locally via simctl).
+func simDiscover(ctx context.Context, c *call, want string) error {
+	sims, err := iossim.ListAll(ctx, iossim.ExecRunner)
+	if err != nil {
+		return err
+	}
+	rows := make([]simRow, 0, len(sims))
+	byUDID := map[string]iossim.Sim{}
+	for _, s := range sims {
+		rows = append(rows, simRow{UDID: s.UDID, Name: s.Name, State: s.State, Runtime: s.Runtime, Platform: s.Platform})
+		byUDID[s.UDID] = s
+	}
+	row, err := pickSim(rows, want)
+	if err != nil {
+		return err
+	}
+	sim := byUDID[row.UDID]
+	if !sim.Booted() || sim.Platform != "iOS" {
+		return deviceErrf("%s is not a booted iOS simulator", row.Name)
+	}
+	labels, err := iossim.Discover(ctx, iossim.ExecRunner, iossim.ExecHost, sim.UDID, sim.RuntimeID)
+	if err != nil {
+		return err
+	}
+	if c.g.json {
+		return c.printJSON(labels)
+	}
+	var total float64
+	out := make([][]string, 0, len(labels))
+	for _, l := range labels {
+		total += l.FootprintMB
+		flag := ""
+		if l.Kept {
+			flag = "keep"
+		} else if l.Disabled {
+			flag = "disabled"
+		}
+		out = append(out, []string{fmt.Sprintf("%.1f", l.FootprintMB), fmt.Sprintf("%.1f", l.RSSMB), l.Domain, strings.Join(l.Groups, ","), flag, l.Label})
+	}
+	table(c.out, []string{"FOOTPRINT MB", "RSS MB", "DOMAIN", "GROUPS", "FLAG", "LABEL"}, out)
+	fmt.Fprintf(c.out, "\n%d labels, %.0f MB attributed to labeled processes\n", len(labels), total)
 	return nil
 }
 

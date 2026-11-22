@@ -19,6 +19,7 @@ import (
 	"pocketlab/internal/brand"
 	"pocketlab/internal/device"
 	"pocketlab/internal/iosbridge"
+	"pocketlab/internal/iossim/slim"
 	"pocketlab/internal/procutil"
 	"pocketlab/internal/wda"
 )
@@ -63,6 +64,13 @@ type Control struct {
 	starts  map[string]*startCall // in-flight lazy WDA starts
 	// autoWait bounds how long EnsureWDA blocks (default 60s; tests lower it).
 	autoWait time.Duration
+
+	// Host runs host commands (ps, footprint) for memory measurement; nil = ExecHost.
+	Host HostRunner
+
+	slimPath  string
+	slimEng   *slim.Engine
+	noReapply bool
 }
 
 type startCall struct {
@@ -405,7 +413,16 @@ func (c *Control) Boot(ctx context.Context, udid string) (Sim, error) {
 	if c.OnChange != nil {
 		c.OnChange()
 	}
-	return c.Get(ctx, udid)
+	sim, err = c.Get(ctx, udid)
+	if err == nil {
+		c.mu.Lock()
+		skip := c.noReapply
+		c.mu.Unlock()
+		if !skip {
+			c.reapplyAfterBoot(sim)
+		}
+	}
+	return sim, err
 }
 
 // Shutdown stops WDA, then shuts the simulator down.

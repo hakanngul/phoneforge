@@ -71,12 +71,57 @@ wait --text T | --id ID [--gone] [--ocr] [--timeout 10s]
 dsl <file.json|->             run <file.mob|file.json> [--project NAME]
 logs [-f] [--seconds N] [--grep T]       record [--seconds N] [-o file.mp4]
 crashes [--app B] [--limit N]            crash <name> [-o file]
-bridge start|stop|status      sims      sim boot|shutdown <udid|name>
+bridge start|stop|status      sims      sim boot|shutdown|unslim|mem <udid|name>
+sim slim <udid|name> [--profile P] [--groups a,b] [--dry-run]
 agent "prompt" [--model haiku] [--agent NAME] [--session ID] [--max-steps N]
 server status|history|start|stop   version   help [command]
 ```
 
 `pocketlab help <command>` (or `<command> --help`) prints concise per-command help.
+
+### Simulator slimming (macOS)
+
+A stock iOS 27 simulator uses about 10 GB of memory (measured as footprint, see below); most of it is background
+daemons an automation run never touches. `sim slim` turns them off inside a **booted** iOS simulator so several
+fit in RAM:
+
+```
+pocketlab sim slim "iPhone 17"                       # minimal-safe, about half the memory
+pocketlab sim slim "iPhone 17" --profile aggressive  # about a quarter to a third
+pocketlab sim slim "iPhone 17" --groups siri,photos  # custom (implies --profile custom)
+pocketlab sim slim "iPhone 17" --dry-run             # list the labels, change nothing
+pocketlab sim mem  "iPhone 17"                       # footprint, RSS, process count
+pocketlab sim unslim "iPhone 17"                     # re-enable and reboot
+```
+
+| Profile | Disables | Measured on iOS 27.2 (stock 10.0 GB) |
+|---|---|---|
+| `minimal-safe` (default) | siri, intelligence, spotlight, photos, widgets, healthkit, gamecenter, news-weather, companion, screentime, analytics, mail | 52% live, 52% after reboot |
+| `aggressive` | all of the above plus icloud, location, pim, comms, homekit, lockscreen | 30% live, 26% after reboot |
+| `custom` | the `--groups` you list (also `icloud`, `location`, `pim`, `comms`, `homekit`, `lockscreen`) | |
+
+How it works: for each label in the profile for the simulator's iOS major (nearest lower major if the exact one is
+missing), Pocketlab runs `simctl spawn <udid> launchctl disable user/<uid>/<label>` and `bootout`. launchd keeps the
+disabled set across reboot and `simctl erase` (not across `simctl clone`). A hard keep list (SpringBoard,
+backboardd, testmanagerd/XCTest/WDA support, runningboardd, networking, text input, accessibility, pasteboard, lsd,
+installd, containermanagerd, cfprefsd, notifyd, apsd/push, locationd, ...) is enforced in code and can never be
+disabled. Labels that do not exist on a runtime are skipped and reported: the result lists `applied`, `missing` and
+`failed`, so an Apple rename means less slimming, never a broken simulator. State is recorded in
+`~/.pocketlab/iossim-slim.json`; `unslim` re-enables the recorded labels and reboots.
+
+WDA is stopped before slimming; if it was running, the supervisor restarts it. Settings, Safari, keyboard typing,
+the UI tree, `simctl push` and `simctl location` keep working (see `docs/plans/simulator-slimming-spike.md`).
+Known side effects: home-screen widgets render blank; with `aggressive` the lock-screen wallpaper cannot be changed;
+apps that use HealthKit, CloudKit, HomeKit, EventKit or telephony APIs may stall under the groups that disable those
+services.
+
+`--json` output is the REST body (`POST /api/v1/simulators/{udid}/slim`, `GET .../slim`, `POST .../unslim`,
+`GET .../memory`). The same operations are MCP tools `slim_simulator`, `unslim_simulator`, `simulator_memory`, and
+`boot_simulator` takes an optional `slim` flag (default off). On Windows and Linux slimming returns "requires macOS".
+
+Memory is the sum of `footprint(1)` over the simulator's process tree (no sudo). RSS is shown too but over-counts
+shared pages (a stock simulator sums to more than 20 GB of RSS), so use footprint. `sim slim <udid> --discover`
+is a hidden diagnostic that lists every launchd label with its memory, profile group and keep flag.
 
 ### Notes
 

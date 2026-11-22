@@ -53,7 +53,8 @@ Server `pocketlab`, endpoint `http://127.0.0.1:8700/mcp` (streamable HTTP). Ever
 | `start_bridge` / `stop_bridge` / `bridge_status` | id | Android: UiAutomator2; iOS: WebDriverAgent (required for iOS control) |
 | `ios_install_helper` | id | installs locally built WDA runner; explicit user action |
 | `list_simulators` | - | all simulators, state, WDA status |
-| `boot_simulator` / `shutdown_simulator` | udid | booted sim shows up as `sim-<udid>` |
+| `boot_simulator` / `shutdown_simulator` | udid (boot: optional `slim`, `profile`) | booted sim shows up as `sim-<udid>` |
+| `slim_simulator` / `unslim_simulator` / `simulator_memory` | udid (slim: `profile`, `groups`, `dry_run`) | turns off background daemons to cut memory (macOS) |
 
 ## WebView / Chrome (Android)
 `web_targets`, `web_navigate` (url), `web_eval` (script), `web_click` (selector), `web_type` (selector, text);

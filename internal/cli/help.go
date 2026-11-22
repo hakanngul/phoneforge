@@ -189,9 +189,21 @@ Problems (Xcode missing, no team, phone not trusted, ...) are printed with what 
 
 List iOS simulators with state, runtime and WDA state.`,
 
-	"sim": `Usage: pocketlab sim boot|shutdown <udid|name>
+	"sim": `Usage: pocketlab sim boot|shutdown|unslim|mem <udid|name>
+       pocketlab sim slim <udid|name> [--profile minimal-safe|aggressive|custom] [--groups a,b] [--dry-run]
 
-Boot or shut down an iOS simulator. The name may be a unique prefix.`,
+Boot or shut down an iOS simulator. The name may be a unique prefix.
+
+slim turns off background daemons (Siri, Spotlight, photo analysis, widgets,
+Health, ...) in a booted iOS simulator so several fit in RAM. The disabled
+state survives reboot; 'unslim' re-enables the recorded labels and reboots.
+  --profile P   minimal-safe (default), aggressive or custom
+  --groups L    comma-separated groups (implies custom): siri, intelligence, spotlight,
+                photos, widgets, healthkit, gamecenter, news-weather, companion,
+                screentime, analytics, mail, icloud, location, pim, comms, homekit, lockscreen
+  --dry-run     list what would be disabled; change nothing
+mem prints the simulator's footprint (sum of its process tree, no sudo needed).
+macOS only. See docs/cli.md.`,
 
 	"agent": `Usage: pocketlab agent "prompt" [--model haiku] [--agent NAME] [--max-steps N]
 

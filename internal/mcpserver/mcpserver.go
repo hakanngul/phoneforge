@@ -276,9 +276,52 @@ func New(apiBaseURL, version string) *server.MCPServer {
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return c.text(ctx, "GET", "/simulators", "")
 		})
-	s.AddTool(mcp.NewTool("boot_simulator", mcp.WithDescription("Boot a simulator and wait until ready; it then appears in list_devices as sim-<udid>. Call start_bridge on that device id to enable screenshots-with-input, UI tree and gestures (WebDriverAgent)."), simID),
+	s.AddTool(mcp.NewTool("boot_simulator", mcp.WithDescription("Boot a simulator and wait until ready; it then appears in list_devices as sim-<udid>. Call start_bridge on that device id to enable screenshots-with-input, UI tree and gestures (WebDriverAgent). Set slim=true to also turn off background daemons (see slim_simulator; off by default)."), simID,
+		mcp.WithBoolean("slim", mcp.Description("Also apply a slimming profile after boot (default false)")),
+		mcp.WithString("profile", mcp.Description("Slim profile when slim=true: minimal-safe (default) or aggressive"))),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return runner.text(ctx, "POST", simPath(req, "/boot"), "")
+			res, err := runner.text(ctx, "POST", simPath(req, "/boot"), "")
+			if err != nil || res.IsError || !req.GetBool("slim", false) {
+				return res, err
+			}
+			body := "{}"
+			if p := req.GetString("profile", ""); p != "" {
+				body = jsonBody("profile", p)
+			}
+			sres, err := runner.text(ctx, "POST", simPath(req, "/slim"), body)
+			if err != nil || sres.IsError {
+				return sres, err
+			}
+			return mcp.NewToolResultText(resultText(res) + "\n" + resultText(sres)), nil
+		})
+	s.AddTool(mcp.NewTool("slim_simulator", mcp.WithDescription("Turn off background daemons (Siri, Spotlight, photo analysis, widgets, Health, ...) in a BOOTED iOS simulator so several fit in RAM; typically cuts memory to roughly a third to a half. The state survives reboot; undo with unslim_simulator. Stops WebDriverAgent first (it restarts if it was running). Returns applied/missing/failed labels."), simID,
+		mcp.WithString("profile", mcp.Description("minimal-safe (default), aggressive (also iCloud, routine/maps, mail/calendar sync, telephony, HomeKit, lock-screen host) or custom (with groups)")),
+		mcp.WithString("groups", mcp.Description("Comma-separated groups for custom: siri, intelligence, spotlight, photos, widgets, healthkit, gamecenter, news-weather, companion, screentime, analytics, mail, icloud, location, pim, comms, homekit, lockscreen")),
+		mcp.WithBoolean("dry_run", mcp.Description("List what would be disabled without changing anything"))),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			var gs []string
+			for _, g := range strings.Split(req.GetString("groups", ""), ",") {
+				if g = strings.TrimSpace(g); g != "" {
+					gs = append(gs, g)
+				}
+			}
+			body := map[string]any{"dryRun": req.GetBool("dry_run", false)}
+			if p := req.GetString("profile", ""); p != "" {
+				body["profile"] = p
+			}
+			if len(gs) > 0 {
+				body["groups"] = gs
+			}
+			b, _ := json.Marshal(body)
+			return runner.text(ctx, "POST", simPath(req, "/slim"), string(b))
+		})
+	s.AddTool(mcp.NewTool("unslim_simulator", mcp.WithDescription("Re-enable the daemons disabled by slim_simulator and reboot the simulator so they start again"), simID),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return runner.text(ctx, "POST", simPath(req, "/unslim"), "")
+		})
+	s.AddTool(mcp.NewTool("simulator_memory", mcp.WithDescription("Memory use of a booted simulator: footprintMB (sum of its process tree, the reliable number), rssMB (overcounts shared pages) and procCount. Use before/after slim_simulator."), simID),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return c.text(ctx, "GET", simPath(req, "/memory"), "")
 		})
 	s.AddTool(mcp.NewTool("shutdown_simulator", mcp.WithDescription("Stop WebDriverAgent (if running) and shut a simulator down"), simID),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -420,4 +463,14 @@ func stripScreenshots(b []byte) []byte {
 // Handler returns an http.Handler serving s over MCP streamable HTTP.
 func Handler(s *server.MCPServer) http.Handler {
 	return server.NewStreamableHTTPServer(s)
+}
+
+func resultText(r *mcp.CallToolResult) string {
+	var sb strings.Builder
+	for _, c := range r.Content {
+		if t, ok := c.(mcp.TextContent); ok {
+			sb.WriteString(t.Text)
+		}
+	}
+	return sb.String()
 }

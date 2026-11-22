@@ -1,0 +1,317 @@
+{
+  "version": 1,
+  "presets": {
+    "minimal-safe": {
+      "description": "Daemons nothing in an automation session needs: Siri, Apple Intelligence, Spotlight indexing, photo analysis, widgets, Health/Fitness, Game Center, News/Weather, Apple Watch companion, Screen Time, Mail sync agents and analytics.",
+      "groups": [
+        "siri",
+        "intelligence",
+        "spotlight",
+        "photos",
+        "widgets",
+        "healthkit",
+        "gamecenter",
+        "news-weather",
+        "companion",
+        "screentime",
+        "analytics",
+        "mail"
+      ]
+    },
+    "aggressive": {
+      "description": "Everything in minimal-safe plus iCloud sync, routine/maps location services, Calendar/Contacts/Reminders daemons, telephony/messaging, HomeKit, Wallet and the lock-screen poster host (wallpaper edits stop working). Apps that use those frameworks may misbehave.",
+      "groups": [
+        "siri",
+        "intelligence",
+        "spotlight",
+        "photos",
+        "widgets",
+        "healthkit",
+        "gamecenter",
+        "news-weather",
+        "companion",
+        "screentime",
+        "analytics",
+        "mail",
+        "icloud",
+        "location",
+        "pim",
+        "comms",
+        "homekit",
+        "lockscreen"
+      ]
+    }
+  },
+  "groups": {
+    "siri": "Siri and dictation back ends",
+    "intelligence": "Apple Intelligence / on-device model services",
+    "spotlight": "Spotlight search and indexing",
+    "photos": "Photo library analysis and conversion",
+    "widgets": "Widget host and renderer, plus the Calendar app SpringBoard keeps running for its dynamic icon",
+    "healthkit": "Health, Fitness, Activity and Sleep",
+    "gamecenter": "Game Center",
+    "news-weather": "News and Weather",
+    "companion": "Apple Watch companion and pairing",
+    "screentime": "Screen Time and Family Sharing",
+    "analytics": "Analytics, ads and telemetry",
+    "icloud": "iCloud, CloudKit, Safari bookmark and defaults sync",
+    "location": "Routine, Maps sync and Find My",
+    "pim": "Calendar, Contacts, Reminders and Notes daemons (apps using EventKit/Contacts may stall)",
+    "comms": "Telephony, FaceTime, iMessage",
+    "homekit": "HomeKit and Wallet",
+    "lockscreen": "Lock-screen poster host (PosterBoard) and its extensions",
+    "mail": "Mail and Safari-bookmark sync agents (no accounts exist on a fresh simulator)"
+  },
+  "runtimes": {
+    "27": {
+      "siri": {
+        "labels": [
+          "com.apple.assistantd",
+          "com.apple.siriinferenced",
+          "com.apple.sirittsd",
+          "com.apple.siriactionsd",
+          "com.apple.siriknowledged",
+          "com.apple.siri.context.service",
+          "com.apple.assistant_service",
+          "com.apple.assistant_cdmd",
+          "com.apple.voicebankingd",
+          "com.apple.corespeechd",
+          "com.apple.speechmaintenanced",
+          "com.apple.siri.acousticsignature",
+          "com.apple.shazameventsd",
+          "com.apple.shazamd"
+        ]
+      },
+      "intelligence": {
+        "labels": [
+          "com.apple.intelligenceflowd",
+          "com.apple.intelligencecontextd",
+          "com.apple.intelligenceplatformd",
+          "com.apple.intelligencetasksd",
+          "com.apple.generativeexperiencesd",
+          "com.apple.GenerativeFunctions.agentstored",
+          "com.apple.modelcatalogd",
+          "com.apple.modelmanagerd",
+          "com.apple.mlruntimed",
+          "com.apple.mlhostd",
+          "com.apple.imageplaygroundd",
+          "com.apple.textunderstandingd",
+          "com.apple.knowledgeconstructiond",
+          "com.apple.suggestd",
+          "com.apple.proactiveeventtrackerd",
+          "com.apple.peopled"
+        ]
+      },
+      "spotlight": {
+        "labels": [
+          "com.apple.searchd",
+          "com.apple.spotlightknowledged",
+          "com.apple.spotlightknowledged.updater",
+          "com.apple.fileindexerd",
+          "com.apple.hybridsearchd",
+          "com.apple.corespotlightservice",
+          "com.apple.searchtoold"
+        ],
+        "apps": [
+          "com.apple.Spotlight"
+        ]
+      },
+      "photos": {
+        "labels": [
+          "com.apple.photoanalysisd",
+          "com.apple.mediaanalysisd",
+          "com.apple.mediaanalysisd.service",
+          "com.apple.cloudphotod",
+          "com.apple.photos.ImageConversionService",
+          "com.apple.photos.VideoConversionService",
+          "com.apple.photosface",
+          "com.apple.avatarsd"
+        ]
+      },
+      "widgets": {
+        "labels": [
+          "com.apple.chronod",
+          "com.apple.liveactivitiesd"
+        ],
+        "apps": [
+          "com.apple.chrono.WidgetRenderer-Default",
+          "com.apple.mobilecal"
+        ]
+      },
+      "healthkit": {
+        "labels": [
+          "com.apple.healthd",
+          "com.apple.healthappd",
+          "com.apple.healthrecordsd",
+          "com.apple.healtheventsd",
+          "com.apple.healthcontentd",
+          "com.apple.fitnesscoachingd",
+          "com.apple.fitcore",
+          "com.apple.fitcore.session",
+          "com.apple.fitnessintelligenced",
+          "com.apple.activityawardsd",
+          "com.apple.activitysharingd",
+          "com.apple.activityprogress.activityprogressui",
+          "com.apple.sleepd",
+          "com.apple.finhealthd"
+        ]
+      },
+      "gamecenter": {
+        "labels": [
+          "com.apple.gamed",
+          "com.apple.gamesaved",
+          "com.apple.gamecontroller.ConfigService"
+        ]
+      },
+      "news-weather": {
+        "labels": [
+          "com.apple.newsd",
+          "com.apple.nanonewscd",
+          "com.apple.weatherd"
+        ]
+      },
+      "companion": {
+        "labels": [
+          "com.apple.nanotimekitcompaniond",
+          "com.apple.nanomapscd",
+          "com.apple.NPKCompanionAgent",
+          "com.apple.companionappd",
+          "com.apple.bulletindistributord",
+          "com.apple.brook.brookcompaniond",
+          "com.apple.pairedsyncd",
+          "com.apple.addressbooksyncd",
+          "com.apple.nanoprefsyncd.2",
+          "com.apple.nanoregistrylaunchd",
+          "com.apple.nanobackupd",
+          "com.apple.nanoappregistryd",
+          "com.apple.pairedunlockd",
+          "com.apple.companionmessagesd",
+          "com.apple.companiond",
+          "com.apple.eventkitsyncd",
+          "com.apple.companionfindlocallyd",
+          "com.apple.nanosystemsettingsd",
+          "com.apple.wcd"
+        ]
+      },
+      "screentime": {
+        "labels": [
+          "com.apple.ScreenTimeAgent",
+          "com.apple.ScreenTimeSettingsAgent",
+          "com.apple.FamilyControlsAgent",
+          "com.apple.familycircled",
+          "com.apple.familynotification",
+          "com.apple.ManagedSettingsAgent",
+          "com.apple.schooltimed"
+        ],
+        "apps": [
+          "com.apple.family"
+        ]
+      },
+      "analytics": {
+        "labels": [
+          "com.apple.biomed",
+          "com.apple.biomesyncd",
+          "com.apple.triald",
+          "com.apple.rtcreportingd",
+          "com.apple.diagnosticextensionsd",
+          "com.apple.ap.adprivacyd",
+          "com.apple.ap.promotedcontentd",
+          "com.apple.amsengagementd",
+          "com.apple.parsecd",
+          "com.apple.parsec-fbf",
+          "com.apple.feedbackd",
+          "com.apple.privacyaccountingd",
+          "com.apple.UsageTrackingAgent",
+          "com.apple.logd_reporter",
+          "com.apple.securityuploadd",
+          "com.apple.geoanalyticsd",
+          "com.apple.webkit.adattributiond",
+          "com.apple.Safari.passwordbreachd"
+        ]
+      },
+      "icloud": {
+        "labels": [
+          "com.apple.bird",
+          "com.apple.cloudd",
+          "com.apple.itunescloudd",
+          "com.apple.icloudmailagent",
+          "com.apple.cloudsettingssyncagent",
+          "com.apple.WebBookmarks.webbookmarksd",
+          "com.apple.syncdefaultsd",
+          "com.apple.ckdiscretionaryd",
+          "com.apple.cksharingmanagementd",
+          "com.apple.protectedcloudstorage.protectedcloudkeysyncing",
+          "com.apple.icloudsubscriptionoptimizerd",
+          "com.apple.cdpd",
+          "com.apple.SecureBackupDaemon",
+          "com.apple.TrustedPeersHelper",
+          "com.apple.keychainsharingmessagingd"
+        ]
+      },
+      "location": {
+        "labels": [
+          "com.apple.routined",
+          "com.apple.CoreRoutine.helperservice",
+          "com.apple.navd",
+          "com.apple.Maps.mapssyncd",
+          "com.apple.maps.destinationd",
+          "com.apple.Maps.geocorrectiond",
+          "com.apple.Maps.mapspushd",
+          "com.apple.GeoServices.MapsOfflineServices",
+          "com.apple.findmy.findmylocated",
+          "com.apple.carkitd",
+          "com.apple.safetycheckd"
+        ]
+      },
+      "pim": {
+        "labels": [
+          "com.apple.dataaccess.dataaccessd",
+          "com.apple.calaccessd",
+          "com.apple.remindd",
+          "com.apple.contactsd",
+          "com.apple.mobilenotes.datastore",
+          "com.apple.contacts.postersyncd"
+        ]
+      },
+      "comms": {
+        "labels": [
+          "com.apple.telephonyutilities.callservicesd",
+          "com.apple.imdpersistence.IMDPersistenceAgent",
+          "com.apple.imcore.imtransferagent",
+          "com.apple.facetimemessagestored",
+          "com.apple.avconferenced",
+          "com.apple.callintelligenced",
+          "com.apple.CallKit.CallDirectory",
+          "com.apple.announced",
+          "com.apple.messagesescrowd",
+          "com.apple.imautomatichistorydeletionagent",
+          "com.apple.sociallayerd"
+        ]
+      },
+      "homekit": {
+        "labels": [
+          "com.apple.homed",
+          "com.apple.homeeventsd",
+          "com.apple.passd",
+          "com.apple.financed",
+          "com.apple.ServicesPaymentAngel",
+          "com.apple.merchantd"
+        ]
+      },
+      "lockscreen": {
+        "labels": [
+          "com.apple.PosterBoard"
+        ]
+      },
+      "mail": {
+        "labels": [
+          "com.apple.email.maild",
+          "com.apple.icloudmailagent",
+          "com.apple.exchangesyncd",
+          "com.apple.businessservicesd",
+          "com.apple.SafariBookmarksSyncAgent"
+        ]
+      }
+    }
+  }
+}

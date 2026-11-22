@@ -811,3 +811,35 @@ func TestServerHistoryOffline(t *testing.T) {
 		t.Errorf("offline status: %d %q", code, so.String())
 	}
 }
+
+func TestSimSlimUnslimMem(t *testing.T) {
+	f := newFake(t)
+	f.json("GET /simulators", `{"simulators":[{"udid":"UDID-2","name":"GP Dev2","state":"Booted","runtime":"iOS 27","platform":"iOS","wda":{"state":"stopped"}}]}`)
+	f.json("POST /simulators/UDID-2/slim", `{"udid":"UDID-2","profile":"custom","groups":["siri","photos"],"applied":["a","b"],"missing":["c"],"failed":[],"protected":[],"dryRun":true}`)
+	f.json("POST /simulators/UDID-2/unslim", `{"udid":"UDID-2","enabled":["a","b"],"failed":[],"rebooted":true}`)
+	f.json("GET /simulators/UDID-2/memory", `{"udid":"UDID-2","rssMB":20000,"footprintMB":5000,"procCount":120}`)
+
+	code, out, _ := run(t, f, "", "sim", "slim", "gp dev2", "--groups", "siri, photos", "--dry-run")
+	if code != 0 || !strings.Contains(out, "would disable 2 labels, 1 missing") {
+		t.Fatalf("slim: %d %q", code, out)
+	}
+	r, ok := f.last("POST", "/simulators/UDID-2/slim")
+	if !ok || strings.TrimSpace(r.Body) != `{"dryRun":true,"groups":["siri","photos"]}` {
+		t.Fatalf("slim body: %q", r.Body)
+	}
+	if code, out, _ := run(t, f, "", "--json", "sim", "slim", "UDID-2", "--profile", "aggressive"); code != 0 || !strings.Contains(out, `"applied"`) {
+		t.Fatalf("slim json: %d %q", code, out)
+	}
+	if r, _ := f.last("POST", "/simulators/UDID-2/slim"); !strings.Contains(r.Body, `"profile":"aggressive"`) {
+		t.Fatalf("profile body: %q", r.Body)
+	}
+	if code, out, _ := run(t, f, "", "sim", "unslim", "UDID-2"); code != 0 || !strings.Contains(out, "2 labels re-enabled") {
+		t.Fatalf("unslim: %d %q", code, out)
+	}
+	if code, out, _ := run(t, f, "", "sim", "mem", "UDID-2"); code != 0 || !strings.Contains(out, "footprint 5000 MB") {
+		t.Fatalf("mem: %d %q", code, out)
+	}
+	if code, _, _ := run(t, f, "", "sim", "boot", "UDID-2", "--profile", "aggressive"); code != ExitUsage {
+		t.Errorf("--profile on boot should be a usage error, got %d", code)
+	}
+}

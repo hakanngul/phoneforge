@@ -192,6 +192,7 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 	reg.AddDiscoverer(iosWDADiscoverer{inner: registry.WithGraceIf(iosdrv.NewDiscoverer(), registry.DefaultGrace, iosdrv.IsNetworkDevice), ctl: iosCtl})
 	simCtl := iossim.New("")
 	simCtl.SetStatePath(filepath.Join(stateDir, "iossim-state.json"))
+	simCtl.SetSlimPath(filepath.Join(stateDir, "iossim-slim.json"))
 	simSup := simCtl.Supervise(events.Info)
 	iosCtl.SetSim(simCtl)
 	if runtime.GOOS == "darwin" { // simulators need xcrun simctl
