@@ -39,6 +39,16 @@
   PF.hooks.onSelect.push(function () { pop.hidden = true; });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !pop.hidden && $('modal').hidden) pop.hidden = true; });
 
+  /* screenshot: save the current screen as a PNG */
+  $('shotBtn').addEventListener('click', function () {
+    if (!PF.needDevice()) return;
+    var id = PF.selectedId;
+    PF.busy($('shotBtn'), PF.api('GET', '/devices/' + encodeURIComponent(id) + '/screenshot?t=' + Date.now(), undefined, 'blob').then(function (blob) {
+      PF.saveBlob(blob, 'screenshot-' + id.replace(/[^A-Za-z0-9._-]/g, '_') + '-' + Date.now() + '.png');
+      PF.toast('Screenshot saved', true);
+    }).catch(function (e) { return PF.guardDev(Promise.reject(e)); }));
+  });
+
   /* record */
   var recTimer = null;
   $('recBtn').addEventListener('click', function () {
@@ -48,14 +58,15 @@
     if (n > 180) n = 180;
     $('recSecs').value = n;
     var btn = $('recBtn'), id = PF.selectedId, left = n;
-    btn.disabled = true; btn.textContent = 'Recording ' + left + 's';
+    var lbl = btn.querySelector('.lbl') || btn;
+    btn.disabled = true; btn.classList.add('rec-on'); lbl.textContent = left + 's';
     clearInterval(recTimer);
-    recTimer = setInterval(function () { left = Math.max(left - 1, 0); btn.textContent = left > 0 ? 'Recording ' + left + 's' : 'Saving...'; }, 1000);
+    recTimer = setInterval(function () { left = Math.max(left - 1, 0); lbl.textContent = left > 0 ? left + 's' : '...'; }, 1000);
     PF.api('GET', '/devices/' + encodeURIComponent(id) + '/recording?seconds=' + n, undefined, 'blob').then(function (blob) {
       PF.saveBlob(blob, 'recording-' + id.replace(/[^A-Za-z0-9._-]/g, '_') + '-' + Date.now() + '.mp4');
       PF.toast('Recording saved (' + Math.round(blob.size / 1024) + ' KB)', true);
     }).catch(function (e) { return PF.guardDev(Promise.reject(e)); }).then(function () {
-      clearInterval(recTimer); btn.disabled = false; btn.textContent = 'Record';
+      clearInterval(recTimer); btn.disabled = false; btn.classList.remove('rec-on'); lbl.textContent = 'Record';
     });
   });
 })();

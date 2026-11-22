@@ -309,3 +309,34 @@ body:not(.hide-details) .st .raw{display:inline} body:not(.hide-details) .st .co
 .tbl tr.srv-bad td{background:rgba(248,113,113,.09)}
 .srv-kv{display:flex;gap:10px;padding:2px 0}.srv-k{width:90px;color:var(--mut)}.srv-v{flex:1;word-break:break-all}
 .srv-log{margin:4px 0 0;max-height:160px;overflow:auto;font:11px/1.45 ui-monospace,Menlo,monospace;background:var(--bg);padding:6px;border-radius:6px;white-space:pre-wrap}
+
+/* ---- v4: mirror button rails ---- */
+.live-area{gap:8px}
+.rail{flex:none;align-self:center;display:flex;flex-direction:column;align-items:center;gap:6px;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:12px;max-height:100%;overflow:auto}
+.rbtn{position:relative;width:38px;height:38px;flex:none;display:inline-flex;align-items:center;justify-content:center;padding:0;background:var(--panel2);border:1px solid var(--line);border-radius:8px;cursor:pointer;color:var(--fg)}
+.rbtn:hover{border-color:var(--acc2)}
+.rbtn:focus-visible{outline:2px solid var(--acc2);outline-offset:1px}
+.rbtn:disabled{opacity:.5;cursor:default}
+.rbtn svg{display:block}
+.rbtn .lbl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.rbtn.rec-on{color:var(--bad);border-color:var(--bad)}
+.rbtn.rec-on svg{display:none}
+.rbtn.rec-on .lbl{position:static;width:auto;height:auto;clip:auto;font:600 11px ui-monospace,Menlo,monospace}
+.rsep{width:24px;height:1px;background:var(--line);margin:2px 0;flex:none}
+.rrec{display:flex;flex-direction:column;align-items:center;gap:0;color:var(--mut);font-size:10px}
+.rrec .num{width:38px;padding:2px 2px;text-align:center;font-size:12px;-moz-appearance:textfield}
+.rrec .num::-webkit-inner-spin-button{display:none}
+.rrec .runit{line-height:1}
+/* flat fallback: Multi mode or narrow window */
+.rail-bar{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:6px 12px;border-bottom:1px solid var(--line)}
+.rail-bar[hidden]{display:none}
+.rail.flat{flex:0 1 auto;min-width:0;max-width:100%;flex-direction:row;flex-wrap:wrap;gap:6px;padding:0;background:none;border:0;border-radius:0;overflow:visible}
+.rail.flat .rbtn{width:auto;height:auto;padding:3px 8px;font-size:12px;gap:5px}
+.rail.flat .rbtn svg{width:14px;height:14px}
+.rail.flat .rbtn .lbl{position:static;width:auto;height:auto;clip:auto;overflow:visible}
+.rail.flat .rbtn.rec-on svg{display:inline-block}
+.rail.flat .rsep{width:1px;height:18px;margin:0 2px}
+.rail.flat .rrec{flex-direction:row;gap:3px}
+.rail.flat .rrec .num{width:50px}
+.toolbar.tools{border-top:1px solid var(--line);border-bottom:0;padding:6px 12px;flex:none}
+.toolbar.tools .popover{top:auto;bottom:100%;margin:0 0 4px}
