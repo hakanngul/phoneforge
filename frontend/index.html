@@ -61,13 +61,30 @@
       </div>
       <div class="rail-bar" id="railBar" hidden></div>
       <div id="multiGrid" class="multi-grid" hidden></div>
+      <div class="live-main" id="liveMain">
       <div class="live-area" id="singleArea">
+        <div class="rail-panel" id="railPanel">
         <div class="rail rail-left" id="railLeft" role="toolbar" aria-label="Navigation">
+          <div class="rtitle">Navigation</div>
           <button type="button" class="rbtn" data-key="home" title="Home" aria-label="Home"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span class="lbl">Home</span></button>
           <button type="button" class="rbtn" data-key="back" title="Back" aria-label="Back"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg><span class="lbl">Back</span></button>
           <button type="button" class="rbtn" data-key="enter" title="Enter" aria-label="Enter"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 5v8a2 2 0 0 1-2 2H5"/><path d="M9 11l-4 4 4 4"/></svg><span class="lbl">Enter</span></button>
           <button type="button" class="rbtn" data-key="delete" title="Delete" aria-label="Delete"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 5H9l-6 7 6 7h12z"/><path d="M13 10l4 4M17 10l-4 4"/></svg><span class="lbl">Delete</span></button>
           <button type="button" class="rbtn" id="kbBtn" title="Hide keyboard" aria-label="Hide keyboard"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg><span class="lbl">Hide keyboard</span></button>
+        </div>
+        <div class="rail rail-right" id="railRight" role="toolbar" aria-label="Gestures and capture">
+          <div class="rtitle">Gestures</div>
+          <button type="button" class="rbtn" id="swipeUp" title="Swipe up" aria-label="Swipe up"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg><span class="lbl">Swipe up</span></button>
+          <button type="button" class="rbtn" id="swipeDown" title="Swipe down" aria-label="Swipe down"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg><span class="lbl">Swipe down</span></button>
+          <button type="button" class="rbtn" id="zoomIn" title="Zoom in: pinch out at the screen centre (needs the bridge). Ctrl/Cmd + wheel pinches at the pointer." aria-label="Zoom in: pinch out at the screen centre (needs the bridge). Ctrl/Cmd + wheel pinches at the pointer."><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/></svg><span class="lbl">Zoom +</span></button>
+          <button type="button" class="rbtn" id="zoomOut" title="Zoom out: pinch in at the screen centre (needs the bridge)" aria-label="Zoom out: pinch in at the screen centre (needs the bridge)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h6"/></svg><span class="lbl">Zoom &#8722;</span></button>
+          <span class="rsep" role="separator"></span>
+          <div class="rtitle">Capture</div>
+          <button type="button" class="rbtn" id="shotBtn" title="Screenshot: save the current screen as PNG" aria-label="Screenshot: save the current screen as PNG"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8a2 2 0 0 1 2-2h2l1.5-2h5L16 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg><span class="lbl">Screenshot</span></button>
+          <span class="rrec"><input id="recSecs" type="number" min="1" max="180" value="10" class="num" title="Recording length in seconds" aria-label="Recording seconds"><span class="runit">s</span></span>
+          <button type="button" class="rbtn" id="recBtn" title="Record: save a screen recording of the chosen length" aria-label="Record: save a screen recording of the chosen length"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg><span class="lbl">Record</span></button>
+          <button type="button" class="rbtn" id="ocrBtn" title="Run OCR on the device screen; click a result to tap it" aria-label="Run OCR on the device screen; click a result to tap it"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M8 15l2.5-6 2.5 6M9 13.2h3M15 9v6"/></svg><span class="lbl">OCR</span></button>
+        </div>
         </div>
         <div class="phone">
           <div class="screen" id="screen">
@@ -78,18 +95,31 @@
             <div id="iosNotice" class="placeholder notice" hidden><div><strong>iOS live control needs the WDA bridge &mdash; not running</strong><div class="detail muted"></div><div class="muted">Use &ldquo;Start WDA&rdquo; in the toolbar (or &ldquo;Install helper&rdquo; first). Device info and Apps still work.</div></div></div>
           </div>
         </div>
-        <div class="rail rail-right" id="railRight" role="toolbar" aria-label="Gestures and capture">
-          <button type="button" class="rbtn" id="swipeUp" title="Swipe up" aria-label="Swipe up"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg><span class="lbl">Swipe up</span></button>
-          <button type="button" class="rbtn" id="swipeDown" title="Swipe down" aria-label="Swipe down"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg><span class="lbl">Swipe down</span></button>
-          <button type="button" class="rbtn" id="zoomIn" title="Zoom in: pinch out at the screen centre (needs the bridge). Ctrl/Cmd + wheel pinches at the pointer." aria-label="Zoom in: pinch out at the screen centre (needs the bridge). Ctrl/Cmd + wheel pinches at the pointer."><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/></svg><span class="lbl">Zoom +</span></button>
-          <button type="button" class="rbtn" id="zoomOut" title="Zoom out: pinch in at the screen centre (needs the bridge)" aria-label="Zoom out: pinch in at the screen centre (needs the bridge)"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h6"/></svg><span class="lbl">Zoom &#8722;</span></button>
-          <span class="rsep" role="separator"></span>
-          <button type="button" class="rbtn" id="shotBtn" title="Screenshot: save the current screen as PNG" aria-label="Screenshot: save the current screen as PNG"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8a2 2 0 0 1 2-2h2l1.5-2h5L16 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg><span class="lbl">Screenshot</span></button>
-          <span class="rrec"><input id="recSecs" type="number" min="1" max="180" value="10" class="num" title="Recording length in seconds" aria-label="Recording seconds"><span class="runit">s</span></span>
-          <button type="button" class="rbtn" id="recBtn" title="Record: save a screen recording of the chosen length" aria-label="Record: save a screen recording of the chosen length"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg><span class="lbl">Record</span></button>
-          <button type="button" class="rbtn" id="ocrBtn" title="Run OCR on the device screen; click a result to tap it" aria-label="Run OCR on the device screen; click a result to tap it"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M8 15l2.5-6 2.5 6M9 13.2h3M15 9v6"/></svg><span class="lbl">OCR</span></button>
-        </div>
         <div id="inspector" class="inspector" hidden></div>
+      </div>
+      <aside class="agent" id="agentCol" aria-label="AI agent chat">
+        <div class="agent-head">
+          <span class="agent-title">Agent</span>
+          <select id="agentPick" class="agent-pick" title="Agent that runs your prompts (same setting as Integrations &rarr; AI Configuration)"></select>
+          <select id="agentModel" class="agent-model" title="Model" hidden>
+            <option value="default">Default</option>
+            <option value="haiku">Haiku</option>
+            <option value="sonnet">Sonnet</option>
+            <option value="opus">Opus</option>
+            <option value="fable">Fable</option>
+          </select>
+          <select id="agentModelOllama" class="agent-model" title="Local Ollama model" hidden></select>
+          <input id="agentModelText" class="agent-model" type="text" placeholder="model (blank = default)" title="Model" hidden>
+          <button class="btn sm" id="agentNewChat" type="button" title="Forget the conversation and start a new chat">New chat</button>
+          <label class="agent-details" title="Show tool results, internal tool calls and raw arguments"><input type="checkbox" id="agentDetails"> Show details</label>
+        </div>
+        <div id="transcript" class="transcript" aria-live="polite"><div class="chat-empty">Ask the agent to do something on the device.</div></div>
+        <form id="agentForm" class="agent-form">
+          <textarea id="agentInput" rows="1" placeholder="Describe what you want the agent to do&hellip;" autocomplete="off"></textarea>
+          <button class="btn primary" id="agentSend" type="submit">Send</button>
+          <button class="btn" id="agentStop" type="button" hidden>Stop</button>
+        </form>
+      </aside>
       </div>
       <div class="toolbar tools" id="tools">
         <div class="tgroup grow" data-label="Text">
@@ -111,26 +141,6 @@
           <textarea id="clipText" rows="4" spellcheck="false" placeholder="Clipboard text"></textarea>
           <div class="btn-row"><button class="btn sm" id="clipRead">Read from device</button><button class="btn sm primary" id="clipSend">Send to device</button><button class="btn sm" id="clipClose">Close</button></div>
         </div>
-      </div>
-      <div class="agent">
-        <div id="transcript" class="transcript" hidden></div>
-        <form id="agentForm" class="agent-form">
-          <input id="agentInput" type="text" placeholder="Describe what you want the agent to do&hellip;" autocomplete="off">
-          <button class="btn primary" id="agentSend" type="submit">Send</button>
-          <button class="btn" id="agentStop" type="button" hidden>Stop</button>
-          <button class="btn" id="agentNewChat" type="button" title="Forget the conversation and start a new chat">New chat</button>
-          <label class="agent-details" title="Show tool results, internal tool calls and raw arguments"><input type="checkbox" id="agentDetails"> Show details</label>
-          <select id="agentPick" class="agent-pick" title="Agent that runs your prompts (same setting as Integrations &rarr; AI Configuration)"></select>
-          <select id="agentModel" class="agent-model" title="Model" hidden>
-            <option value="default">Default</option>
-            <option value="haiku">Haiku</option>
-            <option value="sonnet">Sonnet</option>
-            <option value="opus">Opus</option>
-            <option value="fable">Fable</option>
-          </select>
-          <select id="agentModelOllama" class="agent-model" title="Local Ollama model" hidden></select>
-          <input id="agentModelText" class="agent-model" type="text" placeholder="model (blank = default)" title="Model" hidden>
-        </form>
       </div>
     </section>
 
@@ -243,6 +253,7 @@
 <script src="integrations.js"></script>
 <script src="server.js"></script>
 <script src="layout.js"></script>
+<script src="chat.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

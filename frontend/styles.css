@@ -340,3 +340,67 @@ body:not(.hide-details) .st .raw{display:inline} body:not(.hide-details) .st .co
 .rail.flat .rrec .num{width:50px}
 .toolbar.tools{border-top:1px solid var(--line);border-bottom:0;padding:6px 12px;flex:none}
 .toolbar.tools .popover{top:auto;bottom:100%;margin:0 0 4px}
+
+/* ---- v5: agent chat side column (index.html #agentCol, chat.js) ---- */
+.live-main{flex:1;min-height:0;display:flex;min-width:0}
+.live-main>.live-area{flex:1;min-width:0}
+.agent{position:relative;display:flex;flex-direction:column;width:380px;flex:none;min-height:0;padding:0;overflow:hidden;border-top:0;border-left:1px solid var(--line);background:var(--panel);transition:width .2s ease}
+.agent>:not(.pf-rail){transition:opacity .15s ease}
+.agent-head{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line);flex:none}
+.agent-title{font-weight:600;margin-right:auto}
+.agent-head select,.agent-head input.agent-model{flex:0 1 auto;width:auto;max-width:150px;min-width:0;font-size:12px}
+.agent-head input.agent-model{width:120px}
+.agent-head [hidden]{display:none}
+.agent .transcript{flex:1;min-height:0;max-height:none;margin:0;padding:10px;overflow:auto;display:flex;flex-direction:column;gap:6px;font-size:12.5px}
+.agent .transcript .st{padding:0;border:0}
+.agent .transcript .chat-empty{margin:auto;color:var(--mut);text-align:center;font-size:12px;padding:12px}
+.agent .transcript .tag{display:none}
+.agent .transcript .st.user{align-self:flex-end;max-width:85%;background:var(--acc);color:#fff;padding:6px 10px;border-radius:12px 12px 2px 12px;white-space:pre-wrap;word-break:break-word}
+.agent .transcript .st.thought,.agent .transcript .st.done,.agent .transcript .st.info,.agent .transcript .st.error{align-self:flex-start;max-width:92%;background:var(--panel2);border:1px solid var(--line);padding:6px 10px;border-radius:12px 12px 12px 2px;white-space:pre-wrap;word-break:break-word}
+.agent .transcript .st.done{border-color:var(--ok)}
+.agent .transcript .st.error{border-color:var(--bad);color:var(--bad)}
+.agent .transcript .st.action,.agent .transcript .st.observation{align-self:stretch;font:11px/1.45 ui-monospace,Menlo,monospace;color:var(--mut);padding:2px 8px;border-left:2px solid var(--warn);white-space:pre-wrap;word-break:break-all}
+.agent .transcript .st.observation{border-left-color:var(--line)}
+.agent .agent-form{flex:none;flex-wrap:nowrap;align-items:flex-end;padding:8px 10px;border-top:1px solid var(--line)}
+.agent .agent-form #agentInput{flex:1;min-width:0;resize:none;max-height:140px;line-height:1.4;font:inherit;overflow-y:auto}
+.agent .agent-form .btn{flex:none}
+.agent-form #agentStop[hidden]{display:none}
+/* collapsed to a slim rail (reuses .pf-rail from layout.js) */
+.pane.pf-c-collapsed .agent{width:32px;min-width:0}
+.pane.pf-c-collapsed .agent>.pf-rail{display:flex}
+.pane.pf-c-collapsed .agent>:not(.pf-rail){opacity:0;visibility:hidden;pointer-events:none}
+@media (prefers-reduced-motion:reduce){.agent{transition:none}}
+/* fallback: narrow windows or Multi mode -> chat becomes a bottom row under the tools row */
+@media (max-width:1399px){
+  .live-main{display:contents}
+  .agent{order:10;width:auto;max-height:240px;border-left:0;border-top:1px solid var(--line)}
+  .agent>.pf-rail,.agent-head .chat-collapse{display:none!important}
+  .pane.pf-c-collapsed .agent>:not(.pf-rail){opacity:1;visibility:visible;pointer-events:auto}
+}
+.live-main:has(#singleArea[hidden]){display:contents}
+.live-main:has(#singleArea[hidden])>.agent{order:10;width:auto;max-height:240px;border-left:0;border-top:1px solid var(--line)}
+.live-main:has(#singleArea[hidden])>.agent>.pf-rail,.live-main:has(#singleArea[hidden])>.agent .chat-collapse{display:none!important}
+.pane.pf-c-collapsed .live-main:has(#singleArea[hidden])>.agent>:not(.pf-rail){opacity:1;visibility:visible;pointer-events:auto}
+@media (max-width:1399px){.pane.pf-c-collapsed .agent{width:auto}}
+.pane.pf-c-collapsed .live-main:has(#singleArea[hidden])>.agent{width:auto}
+
+/* ---- v5: labeled control panel left of the phone (rails.js moves both rails into #railPanel) ---- */
+.rail-panel{flex:none;align-self:stretch;display:flex;flex-direction:column;gap:10px;width:168px;max-height:100%;overflow:auto;padding:2px}
+.rail-panel[hidden]{display:none}
+.rail-panel .rail{align-self:stretch;align-items:stretch;gap:4px;padding:8px;max-height:none;overflow:visible}
+.rail-panel .rail-right{flex:1 1 auto}
+.rtitle{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);padding:2px 4px}
+.rail-panel .rbtn{width:100%;height:auto;min-height:32px;justify-content:flex-start;gap:10px;padding:5px 10px;font-size:12.5px}
+.rail-panel .rbtn .lbl{position:static;width:auto;height:auto;clip:auto;overflow:visible}
+.rail-panel .rbtn.rec-on svg{display:block}
+.rail-panel .rsep{width:100%;height:0;margin:2px 0;background:none}
+.rail-panel .rrec{flex-direction:row;justify-content:flex-start;gap:4px;padding:0 4px;font-size:12px}
+.rail-panel .rrec .num{width:56px}
+.rail.flat .rtitle{display:none}
+@media (min-width:1400px) and (max-width:1700px){.agent{width:320px}}
+@media (max-height:900px){
+  .rail-panel{gap:6px;width:150px}
+  .rail-panel .rail{padding:5px;gap:3px}
+  .rail-panel .rbtn{min-height:26px;padding:2px 8px;font-size:12px}
+  .rtitle{padding:0 4px}
+}

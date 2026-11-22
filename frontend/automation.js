@@ -768,6 +768,7 @@
     if (type === 'action' && ev.tool && INTERNAL_TOOLS.test(ev.tool)) row.classList.add('row-internal');
     if (type === 'done' && ev.text && ev.text === lastThought) row.classList.add('row-dup');
     if (type === 'thought' && ev.text) lastThought = ev.text;
+    if (type === 'user') { row.appendChild(document.createTextNode(ev.text || '')); return row; }
     row.appendChild(PF.el('span', 'tag', type));
     if (type === 'action' && ev.tool) {
       var ca = compactArgs(ev.args);
@@ -786,7 +787,12 @@
     }
     return row;
   }
-  function tAdd(node) { var t = $('transcript'); t.hidden = false; t.appendChild(node); t.scrollTop = t.scrollHeight; }
+  function tClear() { var t = $('transcript'); t.innerHTML = ''; t.appendChild(PF.el('div', 'chat-empty', 'Ask the agent to do something on the device.')); }
+  function tAdd(node) {
+    var t = $('transcript'), e = t.querySelector('.chat-empty'); if (e) e.remove();
+    var stick = t.scrollHeight - t.scrollTop - t.clientHeight < 60 || node.classList.contains('user');
+    t.appendChild(node); if (stick) t.scrollTop = t.scrollHeight;
+  }
   function tErr(msg) { tAdd(stepLine({ type: 'error', text: msg })); if (agentSink) agentSink.line('[error] ' + msg); }
   var NO_LLM_MSG = 'No LLM provider configured for the built-in agent. Set ANTHROPIC_API_KEY or run Ollama, then restart Pocketlab \u2014 or select an external agent such as Claude Code in Integrations \u2192 AI Configuration.';
   function noLLM(s) { return /no llm provider|not configured|ANTHROPIC_API_KEY/i.test(s); }
@@ -819,7 +825,7 @@
     var d = PF.selectedDevice();
     if (d && d.state !== 'connected') { PF.toast('Device is ' + d.state); if (sink) sink.done(); return; }
     agentSink = sink || null;
-    tAdd(stepLine({ type: 'thought', text: 'Task: ' + task }));
+    if (sink) tAdd(stepLine({ type: 'user', text: task }));
     $('agentSend').disabled = true; $('agentStop').hidden = false;
     agentAbort = new AbortController();
     fetch(PF.API + PF.dev('/agent/run'), {
@@ -962,11 +968,11 @@
   function chatKey() { return PF.selectedId || ''; }
   function resetChat() {
     chatSessions = {}; lastThought = '';
-    var t = $('transcript'); t.innerHTML = ''; t.hidden = true;
+    tClear();
   }
   $('agentNewChat').addEventListener('click', function () {
     delete chatSessions[chatKey()]; lastThought = '';
-    var t = $('transcript'); t.innerHTML = ''; t.hidden = true;
+    tClear();
     PF.toast('New chat started', true);
   });
   document.addEventListener('visibilitychange', function () { if (!document.hidden) loadAISettings(); });
@@ -1003,7 +1009,7 @@
   function runExternal(task, sink, agent) {
     agentSink = sink || null;
     var lbl = AGENT_LABELS[agent] || agent;
-    tAdd(stepLine({ type: 'thought', text: 'Task (' + lbl + '): ' + task }));
+    if (sink) tAdd(stepLine({ type: 'user', text: task }));
     $('agentSend').disabled = true; $('agentStop').hidden = false;
     var run = extRun = { id: null, es: null, cancelled: false, sawDone: false };
     function emit(ev) { handleAgentEvent(ev); }
@@ -1055,6 +1061,7 @@
     if (!PF.needDevice()) return;
     var d = PF.selectedDevice();
     if (d && d.state !== 'connected') { PF.toast('Device is ' + d.state); return; }
+    tAdd(stepLine({ type: 'user', text: task }));
     loadAISettings().then(function () {
       var a = selAgent();
       if (a === 'builtin') runAgent(task); else runExternal(task, null, a);
@@ -1080,8 +1087,14 @@
   $('agentForm').addEventListener('submit', function (e) {
     e.preventDefault();
     var v = $('agentInput').value.trim(); if (!v) return;
-    $('agentInput').value = '';
+    $('agentInput').value = ''; growInput();
     startTask(v);
+  });
+  // textarea: Enter sends, Shift+Enter newline, autogrow up to ~6 lines
+  function growInput() { var i = $('agentInput'); i.style.height = 'auto'; i.style.height = Math.min(i.scrollHeight, 140) + 'px'; }
+  $('agentInput').addEventListener('input', growInput);
+  $('agentInput').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('agentForm').requestSubmit(); }
   });
   $('agentStop').addEventListener('click', stopAgent);
 

@@ -1,9 +1,9 @@
 /* Mirror button rails: hug the phone frame in single mode; in Multi mode or below 900px wide
-   both rails move into a compact horizontal bar above the mirror (DOM move only, same buttons/handlers). */
+   both rails (normally stacked in a labeled panel left of the phone) move into a compact horizontal bar above the mirror (DOM move only, same buttons/handlers). */
 (function () {
   'use strict';
   var PF = window.PF, $ = PF.$;
-  var left = $('railLeft'), right = $('railRight'), bar = $('railBar'), area = $('singleArea');
+  var left = $('railLeft'), right = $('railRight'), bar = $('railBar'), panel = $('railPanel'), area = $('singleArea');
   var phone = area.querySelector('.phone');
   var mq = window.matchMedia('(max-width: 899px)');
   var flat = null;
@@ -15,10 +15,9 @@
     if (flat) {
       bar.appendChild(left); bar.appendChild(right);
     } else {
-      area.insertBefore(left, phone);
-      area.insertBefore(right, phone.nextSibling);
+      panel.appendChild(left); panel.appendChild(right);
     }
-    bar.hidden = !flat;
+    bar.hidden = !flat; panel.hidden = flat;
     left.classList.toggle('flat', flat); right.classList.toggle('flat', flat);
   }
   $('multiToggle').addEventListener('change', function () { setTimeout(apply, 0); });
