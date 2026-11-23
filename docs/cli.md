@@ -72,7 +72,9 @@ dsl <file.json|->             run <file.mob|file.json> [--project NAME]
 logs [-f] [--seconds N] [--grep T]       record [--seconds N] [-o file.mp4]
 crashes [--app B] [--limit N]            crash <name> [-o file]
 bridge start|stop|status      sims      sim boot|shutdown|unslim|mem <udid|name>
-sim slim <udid|name> [--profile P] [--groups a,b] [--dry-run]
+sim slim <udid|name> [--profile P] [--groups a,b] [--app path.app] [--dry-run]
+sim create --type T [--runtime R] [--name N] [--slim] [--boot]   sim clone <udid|name> [--name N] [--count N] [--slim]
+sim erase|delete <udid|name> --force   sim farm --from <udid|name> --count N [--slim] [--app path.app] [--strict] | --cleanup
 agent "prompt" [--model haiku] [--agent NAME] [--session ID] [--max-steps N]
 server status|history|start|stop   version   help [command]
 ```
@@ -116,7 +118,7 @@ apps that use HealthKit, CloudKit, HomeKit, EventKit or telephony APIs may stall
 services.
 
 `--json` output is the REST body (`POST /api/v1/simulators/{udid}/slim`, `GET .../slim`, `POST .../unslim`,
-`GET .../memory`). The same operations are MCP tools `slim_simulator`, `unslim_simulator`, `simulator_memory`, and
+`GET .../memory`). The same operations are MCP tools `slim_simulator`, `unslim_simulator`, `simulator_memory`, `create_simulator`, `clone_simulator`, `erase_simulator`, `delete_simulator` (the last two are destructive), and
 `boot_simulator` takes an optional `slim` flag (default off). On Windows and Linux slimming returns "requires macOS".
 
 Memory is the sum of `footprint(1)` over the simulator's process tree (no sudo). RSS is shown too but over-counts
@@ -167,3 +169,8 @@ pocketlab -d ios-... wait --text "Welcome" --timeout 20s && echo ready
 echo '{"actions":[{"action":"tap","text":"OK"}]}' | pocketlab -d sm-g dsl -
 pocketlab -d sm-g agent "open Settings and turn on dark mode" --model haiku
 ```
+
+### Simulator lifecycle, app-aware slimming and farms
+
+`pocketlab sims` also shows the slim profile and the current memory (SLIM, MEM columns). Lifecycle verbs, farms
+and the CI recipe are described in [simulators.md](simulators.md).

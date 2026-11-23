@@ -60,13 +60,19 @@ type Control struct {
 	clients map[string]*wda.Client
 	known   map[string]bool // udids seen in the last simctl listing
 	slots   map[string]int
-	sup     *iosbridge.Supervisor
-	starts  map[string]*startCall // in-flight lazy WDA starts
+	// lastPorts remembers the host ports each simulator's WDA last used (also
+	// explicit ones), so an automatic restart reuses them instead of the default.
+	lastPorts map[string][2]int
+	sup       *iosbridge.Supervisor
+	starts    map[string]*startCall // in-flight lazy WDA starts
 	// autoWait bounds how long EnsureWDA blocks (default 60s; tests lower it).
 	autoWait time.Duration
 
 	// Host runs host commands (ps, footprint) for memory measurement; nil = ExecHost.
 	Host HostRunner
+
+	farmSt       *farmStore
+	rebootNeeded map[string]bool // slim/unslim left labels that need a reboot
 
 	slimPath  string
 	slimEng   *slim.Engine
@@ -81,7 +87,7 @@ type startCall struct {
 // New returns a Control. stateDir is unused for now (reserved); wdaHome ""
 // means $PL_WDA_HOME or ~/.pocketlab/wda.
 func New(wdaHome string) *Control {
-	c := &Control{Run: ExecRunner, wdaHome: wdaHome, clients: map[string]*wda.Client{}, known: map[string]bool{}, slots: map[string]int{}, starts: map[string]*startCall{}}
+	c := &Control{Run: ExecRunner, wdaHome: wdaHome, clients: map[string]*wda.Client{}, known: map[string]bool{}, slots: map[string]int{}, lastPorts: map[string][2]int{}, rebootNeeded: map[string]bool{}, starts: map[string]*startCall{}}
 	c.Mgr = iosbridge.NewManagerWithDeps("", iosbridge.Deps{
 		Tunnel:    simTunnel{},
 		Launcher:  launcher{c: c},
@@ -163,12 +169,22 @@ func (c *Control) Wrap(d device.Device) device.Device {
 	return wda.WrapEnsure(d, c.Client(udid), c.Active(udid), func(ctx context.Context) error { return c.EnsureWDA(ctx, udid) })
 }
 
+// portFree reports whether nothing listens on host port p. A bind test alone
+// is not enough: on macOS another process listening on the wildcard address
+// (the user's own Pocketlab WDA) can still let a loopback bind succeed, so the
+// wildcard bind and a connect probe are checked too.
 func portFree(p int) bool {
-	l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", p))
-	if err != nil {
+	for _, addr := range []string{fmt.Sprintf(":%d", p), fmt.Sprintf("127.0.0.1:%d", p)} {
+		l, err := net.Listen("tcp", addr)
+		if err != nil {
+			return false
+		}
+		_ = l.Close()
+	}
+	if conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", p), 200*time.Millisecond); err == nil {
+		_ = conn.Close()
 		return false
 	}
-	_ = l.Close()
 	return true
 }
 
@@ -182,6 +198,13 @@ func (c *Control) PrepareOpts(udid string, o iosbridge.Options) iosbridge.Option
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if lp, ok := c.lastPorts[udid]; ok {
+		// Reuse the previous ports (supervisor restart after slim/reboot) when still ours or free.
+		if c.Mgr.Status(udid).State == iosbridge.StateRunning || (portFree(lp[0]) && portFree(lp[1]) && !c.portTaken(udid, lp)) {
+			o.WDAPort, o.MJPEGPort = lp[0], lp[1]
+			return o
+		}
+	}
 	used := map[int]bool{}
 	for u, i := range c.slots {
 		if u != udid {
@@ -206,6 +229,16 @@ func (c *Control) PrepareOpts(udid string, o iosbridge.Options) iosbridge.Option
 	return o
 }
 
+// portTaken reports whether another simulator's remembered ports clash with lp.
+func (c *Control) portTaken(udid string, lp [2]int) bool {
+	for u, o := range c.lastPorts {
+		if u != udid && (o[0] == lp[0] || o[1] == lp[1] || o[0] == lp[1] || o[1] == lp[0]) {
+			return true
+		}
+	}
+	return false
+}
+
 // StartWDA boots WDA on a booted simulator and applies MJPEG settings.
 func (c *Control) StartWDA(ctx context.Context, udid string, o iosbridge.Options) (iosbridge.Status, error) {
 	sim, err := c.Get(ctx, udid)
@@ -218,7 +251,11 @@ func (c *Control) StartWDA(ctx context.Context, udid string, o iosbridge.Options
 	if c.XCTestRun() == "" {
 		return iosbridge.Status{}, ErrNotBuilt
 	}
-	st, err := c.Mgr.Start(ctx, udid, c.PrepareOpts(udid, o))
+	po := c.PrepareOpts(udid, o)
+	c.mu.Lock()
+	c.lastPorts[udid] = [2]int{po.WDAPort, po.MJPEGPort}
+	c.mu.Unlock()
+	st, err := c.Mgr.Start(ctx, udid, po)
 	if err != nil {
 		return st, err
 	}
@@ -410,6 +447,7 @@ func (c *Control) Boot(ctx context.Context, udid string) (Sim, error) {
 	if _, err := c.Run(bctx, "bootstatus", udid, "-b"); err != nil {
 		return Sim{}, err
 	}
+	c.setRebootNeeded(udid, false)
 	if c.OnChange != nil {
 		c.OnChange()
 	}
@@ -434,6 +472,7 @@ func (c *Control) Shutdown(ctx context.Context, udid string) (Sim, error) {
 	if _, err := c.Run(ctx, "shutdown", udid); err != nil && !strings.Contains(err.Error(), "current state: Shutdown") {
 		return Sim{}, err
 	}
+	c.setRebootNeeded(udid, false)
 	if c.OnChange != nil {
 		c.OnChange()
 	}
@@ -525,3 +564,5 @@ func (l launcher) Run(ctx context.Context, dev ios.DeviceEntry, o iosbridge.Opti
 		return ctx.Err()
 	}
 }
+
+func isNotFound(err error) bool { return errors.Is(err, device.ErrNotFound) }

@@ -309,3 +309,51 @@ func TestParseHelpers(t *testing.T) {
 		t.Fatalf("%v", d)
 	}
 }
+
+func TestApplySmallerProfileReenablesExtraLabels(t *testing.T) {
+	p, _ := Load()
+	agg, _ := p.Resolve(rt27, "aggressive", nil)
+	min, _ := p.Resolve(rt27, "minimal-safe", nil)
+	inMin := map[string]bool{}
+	for _, l := range min.Labels {
+		inMin[l] = true
+	}
+	var extra string
+	for _, l := range agg.Labels {
+		if !inMin[l] {
+			extra = l
+			break
+		}
+	}
+	f := &fakeSim{loaded: append([]string{extra}, min.Labels[0])}
+	e := newEngine(t, f)
+	if _, err := e.Apply(context.Background(), "U", rt27, Options{Preset: "aggressive"}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := e.Apply(context.Background(), "U", rt27, Options{Preset: "minimal-safe"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.RebootNeeded || len(res.Reenabled) != 1 || res.Reenabled[0] != extra {
+		t.Fatalf("reenabled: %+v", res.Reenabled)
+	}
+	rec, _ := e.Store.Get("U")
+	for _, l := range rec.Disabled {
+		if l == extra {
+			t.Fatalf("record still tracks %s", extra)
+		}
+	}
+	if rec.Profile != "minimal-safe" {
+		t.Fatalf("profile %q", rec.Profile)
+	}
+}
+
+func TestApplyAppAllNeededIsNoop(t *testing.T) {
+	// an app needing nothing disables the whole aggressive set; a bad path is an input error
+	e := newEngine(t, &fakeSim{})
+	_, err := e.Apply(context.Background(), "U", rt27, Options{App: "/nonexistent/X.app"})
+	var ie *InputError
+	if !errors.As(err, &ie) {
+		t.Fatalf("want input error, got %v", err)
+	}
+}

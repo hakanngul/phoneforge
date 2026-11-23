@@ -1,0 +1,804 @@
+{
+ "version": 1,
+ "description": "App signal to slim group map. Listed groups are kept (not disabled) when the signal is present; empty groups are informational only.",
+ "entries": [
+  {
+   "kind": "framework",
+   "match": "HealthKit",
+   "groups": [
+    "healthkit"
+   ],
+   "reason": "HealthKit needs healthd"
+  },
+  {
+   "kind": "framework",
+   "match": "HealthKitUI",
+   "groups": [
+    "healthkit"
+   ],
+   "reason": "HealthKitUI needs healthd"
+  },
+  {
+   "kind": "framework",
+   "match": "GameKit",
+   "groups": [
+    "gamecenter"
+   ],
+   "reason": "GameKit needs gamed"
+  },
+  {
+   "kind": "framework",
+   "match": "CloudKit",
+   "groups": [
+    "icloud"
+   ],
+   "reason": "CloudKit needs cloudd/bird"
+  },
+  {
+   "kind": "framework",
+   "match": "WidgetKit",
+   "groups": [
+    "widgets"
+   ],
+   "reason": "WidgetKit needs chronod"
+  },
+  {
+   "kind": "framework",
+   "match": "ActivityKit",
+   "groups": [
+    "widgets",
+    "lockscreen"
+   ],
+   "reason": "Live Activities need chronod/liveactivitiesd and the lock-screen host"
+  },
+  {
+   "kind": "framework",
+   "match": "CoreLocation",
+   "groups": [
+    "location"
+   ],
+   "reason": "CoreLocation clients may use routined"
+  },
+  {
+   "kind": "framework",
+   "match": "CoreLocationUI",
+   "groups": [
+    "location"
+   ],
+   "reason": "CoreLocationUI uses location services"
+  },
+  {
+   "kind": "framework",
+   "match": "MapKit",
+   "groups": [
+    "location"
+   ],
+   "reason": "MapKit uses Maps and location services"
+  },
+  {
+   "kind": "framework",
+   "match": "Intents",
+   "groups": [
+    "siri",
+    "intelligence"
+   ],
+   "reason": "SiriKit Intents need assistantd and intelligence services"
+  },
+  {
+   "kind": "framework",
+   "match": "IntentsUI",
+   "groups": [
+    "siri",
+    "intelligence"
+   ],
+   "reason": "Intents UI needs assistantd and intelligence services"
+  },
+  {
+   "kind": "framework",
+   "match": "AppIntents",
+   "groups": [
+    "siri",
+    "intelligence",
+    "spotlight",
+    "widgets"
+   ],
+   "reason": "App Intents are surfaced by Siri, Spotlight, widgets and intelligence"
+  },
+  {
+   "kind": "framework",
+   "match": "CoreSpotlight",
+   "groups": [
+    "spotlight"
+   ],
+   "reason": "CoreSpotlight needs the Spotlight indexer"
+  },
+  {
+   "kind": "framework",
+   "match": "MessageUI",
+   "groups": [
+    "mail",
+    "comms"
+   ],
+   "reason": "MessageUI composes mail and messages"
+  },
+  {
+   "kind": "framework",
+   "match": "Messages",
+   "groups": [
+    "comms"
+   ],
+   "reason": "Messages framework needs the messaging stack"
+  },
+  {
+   "kind": "framework",
+   "match": "Contacts",
+   "groups": [
+    "pim"
+   ],
+   "reason": "Contacts needs contactsd"
+  },
+  {
+   "kind": "framework",
+   "match": "ContactsUI",
+   "groups": [
+    "pim"
+   ],
+   "reason": "ContactsUI needs contactsd"
+  },
+  {
+   "kind": "framework",
+   "match": "EventKit",
+   "groups": [
+    "pim"
+   ],
+   "reason": "EventKit needs calaccessd/remindd"
+  },
+  {
+   "kind": "framework",
+   "match": "EventKitUI",
+   "groups": [
+    "pim"
+   ],
+   "reason": "EventKitUI needs calaccessd/remindd"
+  },
+  {
+   "kind": "framework",
+   "match": "Photos",
+   "groups": [
+    "photos"
+   ],
+   "reason": "Photos framework needs the photo library daemons"
+  },
+  {
+   "kind": "framework",
+   "match": "PhotosUI",
+   "groups": [
+    "photos"
+   ],
+   "reason": "PhotosUI needs the photo library daemons"
+  },
+  {
+   "kind": "framework",
+   "match": "HomeKit",
+   "groups": [
+    "homekit"
+   ],
+   "reason": "HomeKit needs homed"
+  },
+  {
+   "kind": "framework",
+   "match": "MatterSupport",
+   "groups": [
+    "homekit"
+   ],
+   "reason": "Matter commissioning needs homed"
+  },
+  {
+   "kind": "framework",
+   "match": "PassKit",
+   "groups": [
+    "homekit"
+   ],
+   "reason": "PassKit needs passd (Wallet)"
+  },
+  {
+   "kind": "framework",
+   "match": "WatchConnectivity",
+   "groups": [
+    "companion"
+   ],
+   "reason": "WatchConnectivity needs the companion daemons"
+  },
+  {
+   "kind": "framework",
+   "match": "WatchKit",
+   "groups": [
+    "companion"
+   ],
+   "reason": "WatchKit needs the companion daemons"
+  },
+  {
+   "kind": "framework",
+   "match": "ClockKit",
+   "groups": [
+    "companion"
+   ],
+   "reason": "ClockKit complications need the companion daemons"
+  },
+  {
+   "kind": "framework",
+   "match": "ScreenTime",
+   "groups": [
+    "screentime"
+   ],
+   "reason": "ScreenTime needs the Screen Time agents"
+  },
+  {
+   "kind": "framework",
+   "match": "FamilyControls",
+   "groups": [
+    "screentime"
+   ],
+   "reason": "FamilyControls needs the Screen Time agents"
+  },
+  {
+   "kind": "framework",
+   "match": "ManagedSettings",
+   "groups": [
+    "screentime"
+   ],
+   "reason": "ManagedSettings needs the Screen Time agents"
+  },
+  {
+   "kind": "framework",
+   "match": "DeviceActivity",
+   "groups": [
+    "screentime"
+   ],
+   "reason": "DeviceActivity needs the Screen Time agents"
+  },
+  {
+   "kind": "framework",
+   "match": "UserNotifications",
+   "groups": [],
+   "reason": "UserNotifications uses push and local notifications (apsd is always kept)"
+  },
+  {
+   "kind": "framework",
+   "match": "PushKit",
+   "groups": [],
+   "reason": "PushKit uses apsd (always kept)"
+  },
+  {
+   "kind": "framework",
+   "match": "StoreKit",
+   "groups": [],
+   "reason": "StoreKit does not need a slimmable daemon"
+  },
+  {
+   "kind": "framework",
+   "match": "BackgroundTasks",
+   "groups": [],
+   "reason": "BackgroundTasks are scheduled by always-kept services"
+  },
+  {
+   "kind": "framework",
+   "match": "Speech",
+   "groups": [
+    "siri"
+   ],
+   "reason": "Speech recognition uses the Siri/dictation back ends"
+  },
+  {
+   "kind": "framework",
+   "match": "CallKit",
+   "groups": [
+    "comms"
+   ],
+   "reason": "CallKit needs callservicesd"
+  },
+  {
+   "kind": "framework",
+   "match": "CoreTelephony",
+   "groups": [
+    "comms"
+   ],
+   "reason": "CoreTelephony needs the telephony stack"
+  },
+  {
+   "kind": "framework",
+   "match": "WeatherKit",
+   "groups": [
+    "news-weather"
+   ],
+   "reason": "WeatherKit may use weatherd"
+  },
+  {
+   "kind": "framework",
+   "match": "NotificationCenter",
+   "groups": [
+    "widgets"
+   ],
+   "reason": "Today/notification widgets need chronod"
+  },
+  {
+   "kind": "framework",
+   "match": "FoundationModels",
+   "groups": [
+    "intelligence"
+   ],
+   "reason": "FoundationModels needs the on-device model services"
+  },
+  {
+   "kind": "framework",
+   "match": "Social",
+   "groups": [
+    "icloud"
+   ],
+   "reason": "Social framework uses accounts sync"
+  },
+  {
+   "kind": "entitlement",
+   "match": "com.apple.developer.healthkit",
+   "groups": [
+    "healthkit"
+   ],
+   "reason": "HealthKit entitlement"
+  },
+  {
+   "kind": "entitlement",
+   "match": "com.apple.developer.healthkit.access",
+   "groups": [
+    "healthkit"
+   ],
+   "reason": "HealthKit access entitlement"
+  },
+  {
+   "kind": "entitlement",
+   "match": "com.apple.developer.healthkit.background-delivery",
+   "groups": [
+    "healthkit"
+   ],
+   "reason": "HealthKit background delivery entitlement"
+  },
+  {
+   "kind": "entitlement",
+   "match": "com.apple.developer.game-center",
+   "groups": [
+    "gamecenter"
+   ],
+   "reason": "Game Center entitlement"
+  },
+  {
+   "kind": "entitlement",
+   "match": "com.apple.developer.icloud-services",
+   "groups": [
+    "icloud"
+   ],
+   "reason": "iCloud services entitlement (CloudKit/CloudDocuments)"
+  },
+  {
+   "kind": "entitlement",
+   "match": "com.apple.developer.icloud-container-identifiers",
+   "groups": [
+    "icloud"
+   ],
+   "reason": "iCloud container entitlement"
+  },
+  {
+   "kind": "entitlement",
+   "match": "com.apple.developer.icloud-container-environment",
+   "groups": [
+    "icloud"
+   ],
+   "reason": "iCloud container environment entitlement"
+  },
+  {
+   "kind": "entitlement",
+   "match": "com.apple.developer.ubiquity-container-identifiers",
+   "groups": [
+    "icloud"
+   ],
+   "reason": "iCloud Drive ubiquity container entitlement"
+  },
+  {
+   "kind": "entitlement",
+   "match": "com.apple.developer.ubiquity-kvstore-identifier",
+   "groups": [
+    "icloud"
+   ],
+   "reason": "iCloud key-value store entitlement"
+  },
+  {
+   "kind": "entitlement",
+   "match": "com.apple.developer.homekit",
+   "groups": [
+    "homekit"
+   ],
+   "reason": "HomeKit entitlement"
+  },
+  {
+   "kind": "entitlement",
+   "match": "com.apple.developer.in-app-payments",
+   "groups": [
+    "homekit"
+   ],
+   "reason": "Apple Pay entitlement (passd)"
+  },
+  {
+   "kind": "entitlement",
+   "match": "com.apple.developer.pass-type-identifiers",
+   "groups": [
+    "homekit"
+   ],
+   "reason": "Wallet pass entitlement (passd)"
+  },
+  {
+   "kind": "entitlement",
+   "match": "com.apple.developer.siri",
+   "groups": [
+    "siri"
+   ],
+   "reason": "Siri entitlement"
+  },
+  {
+   "kind": "entitlement",
+   "match": "com.apple.developer.family-controls",
+   "groups": [
+    "screentime"
+   ],
+   "reason": "Family Controls entitlement"
+  },
+  {
+   "kind": "entitlement",
+   "match": "com.apple.developer.weatherkit",
+   "groups": [
+    "news-weather"
+   ],
+   "reason": "WeatherKit entitlement"
+  },
+  {
+   "kind": "entitlement",
+   "match": "prefix:com.apple.developer.usernotifications.",
+   "groups": [],
+   "reason": "Notification entitlement (apsd is always kept)"
+  },
+  {
+   "kind": "entitlement",
+   "match": "com.apple.developer.associated-domains",
+   "groups": [],
+   "reason": "Associated domains"
+  },
+  {
+   "kind": "entitlement",
+   "match": "com.apple.security.application-groups",
+   "groups": [],
+   "reason": "App groups"
+  },
+  {
+   "kind": "entitlement",
+   "match": "aps-environment",
+   "groups": [],
+   "reason": "Push notifications (apsd is always kept)"
+  },
+  {
+   "kind": "background-mode",
+   "match": "location",
+   "groups": [
+    "location"
+   ],
+   "reason": "Background location updates"
+  },
+  {
+   "kind": "background-mode",
+   "match": "fetch",
+   "groups": [],
+   "reason": "Background fetch"
+  },
+  {
+   "kind": "background-mode",
+   "match": "processing",
+   "groups": [],
+   "reason": "Background processing tasks"
+  },
+  {
+   "kind": "background-mode",
+   "match": "remote-notification",
+   "groups": [],
+   "reason": "Silent push (apsd is always kept)"
+  },
+  {
+   "kind": "background-mode",
+   "match": "audio",
+   "groups": [],
+   "reason": "Background audio"
+  },
+  {
+   "kind": "background-mode",
+   "match": "voip",
+   "groups": [],
+   "reason": "VoIP (push is always kept)"
+  },
+  {
+   "kind": "background-mode",
+   "match": "bluetooth-central",
+   "groups": [],
+   "reason": "Bluetooth central"
+  },
+  {
+   "kind": "background-mode",
+   "match": "bluetooth-peripheral",
+   "groups": [],
+   "reason": "Bluetooth peripheral"
+  },
+  {
+   "kind": "background-mode",
+   "match": "external-accessory",
+   "groups": [],
+   "reason": "External accessory"
+  },
+  {
+   "kind": "background-mode",
+   "match": "nearby-interaction",
+   "groups": [],
+   "reason": "Nearby interaction"
+  },
+  {
+   "kind": "usage",
+   "match": "NSHealthShareUsageDescription",
+   "groups": [
+    "healthkit"
+   ],
+   "reason": "Health read access"
+  },
+  {
+   "kind": "usage",
+   "match": "NSHealthUpdateUsageDescription",
+   "groups": [
+    "healthkit"
+   ],
+   "reason": "Health write access"
+  },
+  {
+   "kind": "usage",
+   "match": "NSHealthClinicalHealthRecordsShareUsageDescription",
+   "groups": [
+    "healthkit"
+   ],
+   "reason": "Clinical health records access"
+  },
+  {
+   "kind": "usage",
+   "match": "prefix:NSLocation",
+   "groups": [
+    "location"
+   ],
+   "reason": "Location access"
+  },
+  {
+   "kind": "usage",
+   "match": "prefix:NSPhotoLibrary",
+   "groups": [
+    "photos"
+   ],
+   "reason": "Photo library access"
+  },
+  {
+   "kind": "usage",
+   "match": "NSContactsUsageDescription",
+   "groups": [
+    "pim"
+   ],
+   "reason": "Contacts access"
+  },
+  {
+   "kind": "usage",
+   "match": "prefix:NSCalendars",
+   "groups": [
+    "pim"
+   ],
+   "reason": "Calendar access"
+  },
+  {
+   "kind": "usage",
+   "match": "prefix:NSReminders",
+   "groups": [
+    "pim"
+   ],
+   "reason": "Reminders access"
+  },
+  {
+   "kind": "usage",
+   "match": "NSSiriUsageDescription",
+   "groups": [
+    "siri"
+   ],
+   "reason": "Siri access"
+  },
+  {
+   "kind": "usage",
+   "match": "NSSpeechRecognitionUsageDescription",
+   "groups": [
+    "siri"
+   ],
+   "reason": "Speech recognition access"
+  },
+  {
+   "kind": "usage",
+   "match": "NSHomeKitUsageDescription",
+   "groups": [
+    "homekit"
+   ],
+   "reason": "HomeKit access"
+  },
+  {
+   "kind": "usage",
+   "match": "NSAppleMusicUsageDescription",
+   "groups": [
+    "icloud"
+   ],
+   "reason": "Media library access (itunescloudd)"
+  },
+  {
+   "kind": "usage",
+   "match": "NSMotionUsageDescription",
+   "groups": [],
+   "reason": "Motion access"
+  },
+  {
+   "kind": "extension-point",
+   "match": "com.apple.widgetkit-extension",
+   "groups": [
+    "widgets"
+   ],
+   "reason": "WidgetKit extension"
+  },
+  {
+   "kind": "extension-point",
+   "match": "com.apple.widget-extension",
+   "groups": [
+    "widgets"
+   ],
+   "reason": "Widget extension"
+  },
+  {
+   "kind": "extension-point",
+   "match": "com.apple.intents-service",
+   "groups": [
+    "siri",
+    "intelligence"
+   ],
+   "reason": "Intents extension"
+  },
+  {
+   "kind": "extension-point",
+   "match": "com.apple.intents-ui-service",
+   "groups": [
+    "siri",
+    "intelligence"
+   ],
+   "reason": "Intents UI extension"
+  },
+  {
+   "kind": "extension-point",
+   "match": "com.apple.appintents-extension",
+   "groups": [
+    "siri",
+    "intelligence",
+    "spotlight",
+    "widgets"
+   ],
+   "reason": "App Intents extension"
+  },
+  {
+   "kind": "extension-point",
+   "match": "com.apple.spotlight.index",
+   "groups": [
+    "spotlight"
+   ],
+   "reason": "Spotlight index extension"
+  },
+  {
+   "kind": "extension-point",
+   "match": "com.apple.spotlight.import",
+   "groups": [
+    "spotlight"
+   ],
+   "reason": "Spotlight import extension"
+  },
+  {
+   "kind": "extension-point",
+   "match": "com.apple.usernotifications.service",
+   "groups": [],
+   "reason": "Notification service extension"
+  },
+  {
+   "kind": "extension-point",
+   "match": "com.apple.usernotifications.content-extension",
+   "groups": [],
+   "reason": "Notification content extension"
+  },
+  {
+   "kind": "extension-point",
+   "match": "com.apple.watchkit",
+   "groups": [
+    "companion"
+   ],
+   "reason": "Watch app extension"
+  },
+  {
+   "kind": "extension-point",
+   "match": "com.apple.ClockKit.complication",
+   "groups": [
+    "companion"
+   ],
+   "reason": "Complication extension"
+  },
+  {
+   "kind": "extension-point",
+   "match": "com.apple.photo-editing",
+   "groups": [
+    "photos"
+   ],
+   "reason": "Photo editing extension"
+  },
+  {
+   "kind": "extension-point",
+   "match": "com.apple.live-activity",
+   "groups": [
+    "widgets",
+    "lockscreen"
+   ],
+   "reason": "Live activity extension"
+  },
+  {
+   "kind": "extension-point",
+   "match": "com.apple.lockscreen-widget",
+   "groups": [
+    "widgets",
+    "lockscreen"
+   ],
+   "reason": "Lock screen widget extension"
+  },
+  {
+   "kind": "extension-point",
+   "match": "com.apple.callkit.call-directory",
+   "groups": [
+    "comms"
+   ],
+   "reason": "Call directory extension"
+  },
+  {
+   "kind": "extension-point",
+   "match": "com.apple.message-payload-provider",
+   "groups": [
+    "comms"
+   ],
+   "reason": "Messages extension"
+  },
+  {
+   "kind": "extension-point",
+   "match": "com.apple.identitylookup.message-filter",
+   "groups": [
+    "comms"
+   ],
+   "reason": "Message filter extension"
+  },
+  {
+   "kind": "extension-point",
+   "match": "com.apple.deviceactivity.monitor-extension",
+   "groups": [
+    "screentime"
+   ],
+   "reason": "Device activity monitor extension"
+  },
+  {
+   "kind": "extension-point",
+   "match": "com.apple.deviceactivityui.report-extension",
+   "groups": [
+    "screentime"
+   ],
+   "reason": "Device activity report extension"
+  }
+ ]
+}

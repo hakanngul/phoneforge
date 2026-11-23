@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net/url"
@@ -430,6 +431,23 @@ type simRow struct {
 	WDA      struct {
 		State string `json:"state"`
 	} `json:"wda"`
+	Slim *struct {
+		Profile    string  `json:"profile"`
+		Disabled   int     `json:"disabled"`
+		BaselineMB float64 `json:"baselineMB"`
+	} `json:"slim"`
+	MemoryMB float64 `json:"memoryMB"`
+}
+
+// fmtMB renders megabytes as "512 MB" or "1.2 GB".
+func fmtMB(mb float64) string {
+	if mb <= 0 {
+		return "-"
+	}
+	if mb < 1024 {
+		return fmt.Sprintf("%.0f MB", mb)
+	}
+	return fmt.Sprintf("%.1f GB", mb/1024)
 }
 
 func listSims(ctx context.Context, c *call) ([]simRow, json.RawMessage, error) {
@@ -469,9 +487,13 @@ func cmdSims(c *call) error {
 	}
 	rows := make([][]string, 0, len(sims))
 	for _, s := range sims {
-		rows = append(rows, []string{s.UDID, s.Name, s.State, s.Runtime, dash(s.WDA.State)})
+		slimCol := "-"
+		if s.Slim != nil {
+			slimCol = s.Slim.Profile
+		}
+		rows = append(rows, []string{s.UDID, s.Name, s.State, s.Runtime, dash(s.WDA.State), slimCol, fmtMB(s.MemoryMB)})
 	}
-	table(c.out, []string{"UDID", "NAME", "STATE", "RUNTIME", "WDA"}, rows)
+	table(c.out, []string{"UDID", "NAME", "STATE", "RUNTIME", "WDA", "SLIM", "MEM"}, rows)
 	return nil
 }
 
@@ -503,29 +525,108 @@ func pickSim(sims []simRow, want string) (simRow, error) {
 	return simRow{}, deviceErrf("simulator %q not found (see 'pocketlab sims')", want)
 }
 
-const simUsage = "usage: pocketlab sim boot|shutdown|unslim|mem <udid|name>   |   pocketlab sim slim <udid|name> [--profile minimal-safe|aggressive|custom] [--groups a,b] [--dry-run]"
+const simUsage = "usage: pocketlab sim boot|shutdown|unslim|mem <udid|name>   |   sim slim <udid|name> [--profile P] [--groups a,b] [--app path.app] [--dry-run]   |   sim create --type T [--runtime R] [--name N] [--slim] [--boot]   |   sim clone <udid|name> [--name N] [--count N] [--slim]   |   sim erase|delete <udid|name> --force   |   sim farm --from <udid|name> --count N [--slim] [--app path.app] [--json] [--strict] | sim farm --cleanup"
+
+// simFlags are the flags of the 'sim' verbs.
+type simFlags struct {
+	profile, groups, app, name, typ, runtime, from *string
+	count                                          *int
+	dry, discover, boot, install, slim, force      *bool
+	keepSlim, shutdown, strict, cleanup            *bool
+}
+
+func newSimFlags(fs *flag.FlagSet) *simFlags {
+	return &simFlags{
+		profile:  fs.String("profile", "", "slim profile: minimal-safe (default), aggressive or custom"),
+		groups:   fs.String("groups", "", "comma-separated slim groups (implies --profile custom)"),
+		app:      fs.String("app", "", "slim/create/farm: keep only what this built .app (path) needs; aggressive minus the app's groups"),
+		name:     fs.String("name", "", "create/clone: name of the new simulator"),
+		typ:      fs.String("type", "", "create: device type, e.g. iPhone-17 or \"iPhone 17\""),
+		runtime:  fs.String("runtime", "", "create: runtime, e.g. \"iOS 27.2\" (default: newest iOS)"),
+		from:     fs.String("from", "", "farm: source simulator (udid or name)"),
+		count:    fs.Int("count", 0, "clone/farm: number of copies"),
+		dry:      fs.Bool("dry-run", false, "slim: show what would be disabled without changing anything"),
+		discover: fs.Bool("discover", false, "slim: list launchd labels with memory (diagnostic, runs locally)"),
+		boot:     fs.Bool("boot", false, "slim/create/clone: boot the simulator (slim: boot first if needed)"),
+		install:  fs.Bool("install", false, "slim/create/clone/farm: install --app after slimming"),
+		slim:     fs.Bool("slim", false, "create/clone/farm: slim the new simulator (clone: default is to inherit the source's profile)"),
+		force:    fs.Bool("force", false, "erase/delete: confirm the destructive action (a booted simulator is shut down first)"),
+		keepSlim: fs.Bool("keep-slim", false, "erase: keep the slim record (default: slimming is reverted first)"),
+		shutdown: fs.Bool("shutdown", false, "clone/farm: shut down a booted source first (otherwise it is an error)"),
+		strict:   fs.Bool("strict", false, "farm: exit 1 and delete the run's clones unless every clone succeeded"),
+		cleanup:  fs.Bool("cleanup", false, "farm: delete the simulators created by earlier farm runs (only those)"),
+	}
+}
+
+// onlyFor rejects flags that do not apply to verb.
+func (f *simFlags) check(fs *flag.FlagSet, verb string) error {
+	allowed := map[string][]string{
+		"profile": {"slim", "create", "clone", "farm"}, "groups": {"slim", "create", "clone", "farm"}, "app": {"slim", "create", "clone", "farm"},
+		"dry-run": {"slim"}, "discover": {"slim"}, "boot": {"slim", "create", "clone"}, "install": {"slim", "create", "clone", "farm"},
+		"name": {"create", "clone"}, "type": {"create"}, "runtime": {"create"}, "from": {"farm"}, "count": {"clone", "farm"},
+		"slim": {"create", "clone", "farm"}, "force": {"erase", "delete"}, "keep-slim": {"erase"}, "shutdown": {"clone", "farm"},
+		"strict": {"farm"}, "cleanup": {"farm"},
+	}
+	var bad error
+	fs.Visit(func(fl *flag.Flag) {
+		vs, ok := allowed[fl.Name]
+		if !ok || bad != nil {
+			return
+		}
+		for _, v := range vs {
+			if v == verb {
+				return
+			}
+		}
+		bad = usagef("--%s does not apply to 'sim %s' (applies to: %s)", fl.Name, verb, strings.Join(vs, ", "))
+	})
+	return bad
+}
+
+func splitGroups(s string) []string {
+	var gs []string
+	for _, g := range strings.Split(s, ",") {
+		if g = strings.TrimSpace(g); g != "" {
+			gs = append(gs, g)
+		}
+	}
+	return gs
+}
+
+func absApp(p string) string {
+	if p == "" {
+		return ""
+	}
+	if a, err := filepath.Abs(p); err == nil {
+		return a
+	}
+	return p
+}
 
 func cmdSim(c *call) error {
 	fs := newFlagSet(c.name)
-	profile := fs.String("profile", "", "slim profile: minimal-safe (default), aggressive or custom")
-	groups := fs.String("groups", "", "comma-separated slim groups (implies --profile custom)")
-	dry := fs.Bool("dry-run", false, "slim: show what would be disabled without changing anything")
-	discover := fs.Bool("discover", false, "slim: list launchd labels with memory (diagnostic, runs locally)")
+	f := newSimFlags(fs)
 	pos, err := c.parse(fs, c.args)
 	if err != nil {
 		return err
 	}
-	verbs := map[string]bool{"boot": true, "shutdown": true, "slim": true, "unslim": true, "mem": true}
-	if len(pos) != 2 || !verbs[pos[0]] {
+	verbs := map[string]int{"boot": 2, "shutdown": 2, "slim": 2, "unslim": 2, "mem": 2, "clone": 2, "erase": 2, "delete": 2, "create": 1, "farm": 1}
+	if len(pos) == 0 || verbs[pos[0]] != len(pos) {
 		return usagef("%s", simUsage)
 	}
 	verb := pos[0]
-	if (*profile != "" || *groups != "" || *dry || *discover) && verb != "slim" {
-		return usagef("--profile, --groups, --dry-run and --discover only apply to 'sim slim'")
+	if err := f.check(fs, verb); err != nil {
+		return err
 	}
 	ctx, cancel := c.ctxFor(5 * time.Minute)
 	defer cancel()
-	if verb == "slim" && *discover {
+	switch verb {
+	case "create":
+		return simCreate(ctx, c, f)
+	case "farm":
+		return simFarm(ctx, c, f)
+	}
+	if verb == "slim" && *f.discover {
 		return simDiscover(ctx, c, pos[1])
 	}
 	sims, _, err := listSims(ctx, c)
@@ -536,11 +637,27 @@ func cmdSim(c *call) error {
 	if err != nil {
 		return err
 	}
+	switch verb {
+	case "clone":
+		return simClone(ctx, c, f, s)
+	case "erase", "delete":
+		return simEraseDelete(ctx, c, f, s, verb)
+	}
+	profile, groups, dry := f.profile, f.groups, f.dry
 	base := "/simulators/" + url.PathEscape(s.UDID)
 	var raw json.RawMessage
 	switch verb {
 	case "slim":
 		body := map[string]any{"dryRun": *dry}
+		if *f.app != "" {
+			body["app"] = absApp(*f.app)
+			if *f.install {
+				body["install"] = true
+			}
+		}
+		if *f.boot {
+			body["boot"] = true
+		}
 		if *profile != "" {
 			body["profile"] = *profile
 		}
@@ -620,6 +737,9 @@ func printSlimResult(c *call, s simRow, raw json.RawMessage) error {
 		Protected  []string `json:"protected"`
 		DryRun     bool     `json:"dryRun"`
 		BaselineMB float64  `json:"baselineMB"`
+		App        string   `json:"app"`
+		Kept       []string `json:"keptBecause"`
+		Info       []string `json:"informational"`
 	}
 	_ = json.Unmarshal(raw, &r)
 	verb := "disabled"
@@ -628,6 +748,18 @@ func printSlimResult(c *call, s simRow, raw json.RawMessage) error {
 	}
 	fmt.Fprintf(c.out, "%s (%s): profile %s (%s)\n", s.Name, s.UDID, r.Profile, strings.Join(r.Groups, ", "))
 	fmt.Fprintf(c.out, "  %s %d labels, %d missing, %d failed, %d protected by the keep list\n", verb, len(r.Applied), len(r.Missing), len(r.Failed), len(r.Protected))
+	if r.App != "" {
+		fmt.Fprintf(c.out, "  app %s: kept enabled because of its signals:\n", r.App)
+		for _, k := range r.Kept {
+			fmt.Fprintln(c.out, "    keep "+k)
+		}
+		if len(r.Kept) == 0 {
+			fmt.Fprintln(c.out, "    (nothing needs a group: bare app gets the full aggressive profile)")
+		}
+		for _, k := range r.Info {
+			fmt.Fprintln(c.out, "    note "+k)
+		}
+	}
 	if r.BaselineMB > 0 {
 		fmt.Fprintf(c.out, "  footprint before: %.0f MB (check 'pocketlab sim mem' in ~30 s)\n", r.BaselineMB)
 	}

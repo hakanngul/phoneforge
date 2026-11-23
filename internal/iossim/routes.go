@@ -53,6 +53,8 @@ func fail(w http.ResponseWriter, err error) {
 		writeErr(w, "SIMULATOR_NOT_FOUND", http.StatusNotFound, "simulator not found")
 	case errors.Is(err, ErrNotBooted):
 		writeErr(w, "SIMULATOR_NOT_BOOTED", http.StatusConflict, err.Error())
+	case errors.Is(err, ErrBooted):
+		writeErr(w, "SIMULATOR_BOOTED", http.StatusConflict, err.Error())
 	case errors.Is(err, ErrNotBuilt):
 		writeErr(w, "SIMULATOR_WDA_NOT_BUILT", http.StatusConflict, err.Error())
 	case errors.Is(err, ErrWDAStarting):
@@ -90,7 +92,93 @@ func (c *Control) Routes() http.Handler {
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"simulators": out, "wdaBuilt": c.XCTestRun() != ""})
 	})
+	decode := func(w http.ResponseWriter, req *http.Request, v any) {
+		if req.Body != nil {
+			_ = json.NewDecoder(http.MaxBytesReader(w, req.Body, 1<<16)).Decode(v)
+		}
+	}
+	r.Get("/catalog", func(w http.ResponseWriter, req *http.Request) {
+		ctx, cancel := context.WithTimeout(req.Context(), 30*time.Second)
+		defer cancel()
+		cat, err := c.Catalog(ctx)
+		if err != nil {
+			fail(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, cat)
+	})
+	r.Post("/", func(w http.ResponseWriter, req *http.Request) {
+		var o CreateOptions
+		decode(w, req, &o)
+		ctx, cancel := context.WithTimeout(req.Context(), 6*time.Minute)
+		defer cancel()
+		res, err := c.Create(ctx, o)
+		if err != nil {
+			fail(w, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, res)
+	})
+	r.Get("/farm", func(w http.ResponseWriter, req *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"runs": c.FarmRuns()})
+	})
+	r.Post("/farm", func(w http.ResponseWriter, req *http.Request) {
+		var o FarmOptions
+		decode(w, req, &o)
+		ctx, cancel := context.WithTimeout(req.Context(), 20*time.Minute)
+		defer cancel()
+		res, err := c.Farm(ctx, o)
+		if err != nil {
+			fail(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, res)
+	})
+	r.Delete("/farm", func(w http.ResponseWriter, req *http.Request) {
+		ctx, cancel := context.WithTimeout(req.Context(), 10*time.Minute)
+		defer cancel()
+		writeJSON(w, http.StatusOK, c.FarmCleanup(ctx))
+	})
 	r.Route("/{udid}", func(r chi.Router) {
+		r.Delete("/", func(w http.ResponseWriter, req *http.Request) {
+			udid := chi.URLParam(req, "udid")
+			q := req.URL.Query().Get("shutdown")
+			ctx, cancel := context.WithTimeout(req.Context(), 3*time.Minute)
+			defer cancel()
+			if err := c.Delete(ctx, udid, DeleteOptions{Shutdown: q == "1" || q == "true"}); err != nil {
+				fail(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"udid": udid, "deleted": true})
+		})
+		r.Post("/clone", func(w http.ResponseWriter, req *http.Request) {
+			var o CloneOptions
+			decode(w, req, &o)
+			ctx, cancel := context.WithTimeout(req.Context(), 15*time.Minute)
+			defer cancel()
+			res, err := c.Clone(ctx, chi.URLParam(req, "udid"), o)
+			if err != nil {
+				fail(w, err)
+				return
+			}
+			sims := make([]SimStatus, 0, len(res))
+			for _, x := range res {
+				sims = append(sims, x.Simulator)
+			}
+			writeJSON(w, http.StatusCreated, map[string]any{"simulators": sims, "results": res})
+		})
+		r.Post("/erase", func(w http.ResponseWriter, req *http.Request) {
+			var o EraseOptions
+			decode(w, req, &o)
+			ctx, cancel := context.WithTimeout(req.Context(), 6*time.Minute)
+			defer cancel()
+			st, err := c.Erase(ctx, chi.URLParam(req, "udid"), o)
+			if err != nil {
+				fail(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, st)
+		})
 		r.Post("/boot", func(w http.ResponseWriter, req *http.Request) {
 			s, err := c.Boot(req.Context(), chi.URLParam(req, "udid"))
 			if err != nil {
@@ -108,17 +196,11 @@ func (c *Control) Routes() http.Handler {
 			writeJSON(w, http.StatusOK, c.status(s))
 		})
 		r.Post("/slim", func(w http.ResponseWriter, req *http.Request) {
-			var body struct {
-				Profile string   `json:"profile"`
-				Groups  []string `json:"groups"`
-				DryRun  bool     `json:"dryRun"`
-			}
-			if req.Body != nil {
-				_ = json.NewDecoder(http.MaxBytesReader(w, req.Body, 1<<16)).Decode(&body)
-			}
-			ctx, cancel := context.WithTimeout(req.Context(), 3*time.Minute)
+			var body SlimRequest
+			decode(w, req, &body)
+			ctx, cancel := context.WithTimeout(req.Context(), 6*time.Minute)
 			defer cancel()
-			res, err := c.Slim(ctx, chi.URLParam(req, "udid"), slim.Options{Preset: body.Profile, Groups: body.Groups, DryRun: body.DryRun})
+			res, err := c.SlimRequest(ctx, chi.URLParam(req, "udid"), body)
 			if err != nil {
 				fail(w, err)
 				return

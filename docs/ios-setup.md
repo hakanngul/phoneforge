@@ -62,6 +62,6 @@ Simulators need no signing or phone. Build the simulator WDA once from the app
 2. The booted simulator appears in the device list as `sim-<udid>` and works like an iPhone
    (screenshot, UI tree, tap, swipe, type, Home, app launch, install, open URL, MJPEG live view).
    Without WDA only screenshots, app list/launch/stop/install, open URL, clipboard and logs work (via `simctl`).
-3. WDA ports are allocated per simulator from 8200 (MJPEG 9200); 8100, 8110-8130 and 9100-9130 are never used.
+3. WDA ports are allocated per simulator from 8200 (MJPEG 9200), skipping ports that are busy (also ones another app listens on); an automatic restart (for example after slimming) reuses the simulator's previous ports; 8100, 8110-8130 and 9100-9130 are never used.
 4. The Mac screen must be unlocked: `xcodebuild test-without-building` stalls on a locked console session.
-5. MCP: `list_simulators`, `boot_simulator` (optional `slim`), `shutdown_simulator`, `slim_simulator`, `unslim_simulator`, `simulator_memory`; then `start_bridge` on the `sim-<udid>` device.
+5. MCP: `list_simulators`, `boot_simulator` (optional `slim`), `shutdown_simulator`, `slim_simulator`, `unslim_simulator`, `simulator_memory`, `create_simulator`, `clone_simulator`, `erase_simulator`, `delete_simulator` (see [simulators.md](simulators.md)); then `start_bridge` on the `sim-<udid>` device.

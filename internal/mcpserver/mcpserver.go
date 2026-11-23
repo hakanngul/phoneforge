@@ -297,6 +297,9 @@ func New(apiBaseURL, version string) *server.MCPServer {
 	s.AddTool(mcp.NewTool("slim_simulator", mcp.WithDescription("Turn off background daemons (Siri, Spotlight, photo analysis, widgets, Health, ...) in a BOOTED iOS simulator so several fit in RAM; typically cuts memory to roughly a third to a half. The state survives reboot; undo with unslim_simulator. Stops WebDriverAgent first (it restarts if it was running). Returns applied/missing/failed labels."), simID,
 		mcp.WithString("profile", mcp.Description("minimal-safe (default), aggressive (also iCloud, routine/maps, mail/calendar sync, telephony, HomeKit, lock-screen host) or custom (with groups)")),
 		mcp.WithString("groups", mcp.Description("Comma-separated groups for custom: siri, intelligence, spotlight, photos, widgets, healthkit, gamecenter, news-weather, companion, screentime, analytics, mail, icloud, location, pim, comms, homekit, lockscreen")),
+		mcp.WithString("app", mcp.Description("Path of a built .app (app-aware): keep the services the app needs (HealthKit, iCloud, widgets, location, ...) and disable the rest of aggressive; the result lists why each group was kept")),
+		mcp.WithBoolean("boot", mcp.Description("Boot the simulator first if it is not booted")),
+		mcp.WithBoolean("install", mcp.Description("Install the app after slimming")),
 		mcp.WithBoolean("dry_run", mcp.Description("List what would be disabled without changing anything"))),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			var gs []string
@@ -312,6 +315,13 @@ func New(apiBaseURL, version string) *server.MCPServer {
 			if len(gs) > 0 {
 				body["groups"] = gs
 			}
+			if a := req.GetString("app", ""); a != "" {
+				body["app"] = a
+				body["install"] = req.GetBool("install", false)
+			}
+			if req.GetBool("boot", false) {
+				body["boot"] = true
+			}
 			b, _ := json.Marshal(body)
 			return runner.text(ctx, "POST", simPath(req, "/slim"), string(b))
 		})
@@ -322,6 +332,60 @@ func New(apiBaseURL, version string) *server.MCPServer {
 	s.AddTool(mcp.NewTool("simulator_memory", mcp.WithDescription("Memory use of a booted simulator: footprintMB (sum of its process tree, the reliable number), rssMB (overcounts shared pages) and procCount. Use before/after slim_simulator."), simID),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return c.text(ctx, "GET", simPath(req, "/memory"), "")
+		})
+	s.AddTool(mcp.NewTool("create_simulator", mcp.WithDescription("Create a new simulator (needs Xcode). Not destructive to existing simulators. device_type is e.g. iPhone-17 or \"iPhone 17\"; runtime defaults to the newest iOS. With slim=true (or app) it is booted and slimmed; app is a built .app path to keep only the services that app needs."),
+		mcp.WithString("name", mcp.Description("Simulator name (default \"Pocketlab sim\")")),
+		mcp.WithString("device_type", mcp.Required(), mcp.Description("Device type, e.g. iPhone-17")),
+		mcp.WithString("runtime", mcp.Description("Runtime, e.g. \"iOS 27.2\" (default newest iOS)")),
+		mcp.WithBoolean("slim", mcp.Description("Boot and slim it (default false)")),
+		mcp.WithString("profile", mcp.Description("Slim profile: minimal-safe (default) or aggressive")),
+		mcp.WithString("app", mcp.Description("Path of a built .app: slim to what the app needs (aggressive minus its groups)")),
+		mcp.WithBoolean("install", mcp.Description("Install app after creating (boots it)")),
+		mcp.WithBoolean("boot", mcp.Description("Boot after creating"))),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			body := map[string]any{"name": req.GetString("name", ""), "deviceType": req.GetString("device_type", ""), "runtime": req.GetString("runtime", ""),
+				"boot": req.GetBool("boot", false), "install": req.GetBool("install", false), "profile": req.GetString("profile", ""), "app": req.GetString("app", "")}
+			if req.GetBool("slim", false) {
+				body["slim"] = true
+			}
+			b, _ := json.Marshal(body)
+			return runner.text(ctx, "POST", "/simulators", string(b))
+		})
+	s.AddTool(mcp.NewTool("clone_simulator", mcp.WithDescription("Clone a simulator (copies its apps and data). The source must be shut down: with shutdown=true a booted source is shut down first (stops its WebDriverAgent), otherwise a booted source is an error. A slimmed source's profile is re-applied to each clone (slimming does not survive cloning); slim=false disables that."),
+		simID,
+		mcp.WithString("name", mcp.Description("Name of the clone (default \"<source> clone\")")),
+		mcp.WithNumber("count", mcp.Description("Number of clones (default 1, max 20)")),
+		mcp.WithBoolean("slim", mcp.Description("Slim the clones (default: inherit from the source; false = do not slim)")),
+		mcp.WithString("profile", mcp.Description("Slim profile for the clones")),
+		mcp.WithString("app", mcp.Description("Path of a built .app: slim clones to what the app needs")),
+		mcp.WithBoolean("install", mcp.Description("Install app on each clone")),
+		mcp.WithBoolean("boot", mcp.Description("Leave the clones booted")),
+		mcp.WithBoolean("shutdown", mcp.Description("Shut a booted source down first"))),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			body := map[string]any{"name": req.GetString("name", ""), "count": req.GetInt("count", 1), "boot": req.GetBool("boot", false),
+				"shutdown": req.GetBool("shutdown", false), "install": req.GetBool("install", false), "profile": req.GetString("profile", ""), "app": req.GetString("app", "")}
+			if a, ok := req.GetArguments()["slim"].(bool); ok {
+				body["slim"] = a
+			}
+			b, _ := json.Marshal(body)
+			return runner.text(ctx, "POST", simPath(req, "/clone"), string(b))
+		})
+	s.AddTool(mcp.NewTool("erase_simulator", mcp.WithDescription("DESTRUCTIVE and irreversible: erase all apps, data and settings of a simulator (like Reset Content and Settings). The simulator must be shut down; shutdown=true shuts it down first. Slimming is reverted first unless keep_slim=true (the daemon state survives erase and is re-applied on the next boot). Only call this when the user explicitly asked to erase this simulator."),
+		simID,
+		mcp.WithBoolean("keep_slim", mcp.Description("Keep the slim profile (default false: slimming is reverted)")),
+		mcp.WithBoolean("shutdown", mcp.Description("Shut a booted simulator down first"))),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return runner.text(ctx, "POST", simPath(req, "/erase"), jsonBody("keepSlim", req.GetBool("keep_slim", false), "shutdown", req.GetBool("shutdown", false)))
+		})
+	s.AddTool(mcp.NewTool("delete_simulator", mcp.WithDescription("DESTRUCTIVE and irreversible: permanently delete a simulator with all its data, and forget its slim record and WebDriverAgent state. The simulator must be shut down; shutdown=true shuts it down first. Only call this when the user explicitly asked to delete this simulator."),
+		simID,
+		mcp.WithBoolean("shutdown", mcp.Description("Shut a booted simulator down first"))),
+		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			q := ""
+			if req.GetBool("shutdown", false) {
+				q = "?shutdown=1"
+			}
+			return runner.text(ctx, "DELETE", simPath(req, q), "")
 		})
 	s.AddTool(mcp.NewTool("shutdown_simulator", mcp.WithDescription("Stop WebDriverAgent (if running) and shut a simulator down"), simID),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

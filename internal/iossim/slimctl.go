@@ -115,6 +115,7 @@ func (c *Control) Slim(ctx context.Context, udid string, o slim.Options) (slim.R
 		return res, err
 	}
 	c.ClearBlocks(udid)
+	c.setRebootNeeded(udid, err == nil && (len(res.Failed) > 0 || res.RebootNeeded))
 	if err == nil && len(res.Applied) > 0 {
 		go c.recordSlimMemory(udid)
 	}
@@ -154,12 +155,20 @@ func (c *Control) reapplyAfterBoot(sim Sim) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		o := slim.Options{Preset: rec.Profile}
-		if rec.Profile == slim.PresetCustom {
-			o.Groups = rec.Groups
-		}
+		o := recordOptions(rec)
 		_, _ = eng.Apply(ctx, sim.UDID, sim.RuntimeID, o)
 	}()
+}
+
+// recordOptions turns a stored record back into apply options.
+func recordOptions(rec slim.Record) slim.Options {
+	switch rec.Profile {
+	case slim.PresetCustom:
+		return slim.Options{Groups: rec.Groups}
+	case "app":
+		return slim.Options{Groups: rec.Groups, ProfileName: "app"}
+	}
+	return slim.Options{Preset: rec.Profile}
 }
 
 // Unslim re-enables every recorded label and reboots the simulator so the
@@ -186,6 +195,7 @@ func (c *Control) Unslim(ctx context.Context, udid string) (UnslimResult, error)
 	}
 	en, failed, err := eng.Revert(ctx, udid)
 	res := UnslimResult{UDID: udid, Enabled: en, Failed: failed}
+	c.setRebootNeeded(udid, len(failed) > 0)
 	if err != nil {
 		return res, err
 	}
@@ -253,8 +263,12 @@ func (c *Control) Memory(ctx context.Context, udid string) (Memory, error) {
 
 // slimBrief is the per-simulator slim summary in the list.
 type slimBrief struct {
-	Profile  string `json:"profile"`
-	Disabled int    `json:"disabled"`
+	Profile      string   `json:"profile"`
+	Disabled     int      `json:"disabled"`
+	Groups       []string `json:"groups,omitempty"`
+	BaselineMB   float64  `json:"baselineMB,omitempty"`
+	SlimMB       float64  `json:"slimMB,omitempty"`
+	RebootNeeded bool     `json:"rebootNeeded,omitempty"`
 }
 
 type memEntry struct {
@@ -308,5 +322,18 @@ func (c *Control) slimBriefFor(udid string) *slimBrief {
 	if !ok {
 		return nil
 	}
-	return &slimBrief{Profile: rec.Profile, Disabled: len(rec.Disabled)}
+	c.mu.Lock()
+	rn := c.rebootNeeded[udid]
+	c.mu.Unlock()
+	return &slimBrief{Profile: rec.Profile, Disabled: len(rec.Disabled), Groups: rec.Groups, BaselineMB: rec.BaselineMB, SlimMB: rec.SlimMB, RebootNeeded: rn}
+}
+
+func (c *Control) setRebootNeeded(udid string, on bool) {
+	c.mu.Lock()
+	if on {
+		c.rebootNeeded[udid] = true
+	} else {
+		delete(c.rebootNeeded, udid)
+	}
+	c.mu.Unlock()
 }

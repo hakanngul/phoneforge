@@ -16,8 +16,8 @@ func TestNewRegistersTools(t *testing.T) {
 	if s == nil {
 		t.Fatal("nil server")
 	}
-	if n := len(s.ListTools()); n != 51 {
-		t.Fatalf("want 51 tools, got %d", n)
+	if n := len(s.ListTools()); n != 55 {
+		t.Fatalf("want 55 tools, got %d", n)
 	}
 	if Handler(s) == nil {
 		t.Fatal("nil handler")
@@ -152,5 +152,48 @@ func TestSimulatorSlimTools(t *testing.T) {
 		if hits[i] != want[i] {
 			t.Errorf("hit %d: got %+v want %+v", i, hits[i], want[i])
 		}
+	}
+}
+
+func TestSimulatorLifecycleToolsProxy(t *testing.T) {
+	type hit struct{ method, path, body string }
+	var hits []hit
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		hits = append(hits, hit{r.Method, r.URL.RequestURI(), string(b)})
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer ts.Close()
+	s := New(ts.URL+"/api/v1", "test")
+	tools := s.ListTools()
+	for _, name := range []string{"erase_simulator", "delete_simulator"} {
+		if d := tools[name].Tool.Description; !strings.Contains(d, "DESTRUCTIVE") {
+			t.Errorf("%s description must state it is destructive: %q", name, d)
+		}
+	}
+	call := func(name string, args map[string]any) {
+		t.Helper()
+		var req mcp.CallToolRequest
+		req.Params.Name = name
+		req.Params.Arguments = args
+		if res, err := tools[name].Handler(context.Background(), req); err != nil || res.IsError {
+			t.Fatalf("%s: %v %+v", name, err, res)
+		}
+	}
+	call("delete_simulator", map[string]any{"udid": "U1", "shutdown": true})
+	call("erase_simulator", map[string]any{"udid": "U1", "keep_slim": true})
+	call("create_simulator", map[string]any{"device_type": "iPhone-17", "slim": true})
+	call("clone_simulator", map[string]any{"udid": "U1", "count": 2, "slim": false})
+	if hits[0].method != "DELETE" || hits[0].path != "/api/v1/simulators/U1?shutdown=1" {
+		t.Errorf("delete: %+v", hits[0])
+	}
+	if hits[1].path != "/api/v1/simulators/U1/erase" || !strings.Contains(hits[1].body, `"keepSlim":true`) {
+		t.Errorf("erase: %+v", hits[1])
+	}
+	if hits[2].path != "/api/v1/simulators" || !strings.Contains(hits[2].body, `"deviceType":"iPhone-17"`) || !strings.Contains(hits[2].body, `"slim":true`) {
+		t.Errorf("create: %+v", hits[2])
+	}
+	if !strings.Contains(hits[3].body, `"slim":false`) || !strings.Contains(hits[3].body, `"count":2`) {
+		t.Errorf("clone: %+v", hits[3])
 	}
 }

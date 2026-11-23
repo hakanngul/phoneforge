@@ -190,7 +190,12 @@ Problems (Xcode missing, no team, phone not trusted, ...) are printed with what 
 List iOS simulators with state, runtime and WDA state.`,
 
 	"sim": `Usage: pocketlab sim boot|shutdown|unslim|mem <udid|name>
-       pocketlab sim slim <udid|name> [--profile minimal-safe|aggressive|custom] [--groups a,b] [--dry-run]
+       pocketlab sim slim <udid|name> [--profile minimal-safe|aggressive|custom] [--groups a,b] [--app path.app [--install]] [--boot] [--dry-run]
+       pocketlab sim create --type iPhone-17 [--runtime "iOS 27.2"] [--name N] [--slim] [--boot]
+       pocketlab sim clone <udid|name> [--name N] [--count N] [--slim] [--shutdown]
+       pocketlab sim erase|delete <udid|name> --force [--keep-slim]   (destructive, irreversible)
+       pocketlab sim farm --from <udid|name> --count N [--slim] [--profile P] [--app path.app] [--strict] [--json]
+       pocketlab sim farm --cleanup
 
 Boot or shut down an iOS simulator. The name may be a unique prefix.
 
@@ -202,6 +207,9 @@ state survives reboot; 'unslim' re-enables the recorded labels and reboots.
                 photos, widgets, healthkit, gamecenter, news-weather, companion,
                 screentime, analytics, mail, icloud, location, pim, comms, homekit, lockscreen
   --dry-run     list what would be disabled; change nothing
+--app keeps what the built .app needs (aggressive minus its groups; prints why).
+farm clones N simulators, slims and boots them; exit 0 ok, 2 partial, 1 failed.
+See docs/simulators.md.
 mem prints the simulator's footprint (sum of its process tree, no sudo needed).
 macOS only. See docs/cli.md.`,
 

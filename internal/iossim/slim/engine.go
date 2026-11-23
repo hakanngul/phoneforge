@@ -18,6 +18,12 @@ type Options struct {
 	Preset string   // "", minimal-safe, aggressive, custom
 	Groups []string // explicit groups (implies custom)
 	DryRun bool
+	// App is a built .app bundle: the groups it needs are kept and everything
+	// else in the aggressive profile is disabled (profile name "app").
+	App string
+	// ProfileName overrides the recorded profile name (used to re-apply an
+	// "app" record from its stored groups).
+	ProfileName string
 }
 
 // Result reports one Apply.
@@ -33,9 +39,19 @@ type Result struct {
 	Failed         []string `json:"failed"`
 	Protected      []string `json:"protected,omitempty"`
 	Apps           []string `json:"apps,omitempty"`
-	DryRun         bool     `json:"dryRun,omitempty"`
-	BaselineMB     float64  `json:"baselineMB,omitempty"`
-	SlimMB         float64  `json:"slimMB,omitempty"`
+	// App and KeptBecause are set for app-aware slimming: the scanned bundle
+	// and why each group was left enabled.
+	App         string   `json:"app,omitempty"`
+	KeptBecause []string `json:"keptBecause,omitempty"`
+	// Informational lists app signals that need no group (push, fetch...).
+	Informational []string `json:"informational,omitempty"`
+	// Reenabled lists labels of an earlier, larger profile that were enabled
+	// again; their daemons only come back after the next reboot (RebootNeeded).
+	Reenabled    []string `json:"reenabled,omitempty"`
+	RebootNeeded bool     `json:"rebootNeeded,omitempty"`
+	DryRun       bool     `json:"dryRun,omitempty"`
+	BaselineMB   float64  `json:"baselineMB,omitempty"`
+	SlimMB       float64  `json:"slimMB,omitempty"`
 	// Errors maps a failed label to its error text.
 	Errors map[string]string `json:"errors,omitempty"`
 }
@@ -146,12 +162,31 @@ func ParseDisabled(data []byte) map[string]bool {
 // are reported missing. The sidecar record is written only when something was
 // disabled.
 func (e *Engine) Apply(ctx context.Context, udid, runtimeID string, o Options) (Result, error) {
+	var kept, info []string
+	if o.App != "" {
+		g, k, i, err := e.appGroups(o.App)
+		if err != nil {
+			return Result{}, err
+		}
+		o.Groups, kept, info = g, k, i
+		if len(g) == 0 { // the app needs everything aggressive would disable
+			return Result{UDID: udid, Profile: "app", RuntimeID: runtimeID, App: o.App, KeptBecause: k, Informational: i,
+				Groups: []string{}, Applied: []string{}, Missing: []string{}, Failed: []string{}, DryRun: o.DryRun}, nil
+		}
+		if o.ProfileName == "" {
+			o.ProfileName = "app"
+		}
+	}
 	plan, err := e.Profile.Resolve(runtimeID, o.Preset, o.Groups)
 	if err != nil {
 		return Result{}, err
 	}
+	if o.ProfileName != "" {
+		plan.Preset = o.ProfileName
+	}
 	res := Result{UDID: udid, Profile: plan.Preset, ProfileVersion: plan.Version, RuntimeID: runtimeID,
 		RuntimeKey: plan.RuntimeKey, Groups: plan.Groups, Protected: plan.Protected, Apps: plan.Apps, DryRun: o.DryRun,
+		App: o.App, KeptBecause: kept, Informational: info,
 		Applied: []string{}, Missing: []string{}, Failed: []string{}}
 	domain, err := e.uidDomain(ctx, udid)
 	if err != nil {
@@ -228,18 +263,40 @@ func (e *Engine) Apply(ctx context.Context, udid, runtimeID string, o Options) (
 			res.Errors[l] = outs[i].err.Error()
 		}
 	}
+	var keepRecorded []string
+	if e.Store != nil {
+		inPlan := map[string]bool{}
+		for _, l := range plan.Labels {
+			inPlan[l] = true
+		}
+		for _, l := range e.recorded(udid) {
+			if inPlan[l] {
+				keepRecorded = append(keepRecorded, l)
+				continue
+			}
+			// Switching to a smaller profile: give the extra labels back.
+			lctx, cancel := e.labelCtx(ctx)
+			if _, err := e.launchctl(lctx, udid, "enable", domain+"/"+l); err != nil {
+				keepRecorded = append(keepRecorded, l) // still disabled: keep tracking it
+			} else {
+				res.Reenabled = append(res.Reenabled, l)
+			}
+			cancel()
+		}
+		res.RebootNeeded = len(res.Reenabled) > 0
+	}
 	for _, a := range plan.Apps {
 		actx, cancel := e.labelCtx(ctx)
 		_, _ = e.Run(actx, "terminate", udid, a)
 		cancel()
 	}
-	if len(res.Applied) > 0 && e.Store != nil {
+	if (len(res.Applied) > 0 || len(res.Reenabled) > 0) && e.Store != nil {
 		now := time.Now
 		if e.Now != nil {
 			now = e.Now
 		}
 		rec := Record{UDID: udid, Profile: plan.Preset, ProfileVersion: plan.Version, RuntimeID: runtimeID,
-			Groups: plan.Groups, Disabled: mergeUnique(e.recorded(udid), res.Applied), Apps: plan.Apps,
+			Groups: plan.Groups, Disabled: mergeUnique(keepRecorded, res.Applied), Apps: plan.Apps,
 			AppliedAt: now().UTC(), BaselineMB: res.BaselineMB}
 		if old, ok := e.Store.Get(udid); ok && old.BaselineMB > 0 {
 			rec.BaselineMB = old.BaselineMB // keep the first, stock baseline
@@ -323,4 +380,27 @@ func (e *Engine) Running(ctx context.Context, udid string) ([]string, error) {
 		}
 	}
 	return out, nil
+}
+
+// appGroups scans appPath and returns aggressive minus the groups the app
+// needs, with a "kept because" line per kept group and the informational
+// (group-less) signals.
+func (e *Engine) appGroups(appPath string) (groups, kept, info []string, err error) {
+	ai, err := ScanApp(appPath)
+	if err != nil {
+		return nil, nil, nil, inputErr("slim: %v", err)
+	}
+	m, err := LoadAppMap()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	reasons, infos := m.Needed(ai, e.Profile.Groups)
+	groups = AppGroups(e.Profile.Presets[PresetAggressive].Groups, reasons)
+	for _, r := range reasons {
+		kept = append(kept, r.String())
+	}
+	for _, r := range infos {
+		info = append(info, r.String())
+	}
+	return groups, kept, info, nil
 }
