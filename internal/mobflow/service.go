@@ -72,6 +72,7 @@ type Service struct {
 	HealTimeout time.Duration
 
 	once  sync.Once
+	wg    sync.WaitGroup // replay goroutines; see Close
 	rt    *runtime
 	rtErr error
 }
@@ -83,6 +84,23 @@ func NewService(root string) (*Service, error) {
 		return nil, err
 	}
 	return &Service{Store: st}, nil
+}
+
+// Close stops the replay goroutines of all live runs and waits until they
+// have returned, so nothing writes under the runs directory any more. A run
+// turns finished (and its run.json is saved) before its goroutine unwinds, so
+// tests call Close before their temp dir is removed.
+func (s *Service) Close() {
+	if rt, err := s.runtime(); err == nil {
+		rt.mu.Lock()
+		for _, l := range rt.live {
+			if l.cancel != nil {
+				l.cancel()
+			}
+		}
+		rt.mu.Unlock()
+	}
+	s.wg.Wait()
 }
 
 // live is the in-memory side of a run.

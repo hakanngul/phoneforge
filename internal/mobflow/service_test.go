@@ -39,7 +39,11 @@ func newSvc(t *testing.T) (*Service, *fakeShots, string) {
 		t.Fatal(err)
 	}
 	shots := &fakeShots{}
-	return &Service{Store: st, ScreenshotFunc: shots.fn}, shots, pid
+	s := &Service{Store: st, ScreenshotFunc: shots.fn}
+	// Registered after t.TempDir (in newTestStore), so it runs first: replay
+	// goroutines must stop writing before the temp dir is removed.
+	t.Cleanup(s.Close)
+	return s, shots, pid
 }
 
 func startExternal(t *testing.T, s *Service, pid, dev string) *Run {

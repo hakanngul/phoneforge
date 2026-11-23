@@ -61,7 +61,9 @@ func (s *Service) startReplay(l *live, c *Case, cache *Cache, stale map[string]s
 		}
 	}
 	runID := l.run.ID
+	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
 		defer cancel()
 		defer func() {
 			if p := recover(); p != nil {
