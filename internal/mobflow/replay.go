@@ -97,6 +97,7 @@ func (rp *replayer) run(ctx context.Context) {
 			return
 		}
 		if _, err := s.StepStart(runID, st.ID); err != nil {
+			rp.abort(ctx, "cannot start step "+st.ID, err)
 			return
 		}
 		var fail *segFailure
@@ -112,6 +113,7 @@ func (rp *replayer) run(ctx context.Context) {
 		}
 		if fail == nil {
 			if _, err := s.StepDone(runID, st.ID, true, "", ""); err != nil {
+				rp.abort(ctx, "cannot finish step "+st.ID, err)
 				return
 			}
 			continue
@@ -123,7 +125,9 @@ func (rp *replayer) run(ctx context.Context) {
 			if len(fail.png) > 0 {
 				s.setStepShot(rp.l, st.ID, fail.png)
 			}
-			_, _ = s.StepDone(runID, st.ID, false, "", fail.msg)
+			if _, err := s.StepDone(runID, st.ID, false, "", fail.msg); err != nil {
+				rp.abort(ctx, "cannot fail step "+st.ID, err)
+			}
 			return
 		}
 		if !rp.healStep(ctx, st, seg, have, fail) {
@@ -131,6 +135,16 @@ func (rp *replayer) run(ctx context.Context) {
 		}
 	}
 	_, _ = s.Finish(runID, "")
+}
+
+// abort fails the run after an unexpected state-machine error so the device
+// lock is released and the run never stays running. A cancelled replay is left
+// to Cancel; finishing an already finished run is a no-op.
+func (rp *replayer) abort(ctx context.Context, what string, err error) {
+	if ctx.Err() != nil {
+		return
+	}
+	_, _ = rp.s.Finish(rp.l.run.ID, "replay stopped: "+what+": "+err.Error())
 }
 
 // segFailure describes why a segment did not pass.

@@ -97,6 +97,11 @@ type live struct {
 	healStep string
 	// healCached marks steps whose repaired segment was accepted.
 	healCached map[string]bool
+	// stepHashes and caseHash are the hashes of the case as the run started;
+	// a cache submission is stamped with these, not the on-disk case, so edits
+	// made while the run was going show up as stale segments.
+	stepHashes map[string]string
+	caseHash   string
 }
 
 type runtime struct {
@@ -267,7 +272,7 @@ func (s *Service) StartRun(req StartRunRequest) (*Run, error) {
 		rt.mu.Unlock()
 		return nil, fmt.Errorf("%w: run %s is already using device %q", ErrDeviceBusy, other, req.DeviceID)
 	}
-	l := &live{run: run, br: newBroker()}
+	l := &live{run: run, br: newBroker(), stepHashes: c.StepHashes(), caseHash: CaseHash(c)}
 	rt.locks[req.DeviceID] = run.ID
 	rt.live[run.ID] = l
 	rt.trimLocked()
@@ -479,9 +484,21 @@ func (s *Service) mutate(id string, fn func(l *live) error) (*Run, error) {
 	return l.run.snapshot(), nil
 }
 
+// guardHeal rejects agent calls for a step other than the one being repaired
+// while a self-heal is in progress. The caller holds rt.mu.
+func (l *live) guardHeal(stepID string) error {
+	if l.healStep != "" && stepID != l.healStep {
+		return stateErrf("run %s is repairing step %q; only that step can be started, recorded or finished until the repair is done (got %q)", l.run.ID, l.healStep, stepID)
+	}
+	return nil
+}
+
 // StepStart marks a pending step running.
 func (s *Service) StepStart(runID, stepID string) (*Run, error) {
 	return s.mutate(runID, func(l *live) error {
+		if err := l.guardHeal(stepID); err != nil {
+			return err
+		}
 		if err := l.run.stepStart(stepID, time.Now().UTC()); err != nil {
 			return err
 		}
@@ -493,6 +510,9 @@ func (s *Service) StepStart(runID, stepID string) (*Run, error) {
 // Substep records a substep on the running step.
 func (s *Service) Substep(runID, stepID, text string) (*Run, error) {
 	return s.mutate(runID, func(l *live) error {
+		if err := l.guardHeal(stepID); err != nil {
+			return err
+		}
 		ss, err := l.run.substep(stepID, text, time.Now().UTC())
 		if err != nil {
 			return err
@@ -505,6 +525,9 @@ func (s *Service) Substep(runID, stepID, text string) (*Run, error) {
 // Assert records an assertion on the running step.
 func (s *Service) Assert(runID, stepID string, a AssertResult) (*Run, error) {
 	return s.mutate(runID, func(l *live) error {
+		if err := l.guardHeal(stepID); err != nil {
+			return err
+		}
 		if err := l.run.assert(stepID, a); err != nil {
 			return err
 		}
@@ -521,6 +544,9 @@ func (s *Service) StepDone(runID, stepID string, passed bool, notes, errText str
 	// screenshot and a run that ends with it become visible together.
 	png := s.shootFor(runID, stepID)
 	_, err := s.mutate(runID, func(l *live) error {
+		if err := l.guardHeal(stepID); err != nil {
+			return err
+		}
 		st, runDone, err := l.run.stepDone(stepID, passed, notes, errText, time.Now().UTC())
 		if err != nil {
 			return err
@@ -769,6 +795,7 @@ func (s *Service) SubmitCache(runID string, segs []Segment) (*CacheResult, error
 		}
 	}
 	project, name, runPlatform := r.Project, r.Name, r.Platform
+	snapHashes, snapCaseHash := l.stepHashes, l.caseHash
 	rt.mu.Unlock()
 
 	e, err := s.Store.Get(project, name)
@@ -783,6 +810,35 @@ func (s *Service) SubmitCache(runID string, segs []Segment) (*CacheResult, error
 		return nil, verrs
 	} else {
 		note = n
+	}
+	var stamp *hashStamp
+	if snapHashes != nil {
+		stamp = &hashStamp{steps: map[string]string{}, caseHash: snapCaseHash}
+		for _, sg := range segs { // only what was recorded by this run
+			if h, ok := snapHashes[sg.ID]; ok {
+				stamp.steps[sg.ID] = h
+			}
+		}
+		cur := e.Case.StepHashes()
+		var changed []string
+		for _, sg := range segs {
+			if h, ok := snapHashes[sg.ID]; ok && cur[sg.ID] != h {
+				changed = append(changed, sg.ID)
+			}
+		}
+		var parts []string
+		if len(changed) > 0 {
+			parts = append(parts, "the case changed since the run started for step(s) "+strings.Join(changed, ", ")+": their segments were stored with the hash of the case as the run saw it and show as stale")
+		}
+		if snapCaseHash != CaseHash(e.Case) {
+			parts = append(parts, "the case's app, secrets or step order changed since the run started: the whole cache shows as stale")
+		}
+		if len(parts) > 0 {
+			if note != "" {
+				note += "; "
+			}
+			note += strings.Join(parts, "; ")
+		}
 	}
 	platform := s.writeCachePlatform(project, name, e.Case, runPlatform)
 	lookup := lookupCachePlatform(e.Case, runPlatform)
@@ -810,7 +866,7 @@ func (s *Service) SubmitCache(runID string, segs []Segment) (*CacheResult, error
 		order[st.ID] = i
 	}
 	sort.SliceStable(merged, func(i, j int) bool { return order[merged[i].ID] < order[merged[j].ID] })
-	cache, err := s.Store.PutCache(project, name, platform, Cache{Segments: merged})
+	cache, err := s.Store.putCache(project, name, platform, Cache{Segments: merged}, stamp)
 	if err != nil {
 		return nil, err
 	}

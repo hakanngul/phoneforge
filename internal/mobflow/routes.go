@@ -78,7 +78,17 @@ func (s *Service) cacheView(project, name string, cache *Cache) (cacheView, erro
 func (s *Service) Routes() http.Handler {
 	r := chi.NewRouter()
 	st := s.Store
-	platform := func(req *http.Request) string { return req.URL.Query().Get("platform") }
+	// platform is the cache platform of a request: the ?platform= query, else
+	// the platform the case pins (platform-"any" cases keep the default "").
+	platform := func(req *http.Request) string {
+		if p := req.URL.Query().Get("platform"); p != "" {
+			return p
+		}
+		if e, err := st.Get(chi.URLParam(req, "project"), chi.URLParam(req, "name")); err == nil && e.Case != nil {
+			return casePlatform(e.Case)
+		}
+		return ""
+	}
 
 	r.Get("/cases", func(w http.ResponseWriter, req *http.Request) {
 		list, err := st.List(req.URL.Query().Get("project"))
@@ -191,6 +201,14 @@ func (s *Service) Routes() http.Handler {
 			return
 		}
 		project, name := chi.URLParam(req, "project"), chi.URLParam(req, "name")
+		// Same content checks as an agent submission: no literal secret
+		// values, no undeclared type_secret ids.
+		if e, gerr := st.Get(project, name); gerr == nil && e.Case != nil && len(e.Errors) == 0 {
+			if verrs, _ := checkAgainstCase(e.Case, in.Segments, s.Secrets); len(verrs) > 0 {
+				storeErr(w, verrs)
+				return
+			}
+		}
 		cache, err := st.PutCache(project, name, platform(req), in)
 		if err != nil {
 			storeErr(w, err)
@@ -250,6 +268,8 @@ func (s *Service) Routes() http.Handler {
 		}
 		writeJSON(w, http.StatusOK, stats)
 	})
+	// Restore only re-activates a version the server itself wrote and archived
+	// (every write path is checked), so it skips checkAgainstCase.
 	r.Post("/cases/{project}/{name}/cache/history/{entry}/restore", func(w http.ResponseWriter, req *http.Request) {
 		project, name := chi.URLParam(req, "project"), chi.URLParam(req, "name")
 		cache, err := st.RestoreHistory(project, name, platform(req), chi.URLParam(req, "entry"))

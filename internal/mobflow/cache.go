@@ -208,6 +208,17 @@ func (s *Store) validCaseFor(project, name string) (*Case, error) {
 // title default to the step's. The previous version is archived first.
 // Validation problems are returned as ValidationErrors with Step = segment id.
 func (s *Store) PutCache(project, name, platform string, in Cache) (*Cache, error) {
+	return s.putCache(project, name, platform, in, nil)
+}
+
+// hashStamp overrides the hashes a cache write records: the hashes of the case
+// as a run saw it when it started (nil = hash the stored case).
+type hashStamp struct {
+	steps    map[string]string
+	caseHash string
+}
+
+func (s *Store) putCache(project, name, platform string, in Cache, stamp *hashStamp) (*Cache, error) {
 	if err := checkPlatform(platform); err != nil {
 		return nil, err
 	}
@@ -217,7 +228,7 @@ func (s *Store) PutCache(project, name, platform string, in Cache) (*Cache, erro
 	if err != nil {
 		return nil, err
 	}
-	segs, verrs := s.checkSegments(c, in.Segments)
+	segs, verrs := s.checkSegments(c, in.Segments, stamp)
 	if len(verrs) > 0 {
 		return nil, verrs
 	}
@@ -234,8 +245,12 @@ func (s *Store) PutCache(project, name, platform string, in Cache) (*Cache, erro
 	case !errors.Is(perr, ErrNotFound):
 		return nil, perr
 	}
+	caseHash := CaseHash(c)
+	if stamp != nil && stamp.caseHash != "" {
+		caseHash = stamp.caseHash
+	}
 	out := &Cache{
-		Version: next, CaseHash: CaseHash(c), Platform: platform,
+		Version: next, CaseHash: caseHash, Platform: platform,
 		UpdatedAt: time.Now().UTC().Truncate(time.Millisecond), Segments: segs,
 	}
 	if err := writeCache(path, out); err != nil {
@@ -244,7 +259,7 @@ func (s *Store) PutCache(project, name, platform string, in Cache) (*Cache, erro
 	return out, nil
 }
 
-func (s *Store) checkSegments(c *Case, in []Segment) ([]Segment, ValidationErrors) {
+func (s *Store) checkSegments(c *Case, in []Segment, stamp *hashStamp) ([]Segment, ValidationErrors) {
 	var errs ValidationErrors
 	add := func(id, msg string, a ...any) {
 		errs = append(errs, ValidationError{Step: id, Field: "segments", Message: fmt.Sprintf(msg, a...)})
@@ -285,6 +300,11 @@ func (s *Store) checkSegments(c *Case, in []Segment) ([]Segment, ValidationError
 			sg.Title = step.Title
 		}
 		sg.StepHash = hashes[sg.ID] // server-owned
+		if stamp != nil {
+			if h, ok := stamp.steps[sg.ID]; ok {
+				sg.StepHash = h
+			}
+		}
 		if sg.RecordedAt.IsZero() {
 			sg.RecordedAt = now
 		}

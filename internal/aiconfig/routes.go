@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"pocketlab/internal/agent/llm"
@@ -73,9 +74,20 @@ func (m *Manager) Routes() http.Handler {
 	})
 	r.Put("/settings", func(w http.ResponseWriter, req *http.Request) {
 		var in Settings
-		if err := json.NewDecoder(http.MaxBytesReader(w, req.Body, 1<<20)).Decode(&in); err != nil {
+		body, err := io.ReadAll(http.MaxBytesReader(w, req.Body, 1<<20))
+		if err == nil {
+			err = json.Unmarshal(body, &in)
+		}
+		if err != nil {
 			writeErr(w, http.StatusBadRequest, err)
 			return
+		}
+		// A client that does not know the workflow slot (older UI, scripts)
+		// must not reset it: keep the stored value when the key is omitted.
+		var keys map[string]json.RawMessage
+		_ = json.Unmarshal(body, &keys)
+		if _, ok := keys["workflow"]; !ok {
+			in.Workflow = m.Settings().Workflow
 		}
 		if err := m.SetSettings(in); err != nil {
 			writeErr(w, http.StatusBadRequest, err)

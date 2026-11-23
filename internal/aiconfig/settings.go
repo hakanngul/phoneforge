@@ -84,8 +84,14 @@ func (s *Settings) normalize() error {
 	if s.Testing.Agent == "" {
 		s.Testing.Agent = AgentBuiltin
 	}
+	// First migration only: an unset Workflow slot starts as the Testing slot.
+	// A slot with an agent (or just a model) is the user's own and is kept.
 	if s.Workflow.Agent == "" {
-		s.Workflow = s.Testing
+		if s.Workflow.Model == "" {
+			s.Workflow = s.Testing
+		} else {
+			s.Workflow.Agent = s.Testing.Agent
+		}
 	}
 	if !validAgent(s.Automation.Agent) || !validAgent(s.Testing.Agent) || !validAgent(s.Workflow.Agent) {
 		return errors.New("unknown agent")

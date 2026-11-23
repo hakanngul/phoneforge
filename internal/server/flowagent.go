@@ -22,7 +22,7 @@ func (l flowLauncher) Start(req mobflow.AgentRequest) (string, error) {
 		},
 	})
 	if errors.Is(err, aiconfig.ErrBuiltin) {
-		return "", errors.New("workflow runs need a CLI agent (Claude Code, Codex, ...): pick one for Workflow in the AI settings, or start the run with agent \"external\"")
+		return "", errors.New("workflow runs need a CLI agent (Claude Code, Codex, ...): set the Workflow (Flows) agent under AI Configuration > Agent types & settings (it currently resolves to the built-in agent), or start the run with agent \"external\"")
 	}
 	return id, err
 }
