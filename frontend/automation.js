@@ -419,7 +419,7 @@
 
   $('iosNoticeAction').addEventListener('click', function () { var bt = $('bridgeToggle'); if (bt && !bt.disabled) bt.click(); });
 
-  function refreshSoon() { setTimeout(function () { if (videoActive || mjpegActive || !mirrorOn) return; if (!frameBusy) { clearTimeout(frameTimer); tick(frameGen); } }, 350); }
+  function refreshSoon() { if (PF.onGestureSent) PF.onGestureSent(); setTimeout(function () { if (videoActive || mjpegActive || !mirrorOn) return; if (!frameBusy) { clearTimeout(frameTimer); tick(frameGen); } }, 350); }
 
   /* Geometry of the active mirror element. cw/ch = bitmap shown (video frame or screenshot),
      dw/dh = real device resolution; kx/ky convert device px -> css px. null if unknown. */
@@ -492,7 +492,7 @@
     hl.hidden = false;
   }
 
-  function clearPick() { picked = null; $('hl').hidden = true; $('inspector').hidden = true; }
+  function clearPick() { picked = null; $('hl').hidden = true; $('inspector').hidden = true; if (PF.onPickCleared) PF.onPickCleared(); }
 
   function showInspector(el) {
     var box = $('inspector'); box.innerHTML = ''; box.hidden = false;
@@ -524,10 +524,13 @@
   function fallbackCopy(s) { PF.copyFallback(s); }
 
   function pick(p) {
+    var devId = PF.selectedId;
     PF.api('GET', PF.dev('/ui-tree')).then(function (tree) {
+      if (devId !== PF.selectedId) return;
       var el = tree && deepest(tree, p.x, p.y);
       if (!el) { PF.toast('No element at ' + p.x + ',' + p.y, true); clearPick(); return; }
       picked = el; drawHighlight(); showInspector(el);
+      if (PF.onElementPicked) PF.onElementPicked(el, tree);
     }).catch(function (e) { PF.toast(e.message); });
   }
 
@@ -643,6 +646,7 @@
     $('pickerToggle').checked = on;
     screenEl.classList.toggle('picker', on);
     if (!on) { clearPick(); hideHover(); treeCache = null; } else loadTree();
+    if (PF.onPickerToggle) PF.onPickerToggle(on);
   }
   $('pickerToggle').addEventListener('change', function () { setPicker(this.checked); });
   document.addEventListener('keydown', function (e) {
@@ -651,6 +655,28 @@
     setPicker(false);
   });
   window.addEventListener('resize', function () { if (picked) drawHighlight(); });
+  /* API for the element tree panel (elementtree.js) */
+  function hoverEl(el) {
+    var m = metrics();
+    if (!el || !el.bounds || !m) { hoverBox.hidden = true; hoverTip.hidden = true; return; }
+    var b = el.bounds, sr = screenEl.getBoundingClientRect();
+    hoverBox.style.left = (m.r.left - sr.left + m.offX + b.x * m.kx) + 'px';
+    hoverBox.style.top = (m.r.top - sr.top + m.offY + b.y * m.ky) + 'px';
+    hoverBox.style.width = Math.max(b.w * m.kx, 2) + 'px'; hoverBox.style.height = Math.max(b.h * m.ky, 2) + 'px';
+    hoverBox.hidden = false; hoverTip.hidden = true;
+  }
+  PF.picker = {
+    picked: function () { return picked; }, metrics: metrics, selectorFor: selectorFor, isOn: function () { return $('pickerToggle').checked; },
+    getTree: function (force) {
+      if (!PF.selectedId) return Promise.reject(new Error('No device selected'));
+      var id = PF.selectedId;
+      if (!force && treeCache && Date.now() - treeAt < 3000) return Promise.resolve(treeCache);
+      return PF.api('GET', PF.dev('/ui-tree')).then(function (t) { if (id === PF.selectedId) { treeCache = t; treeAt = Date.now(); } return t; });
+    },
+    select: function (el) { if (!el) { clearPick(); return; } picked = el; drawHighlight(); showInspector(el); },
+    hover: hoverEl,
+    tap: function (el) { var b = el && el.bounds; if (b) doTap(Math.round(b.x + b.w / 2), Math.round(b.y + b.h / 2)); }
+  };
 
   /* ---------- toolbar ---------- */
   $('fps').addEventListener('change', function () { clearTimeout(frameTimer); if (!frameBusy && !videoActive && mirrorOn) tick(frameGen); });
