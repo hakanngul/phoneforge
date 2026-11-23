@@ -154,6 +154,31 @@ func (s *Service) Routes() http.Handler {
 		}
 		writeJSON(w, http.StatusOK, v)
 	})
+	r.Get("/cases/{project}/{name}/lint", func(w http.ResponseWriter, req *http.Request) {
+		project, name := chi.URLParam(req, "project"), chi.URLParam(req, "name")
+		e, err := st.Get(project, name)
+		if err != nil {
+			storeErr(w, err)
+			return
+		}
+		if e.Case == nil {
+			writeJSON(w, http.StatusOK, struct {
+				OK       bool      `json:"ok"`
+				Warnings []Warning `json:"warnings"`
+			}{false, []Warning{}})
+			return
+		}
+		cache, err := st.GetCache(project, name, platform(req))
+		if err != nil && !errors.Is(err, ErrNotFound) {
+			storeErr(w, err)
+			return
+		}
+		warnings := Lint(e.Case, cache)
+		writeJSON(w, http.StatusOK, struct {
+			OK       bool      `json:"ok"`
+			Warnings []Warning `json:"warnings"`
+		}{len(warnings) == 0, warnings})
+	})
 	r.Put("/cases/{project}/{name}/cache", func(w http.ResponseWriter, req *http.Request) {
 		b, ok := readBody(w, req, 8<<20)
 		if !ok {

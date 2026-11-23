@@ -146,10 +146,27 @@ the per-step result printed. Exit 1 if it did not pass.`,
 
 	"flow": `Usage: pocketlab flow list [--project P] [--json]
        pocketlab flow validate <file.mobflow|project/name>
+       pocketlab flow run <project/name> -d DEVICE [--mode auto|record|replay] [--agent A] [--heal]
+                          [--param k=v]... [--junit FILE] [--timeout 30m] [--json]
+       pocketlab flow replay <project/name> -d DEVICE [--heal] [--param k=v]... [--junit FILE]
+       pocketlab flow record <project/name> -d DEVICE [--agent A]
+       pocketlab flow cache <project/name> [show|history|restore <entry>|delete] [--platform android|ios]
 
 list prints the .mobflow cases on the server with their cache state.
-validate checks a local file offline, or a stored case by id (<project>/<name>).
-Exit codes: 0 ok, 1 validation failure, 2 error.`,
+validate checks a local file offline, or a stored case by id (<project>/<name>);
+for a stored case it also prints lint warnings (raw-coordinate taps, long sleeps).
+run starts a run and follows it. Mode auto replays when every step has a fresh
+cached segment, records when none has, and for a mix replays and lets the agent
+record the stale or missing steps (without an agent it fails naming them).
+replay is run --mode replay: it executes the cached DSL without any agent. With
+--heal a failing segment is handed to an agent that repairs only that step and
+updates the cache. Without --heal an agent is never contacted.
+record has an agent do the case and submit the cache.
+--junit writes a JUnit XML report (one testcase per step); the screenshot of a
+failed step is saved beside it. --timeout stops the run on the server.
+cache shows the segments and their freshness, lists or restores history, or deletes it.
+Exit codes: 0 ok / run passed, 1 validation failure or run failed/cancelled,
+2 error, 4 server unreachable.`,
 
 	"logs": `Usage: pocketlab logs [-f] [--seconds N] [--grep TEXT]
 

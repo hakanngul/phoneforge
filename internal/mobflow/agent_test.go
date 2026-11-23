@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	segLogin   = `{"id":"s1","steps":[{"action":"launch_app","bundleId":"com.shop.app"},{"action":"wait_stable"},{"action":"tap","selector":{"text":"Sign in"}}]}`
-	segAdd     = `{"id":"s2","steps":[{"action":"tap","selector":{"text":"Add to cart"}},{"action":"wait_stable"}]}`
-	segCart    = `{"id":"s3","steps":[{"action":"tap","selector":{"text":"Cart"}},{"action":"assert_exists","selector":{"textContains":"Total"}}]}`
+	segLogin   = `{"id":"s1","steps":[{"action":"launch_app","bundleId":"com.shop.app","settleMs":0},{"action":"wait_stable","timeoutMs":500},{"action":"tap","selector":{"text":"Sign in"},"settleMs":0}]}`
+	segAdd     = `{"id":"s2","steps":[{"action":"tap","selector":{"text":"Add to cart"},"settleMs":0},{"action":"wait_stable","timeoutMs":500}]}`
+	segCart    = `{"id":"s3","steps":[{"action":"tap","selector":{"text":"Cart"},"settleMs":0},{"action":"assert_exists","selector":{"textContains":"Total"}}]}`
 	allSegs    = `{"segments":[` + segLogin + `,` + segAdd + `,` + segCart + `]}`
 	fakeSecret = "hunter2-secret"
 )

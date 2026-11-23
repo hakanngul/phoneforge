@@ -359,6 +359,10 @@ func (r *runner) attempt(ctx context.Context, canon string, st Step) *outcome {
 	return oc
 }
 
+// ChangesUI reports whether the canonical action normally changes what is on
+// screen (used by flows to add stabilisation waits).
+func ChangesUI(canon string) bool { return changesUI(canon) }
+
 func changesUI(canon string) bool {
 	switch canon {
 	case "launch_app", "tap", "long_press", "type", "type_secret", "swipe", "press_key",

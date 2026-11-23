@@ -291,8 +291,8 @@ func TestRoutesRunsAndLock(t *testing.T) {
 	if w := doReq(t, h, "POST", "/runs", strings.Replace(body, "dev1", "dev2", 1)); w.Code != 202 {
 		t.Fatalf("other device: %d %s", w.Code, w.Body)
 	}
-	// replay and auto are not available yet
-	if w := doReq(t, h, "POST", "/runs", strings.Replace(body, `"record"`, `"replay"`, 1)); w.Code != 501 {
+	// replay is subject to the same device lock
+	if w := doReq(t, h, "POST", "/runs", strings.Replace(body, `"record"`, `"replay"`, 1)); w.Code != 409 {
 		t.Fatalf("replay: %d", w.Code)
 	}
 	// bad requests

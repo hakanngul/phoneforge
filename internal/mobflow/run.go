@@ -86,6 +86,8 @@ type Run struct {
 	EndedAt    *time.Time        `json:"endedAt,omitempty"`
 	Error      string            `json:"error,omitempty"`
 	Healed     []string          `json:"healed"`
+	// Heal is set when a replay may hand a failing segment to an agent.
+	Heal bool `json:"heal,omitempty"`
 	// CacheSubmitted is set once a cache submission was accepted (record mode).
 	CacheSubmitted bool      `json:"cacheSubmitted,omitempty"`
 	Steps          []StepRun `json:"steps"`
@@ -146,6 +148,9 @@ func (r *Run) stepStart(id string, now time.Time) error {
 	st := r.step(id)
 	if st == nil {
 		return stateErrf("unknown step %q; valid step ids: %s", id, idList(r.stepIDs("")))
+	}
+	if st.State == StepHealing {
+		return nil // the repair agent announcing the step it was asked to fix
 	}
 	if cur := r.runningStep(); cur != nil {
 		return stateErrf("step %q is still running; call workflow_step_done for it before starting %q", cur.ID, id)
@@ -233,6 +238,7 @@ func (r *Run) stepDone(id string, passed bool, notes, errText string, now time.T
 	if passed {
 		st.State = StepPassed
 		if healing {
+			st.Error = ""
 			st.State = StepHealed
 			r.Healed = append(r.Healed, st.ID)
 		}

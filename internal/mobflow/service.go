@@ -64,9 +64,12 @@ type Service struct {
 	// Launcher starts workflow agents for record runs. Nil means only
 	// external agents (agent "external") are supported.
 	Launcher AgentLauncher
-	// Secrets resolves a secret id to its plaintext; it is used only to reject
-	// literal secret values in submitted caches. Optional.
+	// Secrets resolves a secret id to its plaintext: replay uses it for
+	// type_secret, and submitted caches are checked for literal values.
+	// Optional.
 	Secrets func(id string) (string, error)
+	// HealTimeout bounds one self-heal agent run (default 10 minutes).
+	HealTimeout time.Duration
 
 	once  sync.Once
 	rt    *runtime
@@ -88,6 +91,12 @@ type live struct {
 	br  *broker
 	// cacheOpen: the agent may still submit a cache for this run.
 	cacheOpen bool
+	// cancel stops the replay goroutine of a replay run.
+	cancel context.CancelFunc
+	// healStep is the step a repair agent currently works on ("" = none).
+	healStep string
+	// healCached marks steps whose repaired segment was accepted.
+	healCached map[string]bool
 }
 
 type runtime struct {
@@ -147,8 +156,11 @@ func effectiveParams(c *Case, in map[string]string) (map[string]string, error) {
 	return out, nil
 }
 
-// StartRun creates a run and, for record runs with an agent, launches it.
-// Replay and auto modes arrive with the replay engine (ErrNotImplemented).
+// StartRun creates a run. Record runs launch an agent; replay runs start the
+// deterministic replayer in the background. Mode auto becomes replay when
+// every step has a fresh cached segment, record when none has, and for a mix
+// replay with heal when an agent can be launched (it records the stale or
+// missing segments), else a replay that fails naming them.
 func (s *Service) StartRun(req StartRunRequest) (*Run, error) {
 	rt, err := s.runtime()
 	if err != nil {
@@ -165,9 +177,7 @@ func (s *Service) StartRun(req StartRunRequest) (*Run, error) {
 		mode = "auto"
 	}
 	switch mode {
-	case ModeRecord:
-	case "auto", ModeReplay:
-		return nil, fmt.Errorf("%w: mode %q needs the replay engine; use mode \"record\"", ErrNotImplemented, mode)
+	case ModeRecord, ModeReplay, "auto":
 	default:
 		return nil, fmt.Errorf("%w: mode must be auto, record or replay", ErrInvalid)
 	}
@@ -199,10 +209,48 @@ func (s *Service) StartRun(req StartRunRequest) (*Run, error) {
 	}
 	agent := strings.TrimSpace(req.Agent)
 
+	// Resolve auto and check what replay needs.
+	var cache *Cache
+	var stale map[string]string
+	heal := req.Heal
+	if mode != ModeRecord {
+		cache, _ = s.Store.GetCache(e.Project, e.Name, casePlatform(c))
+		stale = Staleness(c, cache)
+		canAgent := s.Launcher != nil && agent != AgentExternal
+		if mode == "auto" {
+			fresh := 0
+			for _, st := range stale {
+				if st == StateFresh {
+					fresh++
+				}
+			}
+			switch {
+			case fresh == 0:
+				mode, heal = ModeRecord, false
+			case fresh == len(stale):
+				mode = ModeReplay
+			default:
+				// Mixed: replay the fresh segments and let the agent record the
+				// stale or missing ones as repairs. Without an agent the replay
+				// fails fast naming the segments.
+				mode, heal = ModeReplay, canAgent
+			}
+		}
+		if mode == ModeReplay && heal && !canAgent {
+			if agent == AgentExternal {
+				return nil, fmt.Errorf("%w: heal needs a launched agent, not %q", ErrInvalid, AgentExternal)
+			}
+			return nil, fmt.Errorf("%w: no agent launcher is configured; heal is unavailable", ErrNotImplemented)
+		}
+	}
+	if mode == ModeRecord {
+		heal = false
+	}
+
 	now := time.Now().UTC()
 	run := &Run{
 		ID: newRunID(now), CaseID: e.ID, Project: e.Project, Name: e.Name, DeviceID: req.DeviceID,
-		Platform: platform, Mode: mode, Agent: agent, Params: params,
+		Platform: platform, Mode: mode, Agent: agent, Params: params, Heal: heal,
 		Status: RunRunning, StartedAt: now, Healed: []string{}, Steps: make([]StepRun, len(c.Steps)),
 	}
 	for i, st := range c.Steps {
@@ -230,6 +278,10 @@ func (s *Service) StartRun(req StartRunRequest) (*Run, error) {
 	rt.store.Prune()
 	events.Info(fmt.Sprintf("Flow run started: %s on %s (%s)", e.ID, req.DeviceID, mode))
 
+	if mode == ModeReplay {
+		s.startReplay(l, c, cache, stale, agent)
+		return s.GetRun(run.ID)
+	}
 	if err := s.startAgent(l, c, agent); err != nil {
 		_, _ = s.Finish(run.ID, "agent could not be started: "+err.Error())
 		return nil, err
@@ -445,7 +497,9 @@ func (s *Service) Assert(runID, stepID string, a AssertResult) (*Run, error) {
 // step fails the run (remaining steps are skipped). When every step passed, a
 // record run waits for the cache submission.
 func (s *Service) StepDone(runID, stepID string, passed bool, notes, errText string) (*Run, error) {
-	needFinish := false
+	// The screenshot is taken before the state change so that the step, its
+	// screenshot and a run that ends with it become visible together.
+	png := s.shootFor(runID, stepID)
 	_, err := s.mutate(runID, func(l *live) error {
 		st, runDone, err := l.run.stepDone(stepID, passed, notes, errText, time.Now().UTC())
 		if err != nil {
@@ -458,23 +512,22 @@ func (s *Service) StepDone(runID, stepID string, passed bool, notes, errText str
 		case l.run.allPassed():
 			if l.run.Mode == ModeRecord {
 				l.cacheOpen = true // wait for workflow_cache_script
-			} else {
+			} else if l.healStep == "" { // a repair is finished by the replayer
 				l.run.end(RunPassed, "", time.Now().UTC())
 			}
 		}
-		needFinish = l.run.finished()
+		if len(png) > 0 {
+			if err := s.saveShotLocked(l, stepID, png); err != nil {
+				l.br.publish(EvLog, map[string]string{"stream": "server", "text": "cannot save screenshot: " + err.Error()})
+			}
+		}
+		if l.run.finished() {
+			s.rt.finishLocked(l)
+		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
-	}
-	s.capture(runID, stepID)
-	if needFinish {
-		s.rt.mu.Lock()
-		if l, ok := s.rt.live[runID]; ok {
-			s.rt.finishLocked(l)
-		}
-		s.rt.mu.Unlock()
 	}
 	return s.GetRun(runID)
 }
@@ -503,15 +556,16 @@ func (s *Service) shoot(ctx context.Context, deviceID string) ([]byte, error) {
 	return shot.PNG, err
 }
 
-// capture stores step-<id>.png for a step. Failures are logged on the event
-// stream, never returned: a missing screenshot must not fail the run.
-func (s *Service) capture(runID, stepID string) {
+// shootFor captures the screen of the device of runID for step stepID. A
+// failure is logged on the event stream, never returned: a missing screenshot
+// must not fail the run.
+func (s *Service) shootFor(runID, stepID string) []byte {
 	rt := s.rt
 	rt.mu.Lock()
 	l, ok := rt.live[runID]
 	if !ok {
 		rt.mu.Unlock()
-		return
+		return nil
 	}
 	deviceID := l.run.DeviceID
 	rt.mu.Unlock()
@@ -519,25 +573,29 @@ func (s *Service) capture(runID, stepID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	png, err := s.shoot(ctx, deviceID)
-	rt.mu.Lock()
-	defer rt.mu.Unlock()
 	if err != nil {
+		rt.mu.Lock()
 		l.br.publish(EvLog, map[string]string{"stream": "server", "text": "screenshot of step " + stepID + " failed: " + err.Error()})
-		return
+		rt.mu.Unlock()
+		return nil
 	}
-	if len(png) == 0 {
-		return
-	}
+	return png
+}
+
+// saveShotLocked stores png as step-<id>.png and points the step at it. The
+// caller holds rt.mu.
+func (s *Service) saveShotLocked(l *live, stepID string, png []byte) error {
+	rt := s.rt
 	name := "step-" + stepID + ".png"
-	if err := rt.store.WriteArtifact(runID, name, png); err != nil {
-		l.br.publish(EvLog, map[string]string{"stream": "server", "text": "cannot save screenshot: " + err.Error()})
-		return
+	if err := rt.store.WriteArtifact(l.run.ID, name, png); err != nil {
+		return err
 	}
 	if st := l.run.step(stepID); st != nil {
 		st.Screenshot = name
 	}
 	_ = rt.store.Save(l.run)
 	l.br.publish(EvScreenshot, map[string]string{"stepId": stepID, "file": name})
+	return nil
 }
 
 // Finish closes a run that is still open: it is called when the agent exits.
@@ -558,9 +616,20 @@ func (s *Service) Finish(runID, reason string) (*Run, error) {
 		rt.mu.Unlock()
 		return s.GetRun(runID)
 	}
-	var closedStep string
-	closed := false
+	pre := ""
 	if !l.run.finished() {
+		if cur := l.run.runningStep(); cur != nil {
+			pre = cur.ID
+		}
+	}
+	rt.mu.Unlock()
+	var png []byte
+	if pre != "" {
+		png = s.shootFor(runID, pre)
+	}
+	rt.mu.Lock()
+	if !l.run.finished() {
+		closedStep := ""
 		if cur := l.run.runningStep(); cur != nil {
 			closedStep = cur.ID
 		}
@@ -573,18 +642,13 @@ func (s *Service) Finish(runID, reason string) (*Run, error) {
 		default:
 			l.run.closeOpen(RunFailed, reason, now)
 		}
-		closed = true
+		if closedStep != "" && closedStep == pre && len(png) > 0 {
+			_ = s.saveShotLocked(l, closedStep, png)
+		}
+		rt.finishLocked(l)
 	}
 	l.cacheOpen = false
 	rt.mu.Unlock()
-	if closedStep != "" {
-		s.capture(runID, closedStep)
-	}
-	if closed {
-		rt.mu.Lock()
-		rt.finishLocked(l)
-		rt.mu.Unlock()
-	}
 	return s.GetRun(runID)
 }
 
@@ -601,6 +665,9 @@ func (s *Service) Cancel(runID string) (*Run, error) {
 		return s.GetRun(runID)
 	}
 	agentID := l.run.AgentRunID
+	if l.cancel != nil {
+		l.cancel()
+	}
 	if !l.run.finished() {
 		l.run.closeOpen(RunCancelled, "cancelled", time.Now().UTC())
 		l.cacheOpen = false
@@ -640,10 +707,27 @@ func (s *Service) SubmitCache(runID string, segs []Segment) (*CacheResult, error
 		return nil, stateErrf("run %s is not active; a cache can only be submitted by the run that recorded it", runID)
 	}
 	r := l.run
+	healStep := ""
+	if r.Mode == ModeReplay && l.healStep != "" {
+		healStep = l.healStep
+	}
 	switch {
+	case healStep != "":
+		st := r.step(healStep)
+		switch {
+		case len(segs) != 1 || segs[0].ID != healStep:
+			rt.mu.Unlock()
+			return nil, stateErrf("run %s is repairing step %q: submit exactly one segment with id %q", runID, healStep, healStep)
+		case l.healCached[healStep]:
+			rt.mu.Unlock()
+			return nil, stateErrf("the repaired segment of step %q was already submitted", healStep)
+		case st == nil || st.State != StepHealed:
+			rt.mu.Unlock()
+			return nil, stateErrf("finish step %q with workflow_step_done (passed=true) before submitting its repaired segment", healStep)
+		}
 	case r.Mode != ModeRecord:
 		rt.mu.Unlock()
-		return nil, stateErrf("run %s is a %s run; only record runs submit a cache", runID, r.Mode)
+		return nil, stateErrf("run %s is a %s run; only record runs (and the repair of a failing step in a replay) submit a cache", runID, r.Mode)
 	case r.CacheSubmitted:
 		rt.mu.Unlock()
 		return nil, stateErrf("run %s already submitted its cache", runID)
@@ -655,11 +739,13 @@ func (s *Service) SubmitCache(runID string, segs []Segment) (*CacheResult, error
 		rt.mu.Unlock()
 		return nil, stateErrf("steps are not finished yet (unfinished step ids: %s); submit the cache after the last workflow_step_done", idList(pending))
 	}
-	for _, sg := range segs {
-		st := r.step(sg.ID)
-		if st != nil && st.State != StepPassed && st.State != StepHealed {
-			rt.mu.Unlock()
-			return nil, stateErrf("segment %q belongs to a step that did not pass (state %s); cache only passed steps", sg.ID, st.State)
+	if healStep == "" {
+		for _, sg := range segs {
+			st := r.step(sg.ID)
+			if st != nil && st.State != StepPassed && st.State != StepHealed {
+				rt.mu.Unlock()
+				return nil, stateErrf("segment %q belongs to a step that did not pass (state %s); cache only passed steps", sg.ID, st.State)
+			}
 		}
 	}
 	project, name := r.Project, r.Name
@@ -679,6 +765,12 @@ func (s *Service) SubmitCache(runID string, segs []Segment) (*CacheResult, error
 		note = n
 	}
 	platform := casePlatform(e.Case)
+	segs = normalizeSegments(segs)
+	if healStep != "" {
+		healedAt := time.Now().UTC().Truncate(time.Millisecond)
+		segs[0].HealedAt = &healedAt
+		segs[0].RecordedAt = healedAt
+	}
 	merged := append([]Segment(nil), segs...)
 	submitted := map[string]bool{}
 	for _, sg := range segs {
@@ -703,6 +795,15 @@ func (s *Service) SubmitCache(runID string, segs []Segment) (*CacheResult, error
 	}
 
 	rt.mu.Lock()
+	if healStep != "" {
+		if l.healCached == nil {
+			l.healCached = map[string]bool{}
+		}
+		l.healCached[healStep] = true
+		snap := r.snapshot()
+		rt.mu.Unlock()
+		return &CacheResult{Cache: cache, Staleness: Staleness(e.Case, cache), Run: snap, Notes: note}, nil
+	}
 	r.CacheSubmitted = true
 	l.cacheOpen = false
 	if !r.finished() {
