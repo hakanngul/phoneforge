@@ -11,7 +11,7 @@
   var PF = window.PF, $ = PF.$, area = $('singleArea');
   if (!area || !PF.picker) return;
 
-  var K_W = 'pf.elementTreeW', K_C = 'pf.elementTreeCollapsed', MIN_W = 220, MAX_W = 560, DEF_W = 300, DRAWER_BP = 1100;
+  var K_W = 'pf.elementTreeW', K_C = 'pf.elementTreeCollapsed', K_CMP = 'pf.elementTreeCompact', MIN_W = 220, MAX_W = 560, DEF_W = 300, DRAWER_BP = 1100;
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } }
   function notify() { setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 0); }
@@ -35,7 +35,11 @@
   var visLbl = PF.el('label', 'et-vis'), visCb = document.createElement('input'); visCb.type = 'checkbox';
   visLbl.appendChild(visCb); visLbl.appendChild(document.createTextNode(' Only visible'));
   visLbl.title = 'Hide nodes with empty bounds or entirely outside the screen';
-  tools.appendChild(refBtn); tools.appendChild(expBtn); tools.appendChild(colBtn); tools.appendChild(visLbl);
+  var cmpLbl = PF.el('label', 'et-vis'), cmpCb = document.createElement('input'); cmpCb.type = 'checkbox';
+  cmpLbl.appendChild(cmpCb); cmpLbl.appendChild(document.createTextNode(' Compact'));
+  var CMP_TIP = 'Compact: hide pure container rows (Other/Group/View/ViewGroup/*Layout without text, label, id, or click/focus/check/select flags); their children move up to the nearest shown parent';
+  cmpLbl.title = CMP_TIP;
+  tools.appendChild(refBtn); tools.appendChild(expBtn); tools.appendChild(colBtn); tools.appendChild(visLbl); tools.appendChild(cmpLbl);
   var sbox = PF.el('div', 'et-search');
   var q = document.createElement('input'); q.type = 'text'; q.placeholder = 'Find element'; q.setAttribute('aria-label', 'Find element');
   q.spellcheck = false; q.autocomplete = 'off';
@@ -93,6 +97,15 @@
     var hh = hits(best); res.index = hh.indexOf(n);
     return res;
   }
+  // Generic layout containers (iOS: Other/Group/LayoutArea/Any; Android: View/ViewGroup/*Layout). ScrollView, Table,
+  // CollectionView, Cell and the like are intentionally not listed: they matter structurally.
+  var GENERIC = { other: 1, group: 1, layoutarea: 1, any: 1, view: 1, viewgroup: 1 };
+  function isPureContainer(n) {
+    var sr = shortRole(n.role).toLowerCase();
+    if (!(GENERIC[sr] || /layout$/.test(sr))) return false;
+    if (n.text || n.label || n.value || n.name || n.resourceId || n.id || n.identifier || n.contentDesc || n.contentDescription) return false;
+    return !(n.clickable || n.focusable || n.focused || n.checkable || n.checked || n.selected || n.longClickable || n.scrollable);
+  }
   function boundsOf(n) { return n.bounds || { x: 0, y: 0, w: 0, h: 0 }; }
   function sameNode(a, b) {
     var x = boundsOf(a), y = boundsOf(b);
@@ -102,6 +115,7 @@
 
   /* ---------- state ---------- */
   var rows = [], byNode = new Map(), treeRoot = null, selRow = null, hoverRow = null;
+  var compact = lsGet(K_CMP) !== '0', hiddenN = 0, totalN = 0; cmpCb.checked = compact;
   var gen = 0, loadedFor = null, reloadTimer = 0, searchTimer = 0;
   var matches = [], cursor = -1, onlyVis = false, useRe = false, queryRe = null, queryStr = '';
 
@@ -133,7 +147,8 @@
     function visit(n, depth, parent, idx) {
       var r = { n: n, depth: depth, parent: parent, kids: [], key: (parent ? parent.key : '') + '/' + idx + ':' + (n.role || '') + ':' + (n.resourceId || ''),
         open: false, match: false, desc: false, shown: true, el: null, caret: null, vis: false };
-      r.open = oldOpen && oldOpen.has(r.key) ? oldOpen.get(r.key) : (openAll || depth < 3);
+      r.open = oldOpen && oldOpen.has(r.key) ? oldOpen.get(r.key) : null;
+      r.pure = !!parent && isPureContainer(n); r.hide = false; r.rp = null; r.rkids = []; r.rdepth = depth;
       var b = boundsOf(n);
       r.own = b.w > 0 && b.h > 0 && (!rb || (b.x < rb.x + rb.w && b.y < rb.y + rb.h && b.x + b.w > rb.x && b.y + b.h > rb.y));
       var h = ((n.text || '') + '\n' + (n.label || '') + '\n' + (n.resourceId || '') + '\n' + (n.role || '') + '\n' + shortRole(n.role)).toLowerCase();
@@ -146,29 +161,53 @@
       return r;
     }
     visit(tree, 0, null, 0);
+    totalN = total;
+    relink();
+    rows.forEach(function (r) { if (r.open === null) r.open = openAll || r.rdepth < 3; });
     // on-screen flag propagates to ancestors
     for (var i = rows.length - 1; i >= 0; i--) { var r = rows[i]; if (r.own) r.vis = true; if (r.vis && r.parent) r.parent.vis = true; }
     list.textContent = ''; list.appendChild(frag);
     updateIndent();
-    count.textContent = total + (total === 1 ? ' node' : ' nodes');
-    if (selKey) for (var j = 0; j < rows.length; j++) if (rows[j].key === selKey) { selRow = rows[j]; break; }
+    updateCount();
+    if (selKey) for (var j = 0; j < rows.length; j++) if (rows[j].key === selKey) { selRow = shownRow(rows[j]); break; }
     applyQuery(true);
     if (selRow) { selRow.el.classList.add('sel'); }
     if (keep) list.scrollTop = scrollTop;
   }
 
-  // Indent step adapts to tree depth and list width: clamp(40% of width / maxDepth, 4, 12) px.
+  // Compact mode: recompute which rows are hidden pure containers, each row's nearest rendered ancestor (rp),
+  // rendered children (rkids) and rendered depth. Rows are in pre-order, so parents are processed first.
+  function relink() {
+    hiddenN = 0;
+    for (var i = 0; i < rows.length; i++) { var r = rows[i]; r.hide = compact && r.pure; r.rkids = []; if (r.hide) hiddenN++; }
+    for (var j = 0; j < rows.length; j++) {
+      var x = rows[j], pp = x.parent;
+      x.rp = pp ? (pp.hide ? pp.rp : pp) : null;
+      x.rdepth = x.rp ? x.rp.rdepth + 1 : 0;
+      if (x.rp && !x.hide) x.rp.rkids.push(x);
+    }
+    rows.forEach(function (x) { if (x.caret) x.caret.textContent = x.rkids.length ? '▸' : ''; });
+  }
+  function shownRow(r) { // nearest row that is rendered in the current mode: itself, else the nearest rendered ancestor
+    while (r && r.hide) r = r.rp;
+    return r;
+  }
+  function updateCount() {
+    count.textContent = totalN + (totalN === 1 ? ' node' : ' nodes') + (compact && hiddenN ? ' · ' + hiddenN + ' hidden' : '');
+    count.title = compact ? hiddenN + ' pure container rows hidden by Compact (no text, label, id, or interaction flags)' : '';
+  }
+
+  // Indent step adapts to tree depth and list width: clamp(40% of width / maxDepth, 4, 10) px.
   function updateIndent() {
-    var md = 1; for (var i = 0; i < rows.length; i++) if (rows[i].depth > md) md = rows[i].depth;
-    var step = Math.max(4, Math.min(12, Math.round(list.clientWidth * 0.4 / md * 10) / 10));
+    var md = 1; for (var i = 0; i < rows.length; i++) if (!rows[i].hide && rows[i].rdepth > md) md = rows[i].rdepth;
+    var step = Math.max(4, Math.min(10, Math.round(list.clientWidth * 0.4 / md * 10) / 10));
     list.style.setProperty('--et-step', step + 'px');
   }
 
   function rowEl(r) {
     var n = r.n, d = PF.el('div', 'et-row'); d._r = r;
     d.setAttribute('role', 'treeitem');
-    d.style.paddingLeft = 'calc(4px + ' + r.depth + ' * var(--et-step, 12px))';
-    var c = PF.el('span', 'et-caret', (n.children && n.children.length) ? '▸' : ''); c.setAttribute('data-caret', '1'); r.caret = c; d.appendChild(c);
+    var c = PF.el('span', 'et-caret', ''); c.setAttribute('data-caret', '1'); r.caret = c; d.appendChild(c);
     d.appendChild(PF.el('span', 'et-role', shortRole(n.role)));
     var t = n.text || n.label;
     if (t) d.appendChild(PF.el('span', 'et-text', '"' + t + '"'));
@@ -190,13 +229,14 @@
   function layoutRows() {
     var searching = !!queryStr;
     for (var i = 0; i < rows.length; i++) {
-      var r = rows[i], p = r.parent;
-      var pass = (!searching || r.match || r.desc) && (!onlyVis || r.vis);
+      var r = rows[i], p = r.rp;
+      var pass = !r.hide && (!searching || r.match || r.desc) && (!onlyVis || r.vis);
       var parentOpen = !p || (p.shown && (p.open || (searching && p.desc)));
       r.shown = parentOpen && pass;
       r.el.classList.toggle('h', !r.shown);
       r.el.classList.toggle('m', searching && r.match);
-      if (r.kids.length) {
+      if (r.padD !== r.rdepth) { r.padD = r.rdepth; r.el.style.paddingLeft = 'calc(4px + ' + r.rdepth + ' * var(--et-step, 10px))'; }
+      if (r.rkids.length) {
         var eo = r.open || (searching && r.desc);
         r.caret.textContent = eo ? '▾' : '▸';
         r.el.setAttribute('aria-expanded', eo ? 'true' : 'false');
@@ -209,16 +249,20 @@
     var s = q.value, bad = false; queryRe = null;
     if (s && useRe) { try { queryRe = new RegExp(s, 'i'); } catch (e) { bad = true; } }
     q.classList.toggle('bad', bad);
-    if (bad) { mcount.textContent = 'invalid'; return; }
+    if (bad) { // invalid regex: show the unfiltered tree (still laid out: indent, Compact), no matches
+      queryStr = ''; matches = []; cursor = -1;
+      for (var bi = 0; bi < rows.length; bi++) { rows[bi].match = false; rows[bi].desc = false; }
+      layoutRows(); mcount.textContent = 'invalid'; return;
+    }
     queryStr = s;
     var needle = s.toLowerCase(), i, r;
     for (i = 0; i < rows.length; i++) { rows[i].match = false; rows[i].desc = false; }
     if (s) {
       for (i = 0; i < rows.length; i++) {
         r = rows[i];
-        r.match = queryRe ? r.fields.some(function (f) { return f && queryRe.test(f); }) : r.hay.indexOf(needle) >= 0;
+        r.match = r.hide ? false : queryRe ? r.fields.some(function (f) { return f && queryRe.test(f); }) : r.hay.indexOf(needle) >= 0;
       }
-      for (i = rows.length - 1; i >= 0; i--) { r = rows[i]; if ((r.match || r.desc) && r.parent) r.parent.desc = true; }
+      for (i = rows.length - 1; i >= 0; i--) { r = rows[i]; if ((r.match || r.desc) && r.rp) r.rp.desc = true; }
     }
     layoutRows();
     matches = s ? rows.filter(function (r) { return r.match && r.shown; }) : [];
@@ -244,11 +288,20 @@
   reBtn.addEventListener('click', function () { useRe = !useRe; reBtn.classList.toggle('on', useRe); reBtn.setAttribute('aria-pressed', useRe ? 'true' : 'false'); applyQuery(); });
   prevBtn.addEventListener('click', function () { step(-1); });
   nextBtn.addEventListener('click', function () { step(1); });
+  cmpCb.addEventListener('change', function () {
+    compact = cmpCb.checked; lsSet(K_CMP, compact ? '1' : '0');
+    if (!rows.length) return;
+    var was = selRow; if (selRow) selRow.el.classList.remove('sel');
+    relink(); selRow = shownRow(was); if (selRow) selRow.el.classList.add('sel');
+    updateIndent(); updateCount(); applyQuery();
+    if (selRow) selRow.el.scrollIntoView({ block: 'nearest' });
+  });
   visCb.addEventListener('change', function () { onlyVis = visCb.checked; layoutRows(); applyQuery(); });
 
   /* ---------- selection ---------- */
   function selectRow(r, opt) {
     opt = opt || {};
+    r = shownRow(r); // a hidden pure container is represented by its nearest rendered ancestor
     if (!r) return;
     for (var p = r.parent; p; p = p.parent) p.open = true;
     // make sure the row is not filtered out
@@ -279,7 +332,7 @@
 
   /* ---------- load ---------- */
   function keepState() {
-    var open = new Map(); rows.forEach(function (r) { if (r.kids.length) open.set(r.key, r.open); });
+    var open = new Map(); rows.forEach(function (r) { if (r.kids.length && r.open !== null) open.set(r.key, r.open); });
     return { open: open, selKey: selRow ? selRow.key : null };
   }
   function clearTree() {
@@ -312,7 +365,7 @@
 
   /* ---------- row interactions ---------- */
   function toggleRow(r) {
-    if (!r.kids.length) return;
+    if (!r.rkids.length) return;
     r.open = !r.open;
     layoutRows(); matches = queryStr ? rows.filter(function (x) { return x.match && x.shown; }) : []; updateMCount();
   }
@@ -351,10 +404,10 @@
     else if (e.key === 'ArrowUp') { e.preventDefault(); if (i > 0) selectRow(vis[i - 1], {}); }
     else if (e.key === 'ArrowRight') {
       e.preventDefault();
-      if (r.kids.length && !r.open) { r.open = true; layoutRows(); } else if (r.kids.length) { var c = r.kids.filter(function (k) { return k.shown; })[0]; if (c) selectRow(c, {}); }
+      if (r.rkids.length && !r.open) { r.open = true; layoutRows(); } else if (r.rkids.length) { var c = r.rkids.filter(function (k) { return k.shown; })[0]; if (c) selectRow(c, {}); }
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      if (r.kids.length && r.open) { r.open = false; layoutRows(); } else if (r.parent) selectRow(r.parent, {});
+      if (r.rkids.length && r.open) { r.open = false; layoutRows(); } else if (r.rp) selectRow(r.rp, {});
     } else if (e.key === 'Enter') { e.preventDefault(); selectRow(r, {}); }
   });
   list.addEventListener('contextmenu', function (e) {
