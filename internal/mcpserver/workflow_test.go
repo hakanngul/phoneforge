@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -143,5 +144,71 @@ func TestWorkflowFailedStepFailsRun(t *testing.T) {
 	}
 	if _, isErr := call("workflow_step_start", map[string]any{"case_id": "badid", "step_id": "s1"}); !isErr {
 		t.Fatal("bad case_id must error")
+	}
+}
+
+// mcpLauncher is a fake agent: Start spawns a goroutine that records the case
+// purely through the MCP tool handlers, like a CLI agent would.
+type mcpLauncher struct {
+	call   func(name string, args map[string]any) (string, bool)
+	caseID string
+	prompt chan string
+}
+
+func (l *mcpLauncher) Start(req mobflow.AgentRequest) (string, error) {
+	go func() {
+		l.prompt <- req.SystemPrompt + req.Prompt
+		runID := strings.TrimSpace(strings.SplitN(strings.SplitN(req.SystemPrompt, "run_id: ", 2)[1], "\n", 2)[0])
+		args := func(m map[string]any) map[string]any {
+			m["case_id"], m["run_id"] = l.caseID, runID
+			return m
+		}
+		l.call("workflow_get_case", map[string]any{"case_id": l.caseID})
+		for _, id := range []string{"s1", "s2"} {
+			l.call("workflow_step_start", args(map[string]any{"step_id": id}))
+			l.call("workflow_substep", args(map[string]any{"step_id": id, "text": "did " + id}))
+			if id == "s2" {
+				l.call("workflow_assert", args(map[string]any{"step_id": id, "expectation": "Home is shown", "passed": true}))
+			}
+			l.call("workflow_step_done", args(map[string]any{"step_id": id, "passed": true}))
+		}
+		l.call("workflow_cache_script", args(map[string]any{"segments": []any{
+			map[string]any{"id": "s1", "steps": []any{map[string]any{"action": "launch_app", "bundleId": "com.x"}}},
+			map[string]any{"id": "s2", "steps": []any{map[string]any{"action": "assert_exists", "selector": map[string]any{"text": "Home"}}}},
+		}}))
+		req.OnLine("stdout", "agent finished")
+		req.OnDone(nil)
+	}()
+	return "agent-x", nil
+}
+
+func (l *mcpLauncher) Cancel(string) {}
+
+func TestWorkflowLaunchedAgentDrivesRunThroughMCP(t *testing.T) {
+	call, svc, id := flowHarness(t)
+	project, name, _ := strings.Cut(id, "/")
+	l := &mcpLauncher{call: call, caseID: id, prompt: make(chan string, 1)}
+	svc.Launcher = l
+	run, err := svc.StartRun(mobflow.StartRunRequest{Project: project, Case: name, DeviceID: "d1", Mode: "record"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got *mobflow.Run
+	for i := 0; i < 300; i++ {
+		got, _ = svc.GetRun(run.ID)
+		if got.Status != "running" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got.Status != "passed" || !got.CacheSubmitted || got.AgentRunID != "agent-x" {
+		t.Fatalf("run: %+v", got)
+	}
+	if p := <-l.prompt; !strings.Contains(p, id) || !strings.Contains(p, run.ID) {
+		t.Fatalf("prompt lacks ids: %s", p)
+	}
+	c, err := svc.Store.GetCache(project, name, "")
+	if err != nil || len(c.Segments) != 2 {
+		t.Fatalf("cache: %+v %v", c, err)
 	}
 }

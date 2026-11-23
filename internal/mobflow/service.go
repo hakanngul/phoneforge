@@ -27,6 +27,26 @@ var (
 // tools; the service launches nothing.
 const AgentExternal = "external"
 
+// AgentRequest is what the service asks an AgentLauncher to start.
+type AgentRequest struct {
+	Agent        string // configured agent name; "" = the default of the workflow slot
+	DeviceID     string
+	SystemPrompt string
+	Prompt       string
+	// OnLine receives the agent's output lines (stream is "stdout" or "stderr").
+	OnLine func(stream, line string)
+	// OnDone must be called exactly once after the agent process exited:
+	// nil on a clean exit, context.Canceled after a cancel, else the failure.
+	OnDone func(err error)
+}
+
+// AgentLauncher starts and cancels agent processes (aiconfig.Manager in the
+// server, a fake in tests).
+type AgentLauncher interface {
+	Start(req AgentRequest) (agentRunID string, err error)
+	Cancel(agentRunID string)
+}
+
 // ScreenshotFunc captures a PNG from a device.
 type ScreenshotFunc func(ctx context.Context, deviceID string) ([]byte, error)
 
@@ -41,6 +61,12 @@ type Service struct {
 	// ScreenshotFunc overrides the per-step screenshot capture. When nil the
 	// device from Devices is used; with neither, no screenshots are taken.
 	ScreenshotFunc ScreenshotFunc
+	// Launcher starts workflow agents for record runs. Nil means only
+	// external agents (agent "external") are supported.
+	Launcher AgentLauncher
+	// Secrets resolves a secret id to its plaintext; it is used only to reject
+	// literal secret values in submitted caches. Optional.
+	Secrets func(id string) (string, error)
 
 	once  sync.Once
 	rt    *runtime
@@ -211,13 +237,45 @@ func (s *Service) StartRun(req StartRunRequest) (*Run, error) {
 	return s.GetRun(run.ID)
 }
 
-// startAgent launches the agent of a record run. Slice 2 supports only
-// external agents; the launcher arrives with slice 3.
+// startAgent launches the agent of a record run: the workflow prompt goes to
+// the Launcher, output lines go to agent.log, and when the agent exits the run
+// is finished (an open run fails). External agents are not launched.
 func (s *Service) startAgent(l *live, c *Case, agent string) error {
 	if agent == AgentExternal {
 		return nil
 	}
-	return fmt.Errorf("%w: agent launch is not available yet; use agent %q", ErrNotImplemented, AgentExternal)
+	if s.Launcher == nil {
+		return fmt.Errorf("%w: no agent launcher is configured; use agent %q and drive the run through the workflow_* tools", ErrNotImplemented, AgentExternal)
+	}
+	runID := l.run.ID
+	system, task := RecordPrompt(PromptInput{
+		CaseID: l.run.CaseID, RunID: runID, DeviceID: l.run.DeviceID, Platform: l.run.Platform,
+		Case: c, Params: l.run.Params,
+	})
+	id, err := s.Launcher.Start(AgentRequest{
+		Agent: agent, DeviceID: l.run.DeviceID, SystemPrompt: system, Prompt: task,
+		OnLine: func(stream, line string) { s.LogLine(runID, stream, line) },
+		OnDone: func(err error) {
+			reason := ""
+			switch {
+			case err == nil:
+			case errors.Is(err, context.Canceled):
+				reason = "agent was cancelled"
+			default:
+				reason = "agent exited with an error: " + err.Error()
+			}
+			_, _ = s.Finish(runID, reason)
+		},
+	})
+	if err != nil {
+		return err
+	}
+	rt := s.rt
+	rt.mu.Lock()
+	l.run.AgentRunID = id
+	_ = rt.store.Save(l.run)
+	rt.mu.Unlock()
+	return nil
 }
 
 // trimLocked forgets old finished runs so the live map stays small; their
@@ -542,6 +600,7 @@ func (s *Service) Cancel(runID string) (*Run, error) {
 		rt.mu.Unlock()
 		return s.GetRun(runID)
 	}
+	agentID := l.run.AgentRunID
 	if !l.run.finished() {
 		l.run.closeOpen(RunCancelled, "cancelled", time.Now().UTC())
 		l.cacheOpen = false
@@ -549,6 +608,9 @@ func (s *Service) Cancel(runID string) (*Run, error) {
 	}
 	l.cacheOpen = false
 	rt.mu.Unlock()
+	if agentID != "" && s.Launcher != nil {
+		s.Launcher.Cancel(agentID)
+	}
 	return s.GetRun(runID)
 }
 
@@ -557,6 +619,8 @@ type CacheResult struct {
 	Cache     *Cache            `json:"cache"`
 	Staleness map[string]string `json:"staleness"`
 	Run       *Run              `json:"run"`
+	// Notes lists checks that were skipped (for example secrets whose value is unavailable).
+	Notes string `json:"notes,omitempty"`
 }
 
 // SubmitCache validates and stores the segments an agent recorded during run.
@@ -608,6 +672,12 @@ func (s *Service) SubmitCache(runID string, segs []Segment) (*CacheResult, error
 	if e.Case == nil || len(e.Errors) > 0 {
 		return nil, fmt.Errorf("%w: case %q is invalid", ErrInvalid, e.ID)
 	}
+	var note string
+	if verrs, n := checkAgainstCase(e.Case, segs, s.Secrets); len(verrs) > 0 {
+		return nil, verrs
+	} else {
+		note = n
+	}
 	platform := casePlatform(e.Case)
 	merged := append([]Segment(nil), segs...)
 	submitted := map[string]bool{}
@@ -643,7 +713,7 @@ func (s *Service) SubmitCache(runID string, segs []Segment) (*CacheResult, error
 	}
 	snap := r.snapshot()
 	rt.mu.Unlock()
-	return &CacheResult{Cache: cache, Staleness: Staleness(e.Case, cache), Run: snap}, nil
+	return &CacheResult{Cache: cache, Staleness: Staleness(e.Case, cache), Run: snap, Notes: note}, nil
 }
 
 // subscribe returns the broker of a run, or a finished one synthesised from disk.

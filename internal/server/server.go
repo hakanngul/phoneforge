@@ -265,13 +265,14 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 		return info.Serial, nil
 	}
 
+	aiMgr := aiconfig.New(filepath.Join(stateDir, "aiconfig.json"), "http://"+cfg.Addr+"/mcp")
 	stopReq := make(chan struct{})
 	var stopOnce sync.Once
 	deps := httpapi.Deps{
 		Lifecycle: life,
 		Shutdown:  func() { stopOnce.Do(func() { close(stopReq) }) },
 		Webhooks:  whMgr.Routes(), Farms: farmMgr.Routes(), Bridges: bridges, IOS: iosCtl,
-		AI:  aiconfig.New(filepath.Join(stateDir, "aiconfig.json"), "http://"+cfg.Addr+"/mcp").Routes(),
+		AI:  aiMgr.Routes(),
 		OCR: ocr.Routes(getDevice),
 		Web: webauto.NewRoutes(webMgr, getSerial), Sims: simCtl.Routes(),
 		WDABuild: httpapi.WDABuildRoutes(iosbridge.NewBuilder(filepath.Join(stateDir, config.UserSettingsFile))),
@@ -293,6 +294,10 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 			log.Printf("flows: %v", ferr)
 		} else {
 			flows.Devices = getDevice
+			flows.Launcher = flowLauncher{aiMgr}
+			if sec != nil {
+				flows.Secrets = sec.Reveal
+			}
 			deps.Flows = flows.Routes()
 		}
 	}

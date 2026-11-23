@@ -38,8 +38,8 @@ type Store struct {
 	projects *mobtest.Store
 	mu       sync.Mutex
 
-	// Validator, when set, is run on every segment accepted by PutCache.
-	// Slice 3 plugs the deterministic-DSL validation in here.
+	// Validator is run on every segment accepted by PutCache. NewStore sets
+	// ValidateSegment (deterministic DSL rules); tests may replace it.
 	Validator SegmentValidator
 }
 
@@ -52,7 +52,7 @@ func NewStore(dir string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Store{projects: ps}, nil
+	return &Store{projects: ps, Validator: ValidateSegment}, nil
 }
 
 // Root returns the root directory.
