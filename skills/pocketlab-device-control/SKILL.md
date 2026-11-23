@@ -44,7 +44,7 @@ Full tool list: `references/mcp-tools.md`. Shell equivalents: see the `pocketlab
 - `type_text` types into the focused field: tap the field first, confirm it is `focused`/`editable`, then type.
   Use `execute_dsl` with `clearFirst` to replace existing text. Secrets: never type passwords from chat;
   use DSL `type_secret` with a stored `secretId`.
-- `press_key`: `home`, `back` (Android), `enter`, `delete`. Use `dismiss_keyboard` when the keyboard hides targets.
+- `press_key`: `home`, `back` (Android), `enter`, `delete`, `app_switch` (recent apps; aliases `recents`, `app_switcher`; on iOS home-button devices it double-presses Home, and Face ID iPads are treated as home-button devices, a known limitation). Use `dismiss_keyboard` when the keyboard hides targets.
 - `open_url` for deep links and http(s) URLs. `set_clipboard` / `get_clipboard` for long text.
 
 ## 3. Verify after every action

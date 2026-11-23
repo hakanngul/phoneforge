@@ -77,6 +77,9 @@ func (d *androidDevice) TypeText(ctx context.Context, text string) error {
 	return d.input(ctx, "text", esc)
 }
 
+// keyCodeAppSwitch is KEYCODE_APP_SWITCH.
+const keyCodeAppSwitch = 187
+
 var keyCodes = map[device.Key]int{
 	device.KeyHome:   3,
 	device.KeyBack:   4,
@@ -87,6 +90,9 @@ var keyCodes = map[device.Key]int{
 // PressKey sends a keyevent; unknown keys return device.ErrUnsupported.
 func (d *androidDevice) PressKey(ctx context.Context, k device.Key) error {
 	code, ok := keyCodes[k]
+	if !ok && device.IsAppSwitch(k) {
+		code, ok = keyCodeAppSwitch, true
+	}
 	if !ok {
 		return fmt.Errorf("androiddrv: key %q: %w", k, device.ErrUnsupported)
 	}

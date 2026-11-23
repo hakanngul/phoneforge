@@ -330,3 +330,16 @@ func TestScrollUntilVisible(t *testing.T) {
 		t.Fatalf("%+v", res)
 	}
 }
+
+func TestNavigateAppSwitchAliases(t *testing.T) {
+	for _, tgt := range []string{"app_switch", "recents", "recent_apps", "App-Switcher"} {
+		f := newFake()
+		res, err := Execute(context.Background(), f, []byte(hdr+`[{"action":"navigate","target":"`+tgt+`"}]}`))
+		if err != nil || !res.Passed {
+			t.Fatalf("%s: %v %+v", tgt, err, res)
+		}
+		if len(f.keys) != 1 || f.keys[0] != device.KeyAppSwitch {
+			t.Fatalf("%s: keys %v", tgt, f.keys)
+		}
+	}
+}

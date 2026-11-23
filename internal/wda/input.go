@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"pocketlab/internal/device"
 )
@@ -177,6 +179,53 @@ func (c *Client) Back(ctx context.Context) error {
 	return c.Swipe(ctx, 1, h/2, w*3/5, h/2, 250)
 }
 
+// AppSwitcher opens the iOS multitasking switcher.
+//
+// Face ID devices (long/short side >= 2.0 in points): a W3C pointer-actions
+// swipe does not open the switcher on real devices, but XCUICoordinate's
+// press-drag-hold does, so it uses /wda/pressAndDragWithVelocity: press 1 pt
+// above the bottom edge at the horizontal centre for 0.1 s, drag to 53% of the
+// screen height at velocity 400 pt/s and hold 1.0 s. If that endpoint is
+// missing (404) it falls back to an equivalent W3C actions gesture.
+//
+// Home-button devices (long/short side < 2.0, any orientation: iPhone SE/8, buttoned iPads and their
+// simulators): a bottom swipe opens Control Center instead, so the Home button
+// is double-pressed. Face ID iPads also have a ratio < 2.0 and cannot be told
+// apart from window size alone; on those the double press does nothing.
+func (c *Client) AppSwitcher(ctx context.Context) error {
+	w, h, err := c.WindowSize(ctx)
+	if err != nil {
+		return err
+	}
+	long, short := max(w, h), min(w, h)
+	if short > 0 && float64(long)/float64(short) < 2.0 { // orientation-independent
+		for i := 0; i < 2; i++ {
+			if i > 0 {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(100 * time.Millisecond):
+				}
+			}
+			if err := c.PressButton(ctx, "home"); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	body := map[string]any{
+		"fromX": w / 2, "fromY": h - 1, "toX": w / 2, "toY": h * 53 / 100,
+		"pressDuration": 0.1, "holdDuration": 1.0, "velocity": 400,
+	}
+	_, err = c.do(ctx, http.MethodPost, "/session/{sid}/wda/pressAndDragWithVelocity", body)
+	var we *wdaError
+	if err != nil && errors.As(err, &we) && (we.Status == http.StatusNotFound || we.Code == "unknown command") {
+		return c.perform(ctx, finger("finger1",
+			pmove(w/2, h-1, 0), pdown(), pmove(w/2, h*53/100, 1000), ppause(800), pup()))
+	}
+	return err
+}
+
 // normKeyName lowercases a key name and drops separators so "volume_up",
 // "VolumeUp" and "volume-up" all match.
 func normKeyName(k device.Key) string {
@@ -193,6 +242,9 @@ func normKeyName(k device.Key) string {
 
 // PressKey maps device keys onto WDA operations.
 func (c *Client) PressKey(ctx context.Context, k device.Key) error {
+	if device.IsAppSwitch(k) {
+		return c.AppSwitcher(ctx)
+	}
 	switch normKeyName(k) {
 	case "home", "homescreen":
 		return c.Home(ctx)

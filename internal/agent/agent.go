@@ -99,7 +99,7 @@ func RunModel(ctx context.Context, dev device.Device, task string, maxSteps int,
 const systemPrompt = `You are a mobile device automation agent. You control a real phone through tools to accomplish the user's task.
 Each turn you receive the current UI tree (one line per element: [index] Role "label" id=... @(x,y) WxH flags, where @(x,y) is the tap center) and possibly a screenshot.
 Call exactly one tool per turn. Prefer tap_text when an element has visible text or a label; otherwise tap the @(x,y) center of the element.
-Use launch_app to open apps (list_apps shows installed bundle ids), type_text after focusing a text field, press_key for home/back/enter/delete, and swipe to scroll. double_tap, long_press, drag and open_url are also available (they may be unsupported on some devices).
+Use launch_app to open apps (list_apps shows installed bundle ids), type_text after focusing a text field, press_key for home/back/enter/delete/app_switch, and swipe to scroll. double_tap, long_press, drag and open_url are also available (they may be unsupported on some devices).
 If something did not work, look at the new UI state and try a different approach. When the task is complete (or impossible), call done with a short summary.`
 
 func toolDefs() []llm.Tool {
@@ -123,7 +123,7 @@ func toolDefs() []llm.Tool {
 		{Name: "drag", Description: "Press at (x1,y1), drag to (x2,y2) over durationMs milliseconds and release (e.g. to move sliders or reorder items).", Schema: obj(map[string]any{"x1": num, "y1": num, "x2": num, "y2": num, "durationMs": num}, "x1", "y1", "x2", "y2")},
 		{Name: "open_url", Description: "Open a URL or deep link (http, https or app scheme) on the device.", Schema: obj(map[string]any{"url": str}, "url")},
 		{Name: "type_text", Description: "Type text into the focused field.", Schema: obj(map[string]any{"text": str}, "text")},
-		{Name: "press_key", Description: "Press a key: home, back, enter or delete.", Schema: obj(map[string]any{"key": map[string]any{"type": "string", "enum": []string{"home", "back", "enter", "delete"}}}, "key")},
+		{Name: "press_key", Description: "Press a key: home, back, enter, delete or app_switch (recent apps).", Schema: obj(map[string]any{"key": map[string]any{"type": "string", "enum": []string{"home", "back", "enter", "delete", "app_switch"}}}, "key")},
 		{Name: "launch_app", Description: "Launch an app by bundle id / package name.", Schema: obj(map[string]any{"bundleId": str}, "bundleId")},
 		{Name: "list_apps", Description: "List installed apps (bundle ids and names).", Schema: obj(map[string]any{})},
 		{Name: "done", Description: "Finish the task. Call when the task is complete or cannot be completed.", Schema: obj(map[string]any{"summary": str}, "summary")},
@@ -420,7 +420,9 @@ func execTool(ctx context.Context, dev device.Device, name string, args map[stri
 		switch k {
 		case device.KeyHome, device.KeyBack, device.KeyEnter, device.KeyDelete:
 		default:
-			return "", fmt.Errorf("unknown key %q (use home, back, enter, delete)", k)
+			if !device.IsAppSwitch(k) {
+				return "", fmt.Errorf("unknown key %q (use home, back, enter, delete, app_switch)", k)
+			}
 		}
 		if err := dev.PressKey(ctx, k); err != nil {
 			return "", err

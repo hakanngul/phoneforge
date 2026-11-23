@@ -3,7 +3,10 @@
 // HTTP API and MCP server depend only on these types.
 package device
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 // Platform identifies the device family.
 type Platform string
@@ -66,7 +69,28 @@ const (
 	KeyBack   Key = "back"
 	KeyEnter  Key = "enter"
 	KeyDelete Key = "delete"
+	// KeyAppSwitch opens the recent-apps / multitasking switcher.
+	KeyAppSwitch Key = "app_switch"
 )
+
+// IsAppSwitch reports whether k names the app switcher: app_switch plus the
+// aliases recents, recent_apps, app_switcher and appswitch (case-insensitive,
+// "_", "-" and spaces ignored).
+func IsAppSwitch(k Key) bool {
+	var b strings.Builder
+	for _, r := range strings.ToLower(string(k)) {
+		switch r {
+		case '_', '-', ' ':
+			continue
+		}
+		b.WriteRune(r)
+	}
+	switch b.String() {
+	case "appswitch", "appswitcher", "recents", "recentapps":
+		return true
+	}
+	return false
+}
 
 // AppInfo is an installed application.
 type AppInfo struct {

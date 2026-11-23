@@ -33,7 +33,7 @@ Server `pocketlab`, endpoint `http://127.0.0.1:8700/mcp` (streamable HTTP). Ever
 | `drag` | id, x1, y1, x2, y2, durationMs (500) |
 | `pinch` | id, x, y, scale, durationMs |
 | `type_text` | id, text (focused field) |
-| `press_key` | id, key: home, back, enter, delete |
+| `press_key` | id, key: home, back, enter, delete, app_switch (iOS home-button devices: double Home; Face ID iPads count as home-button, limitation) |
 | `dismiss_keyboard` | id |
 | `set_clipboard` | id, text |
 | `ocr_tap` | id, text, index, exact, regex |

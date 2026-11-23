@@ -176,7 +176,7 @@ func New(apiBaseURL, version string) *server.MCPServer {
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return c.text(ctx, "POST", devPath(req, "/type"), jsonBody("text", req.GetString("text", "")))
 		})
-	s.AddTool(mcp.NewTool("press_key", mcp.WithDescription("Press a key: home, back, enter, delete"), id,
+	s.AddTool(mcp.NewTool("press_key", mcp.WithDescription("Press a key: home, back, enter, delete, app_switch (recent apps; aliases recents, app_switcher)"), id,
 		mcp.WithString("key", mcp.Required(), mcp.Description("Key name"))),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return c.text(ctx, "POST", devPath(req, "/press-key"), jsonBody("key", req.GetString("key", "")))
