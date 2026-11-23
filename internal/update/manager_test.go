@@ -20,6 +20,7 @@ type fakeInstaller struct {
 	backup      string
 	calls       *[]string
 	prepared    string
+	supCalls    int
 }
 
 func (i *fakeInstaller) log(s string) {
@@ -29,7 +30,12 @@ func (i *fakeInstaller) log(s string) {
 		i.mu.Unlock()
 	}
 }
-func (i *fakeInstaller) Supported() (bool, string) { return i.unsupp == "", i.unsupp }
+func (i *fakeInstaller) Supported() (bool, string) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.supCalls++
+	return i.unsupp == "", i.unsupp
+}
 func (i *fakeInstaller) Prepare(archive string, m *Manifest) (string, error) {
 	i.log("prepare")
 	i.prepared = archive
@@ -556,4 +562,165 @@ func countOf(l []string, s string) int {
 		}
 	}
 	return n
+}
+
+func TestManagerStatusDoesNotProbeInstaller(t *testing.T) {
+	e := newEnv(t, "0.4.2")
+	e.inst.mu.Lock()
+	base := e.inst.supCalls
+	e.inst.mu.Unlock()
+	if base == 0 {
+		t.Fatal("Supported should be probed once at startup")
+	}
+	for i := 0; i < 20; i++ {
+		_ = e.m.Status()
+	}
+	e.inst.mu.Lock()
+	n := e.inst.supCalls
+	e.inst.mu.Unlock()
+	if n != base {
+		t.Fatalf("Status() probed the installer %d times", n-base)
+	}
+	// a check refreshes the cached answer
+	e.inst.mu.Lock()
+	e.inst.unsupp = "now read-only"
+	e.inst.mu.Unlock()
+	st, _ := e.m.CheckNow(context.Background())
+	if st.Supported || !strings.Contains(st.Error, "read-only") {
+		t.Fatalf("%+v", st)
+	}
+}
+
+func TestManagerChannelSwitchDuringCheckDiscardsResult(t *testing.T) {
+	e := newEnv(t, "0.4.2")
+	gate := make(chan struct{})
+	e.f.mu.Lock()
+	e.f.gate = gate
+	e.f.mu.Unlock()
+	done := make(chan Status, 1)
+	go func() { st, _ := e.m.CheckNow(context.Background()); done <- st }()
+	for i := 0; i < 200 && e.f.reqs.Load() == 0; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if e.f.reqs.Load() == 0 {
+		t.Fatal("check never reached the feed")
+	}
+	if err := e.m.SetSettings(Settings{AutoCheck: true, Channel: "beta"}); err != nil {
+		t.Fatal(err)
+	}
+	close(gate)
+	st := <-done
+	if st.Available != nil || st.State == StateAvailable || st.State == StateChecking {
+		t.Fatalf("a result from the old channel must be discarded: %+v", st)
+	}
+	ls := LoadState(e.dir)
+	if ls.ETag != "" || len(ls.ManifestData) != 0 || len(ls.ManifestSig) != 0 {
+		t.Fatalf("cache write-back from the old channel: %+v", ls)
+	}
+	if ls.Settings.Channel != "beta" {
+		t.Fatalf("settings lost: %+v", ls.Settings)
+	}
+}
+
+func TestManagerBeginUpdateWithoutResult(t *testing.T) {
+	e := newEnv(t, "0.4.2")
+	if _, err := e.m.beginUpdate(); !errors.Is(err, ErrNothingToUpdate) {
+		t.Fatalf("%v", err)
+	}
+	if err := e.m.begin(); err != nil { // slot must not have been taken
+		t.Fatalf("slot leaked: %v", err)
+	}
+	e.m.end()
+	_, _ = e.m.CheckNow(context.Background())
+	// a result that vanishes between the precondition and begin is an error, not a panic
+	e.m.mu.Lock()
+	e.m.result = nil
+	e.m.mu.Unlock()
+	if err := e.m.Install(context.Background()); !errors.Is(err, ErrNothingToUpdate) {
+		t.Fatalf("%v", err)
+	}
+}
+
+func TestManagerAutoDownloadFromLoop(t *testing.T) {
+	e := newEnv(t, "0.4.2")
+	_ = e.m.SetSettings(Settings{AutoCheck: true, Channel: "stable", AutoDownload: true})
+	ctx, cancel := context.WithCancel(context.Background())
+	e.m.Start(ctx)
+	deadline := time.Now().Add(5 * time.Second)
+	ready := false
+	for time.Now().Before(deadline) && !ready {
+		ready = e.m.Status().State == StateReady
+		time.Sleep(20 * time.Millisecond)
+	}
+	cancel()
+	e.m.Wait()
+	if !ready {
+		t.Fatalf("%+v", e.m.Status())
+	}
+}
+
+func TestManagerDownloadProgressIsThrottled(t *testing.T) {
+	e := newEnv(t, "0.4.2")
+	var mu sync.Mutex
+	n := 0
+	opts := e.options()
+	opts.Hooks.OnChange = func(s Status) {
+		if s.Progress != nil {
+			mu.Lock()
+			n++
+			mu.Unlock()
+		}
+	}
+	e.m = NewManager(opts)
+	_, _ = e.m.CheckNow(context.Background())
+	if err := e.m.Download(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	// the archive is ~360 KB in 64 KB reads (6 callbacks) within a few ms
+	if n == 0 || n > 3 {
+		t.Fatalf("%d progress notifications", n)
+	}
+}
+
+func TestManagerInstallKeepsBackupLeftInStaging(t *testing.T) {
+	e := newEnv(t, "0.4.2")
+	_, _ = e.m.CheckNow(context.Background())
+	// the installer could not move the old app out of the staging directory
+	stranded := filepath.Join(e.dir, "updates", "0.4.2", "extract", "Pocketlab.app")
+	e.inst.backup = stranded
+	if err := os.MkdirAll(stranded, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.m.Install(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(stranded); err != nil {
+		t.Fatalf("the only copy of the old app was deleted: %v", err)
+	}
+	// the normal case still cleans the staging area
+	e2 := newEnv(t, "0.4.2")
+	_, _ = e2.m.CheckNow(context.Background())
+	if err := e2.m.Install(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(e2.dir, "updates", "0.4.2")); !os.IsNotExist(err) {
+		t.Fatalf("staging area should be removed: %v", err)
+	}
+}
+
+func TestManagerMarkHealthyOnlyForTheNewVersion(t *testing.T) {
+	e := newEnv(t, "0.4.2")
+	writeState(t, e.dir, &Pending{From: "0.4.0", To: "0.4.2", BackupPath: "/b"})
+	// the old version (still running while it quits after the install) must not clear the marker
+	old := e.reopen("0.4.0")
+	old.MarkHealthy()
+	if LoadState(e.dir).Pending == nil {
+		t.Fatal("old version cleared the pending install of the new one")
+	}
+	e.reopen("0.4.2").MarkHealthy()
+	if LoadState(e.dir).Pending != nil {
+		t.Fatal("new version should clear it")
+	}
 }

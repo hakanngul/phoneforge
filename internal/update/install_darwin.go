@@ -3,6 +3,7 @@
 package update
 
 import (
+	"archive/zip"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -10,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -58,18 +60,33 @@ func InspectBundle(path string) (BundleInfo, error) {
 	if bi.Version, err = plistString(path, "CFBundleShortVersionString"); err != nil {
 		return bi, err
 	}
+	bi.TeamID = bundleTeamID(path)
+	bi.Notarized = exec.Command("spctl", "--assess", "--type", "execute", path).Run() == nil
+	return bi, nil
+}
+
+// bundleTeamID returns the signing Team ID, "" when ad-hoc signed or unsigned.
+func bundleTeamID(path string) string {
 	// codesign -dv writes to stderr; a failure here just means unsigned.
 	out, _ := exec.Command("codesign", "-dv", "--verbose=2", path).CombinedOutput()
 	for _, line := range strings.Split(string(out), "\n") {
 		if v, ok := strings.CutPrefix(line, "TeamIdentifier="); ok {
 			v = strings.TrimSpace(v)
 			if v != "not set" {
-				bi.TeamID = v
+				return v
 			}
 		}
 	}
-	bi.Notarized = exec.Command("spctl", "--assess", "--type", "execute", path).Run() == nil
-	return bi, nil
+	return ""
+}
+
+// teamMismatch reports whether other's signing identity differs from cur's.
+// Unless allowAdhoc (tests), both must carry the same non-empty Team ID.
+func teamMismatch(cur, other BundleInfo, allowAdhoc bool) bool {
+	if !allowAdhoc || (other.TeamID != "" && cur.TeamID != "") {
+		return other.TeamID == "" || other.TeamID != cur.TeamID
+	}
+	return false
 }
 
 func codesignVerify(app string) error {
@@ -94,10 +111,8 @@ func VerifyCandidate(cur, cand BundleInfo, expectVersion string, allowAdhoc bool
 	if CompareVersions(cand.Version, cur.Version) <= 0 {
 		return fail("bundle version %q is not newer than %q", cand.Version, cur.Version)
 	}
-	if !allowAdhoc || (cand.TeamID != "" && cur.TeamID != "") {
-		if cand.TeamID == "" || cand.TeamID != cur.TeamID {
-			return fail("Team ID %q does not match the running app (%q)", cand.TeamID, cur.TeamID)
-		}
+	if teamMismatch(cur, cand, allowAdhoc) {
+		return fail("Team ID %q does not match the running app (%q)", cand.TeamID, cur.TeamID)
 	}
 	if cur.Notarized {
 		if !cand.Notarized && exec.Command("spctl", "--assess", "--type", "execute", cand.Path).Run() != nil {
@@ -108,11 +123,55 @@ func VerifyCandidate(cur, cand BundleInfo, expectVersion string, allowAdhoc bool
 	return nil
 }
 
+// VerifyBackup runs the checks a kept previous app must pass before it may
+// replace the running one: intact signature, same bundle id, same signing team.
+func VerifyBackup(cur, bak BundleInfo, allowAdhoc bool) error {
+	fail := func(f string, a ...any) error { return fmt.Errorf("%w: %s", ErrBundleVerify, fmt.Sprintf(f, a...)) }
+	if err := codesignVerify(bak.Path); err != nil {
+		return err
+	}
+	if bak.BundleID != cur.BundleID {
+		return fail("backup bundle id %q differs from %q", bak.BundleID, cur.BundleID)
+	}
+	if teamMismatch(cur, bak, allowAdhoc) {
+		return fail("backup Team ID %q does not match the running app (%q)", bak.TeamID, cur.TeamID)
+	}
+	return nil
+}
+
+// checkZipEntries refuses archives holding symlinks, absolute paths or ".."
+// components before anything is extracted.
+func checkZipEntries(zipPath string) error {
+	zr, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return fmt.Errorf("extract: %w", err)
+	}
+	defer zr.Close()
+	for _, f := range zr.File {
+		name := f.Name
+		if strings.HasPrefix(name, "/") || filepath.IsAbs(name) {
+			return fmt.Errorf("extract: archive entry %q has an absolute path", name)
+		}
+		for _, part := range strings.Split(name, "/") {
+			if part == ".." {
+				return fmt.Errorf("extract: archive entry %q escapes the destination (..)", name)
+			}
+		}
+		if f.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("extract: archive entry %q is a symlink", name)
+		}
+	}
+	return nil
+}
+
 // Extract unpacks zipPath into destDir (which must be empty or absent) and
 // returns the single top-level .app inside it.
 func Extract(zipPath, destDir string) (string, error) {
 	if ents, err := os.ReadDir(destDir); err == nil && len(ents) > 0 {
 		return "", fmt.Errorf("extract: %s is not empty", destDir)
+	}
+	if err := checkZipEntries(zipPath); err != nil {
+		return "", err
 	}
 	if err := os.MkdirAll(destDir, 0o700); err != nil {
 		return "", err
@@ -175,7 +234,14 @@ func Preflight(currentApp string) error {
 	}
 	name := f.Name()
 	f.Close()
-	return os.Remove(name)
+	if err := os.Remove(name); err != nil {
+		return err
+	}
+	// The bundle itself must be replaceable too, not only its folder.
+	if err := unix.Access(currentApp, unix.W_OK); err != nil {
+		return fmt.Errorf("%w: %v", ErrNotWritable, err)
+	}
+	return nil
 }
 
 func device(p string) (uint64, error) {
@@ -272,6 +338,10 @@ func Swap(candidate, currentApp, backupDir string) (string, error) {
 		oldVer = bi
 	}
 	newVer, _ := plistString(candidate, "CFBundleShortVersionString")
+	// The backup is mandatory: make sure it has somewhere to go before touching the app.
+	if err := os.MkdirAll(backupDir, 0o700); err != nil {
+		return "", fmt.Errorf("cannot create the backup directory: %w", err)
+	}
 	staged, copied, err := stageSameVolume(candidate, currentApp, newVer)
 	if err != nil {
 		return "", err
@@ -289,16 +359,31 @@ func Swap(candidate, currentApp, backupDir string) (string, error) {
 	}
 	// Only now that the installed app verified: drop quarantine on it.
 	_, _ = run("xattr", "-dr", "com.apple.quarantine", currentApp)
+	return keepOldApp(oldPath, currentApp, backupDir, oldVer), nil
+}
 
-	if err := os.MkdirAll(backupDir, 0o700); err != nil {
-		return oldPath, nil
+// keepOldApp moves the replaced app out of the (to-be-cleaned) staging area and
+// into backupDir as Pocketlab-<oldVer>.app. Older backups are pruned only after
+// the new one is in place. If backupDir cannot take it, it goes next to the
+// installed app instead; only if that fails too is oldPath returned unchanged
+// (the caller must then not delete it).
+func keepOldApp(oldPath, currentApp, backupDir, oldVer string) string {
+	incoming := filepath.Join(backupDir, ".incoming-"+fmt.Sprint(os.Getpid())+".app")
+	_ = os.RemoveAll(incoming)
+	if err := moveDir(oldPath, incoming); err != nil {
+		sibling := filepath.Join(filepath.Dir(currentApp), ".Pocketlab-old-"+oldVer+".app")
+		_ = os.RemoveAll(sibling)
+		if err := moveDir(oldPath, sibling); err == nil {
+			return sibling
+		}
+		return oldPath
 	}
 	pruneBackups(backupDir, ".app")
 	backup := filepath.Join(backupDir, "Pocketlab-"+oldVer+".app")
-	if err := moveDir(oldPath, backup); err != nil {
-		return oldPath, nil // update is installed; keep the old app where it is
+	if err := os.Rename(incoming, backup); err != nil {
+		return incoming
 	}
-	return backup, nil
+	return backup
 }
 
 // Rollback swaps backupApp back into currentApp. The replaced app is kept next
@@ -340,11 +425,45 @@ func Rollback(currentApp, backupApp string) error {
 	return nil
 }
 
+// relaunchEnvPrefixes selects the environment variables a relaunched app keeps
+// (data directory, address, update overrides...).
+var relaunchEnvPrefixes = []string{"POCKETLAB_", "PL_", "PHONEFORGE_"}
+
+// relaunchOpenArgs builds the `open` argv: a new instance of appPath with the
+// selected environment (--env) and the original command-line flags (--args).
+func relaunchOpenArgs(appPath string, environ, args []string) []string {
+	out := []string{"-n"}
+	for _, kv := range environ {
+		if !strings.Contains(kv, "=") {
+			continue
+		}
+		for _, p := range relaunchEnvPrefixes {
+			if strings.HasPrefix(kv, p) {
+				out = append(out, "--env", kv)
+				break
+			}
+		}
+	}
+	out = append(out, appPath)
+	if len(args) > 0 {
+		out = append(out, "--args")
+		out = append(out, args...)
+	}
+	return out
+}
+
+// relaunchScript waits for the old process ($1) and then runs `open "$@"`. If
+// the old process is still alive after ~60 s it gives up instead of opening a
+// second instance. Everything variable arrives as positional arguments.
+const relaunchScript = `pid="$1"; shift; i=0; while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 120 ]; do sleep 0.5; i=$((i+1)); done; if kill -0 "$pid" 2>/dev/null; then exit 1; fi; exec open "$@"`
+
 // Relaunch starts a detached helper that waits for waitPID to exit and then
-// opens appPath as a new instance. It survives the caller's exit.
+// opens appPath as a new instance, keeping the POCKETLAB_/PL_/PHONEFORGE_
+// environment and the original flags. It survives the caller's exit.
 func Relaunch(appPath string, waitPID int) error {
-	script := `i=0; while kill -0 "$2" 2>/dev/null && [ "$i" -lt 60 ]; do sleep 0.5; i=$((i+1)); done; exec open -n "$1"`
-	cmd := exec.Command("/bin/sh", "-c", script, "sh", appPath, fmt.Sprint(waitPID))
+	argv := []string{"-c", relaunchScript, "sh", fmt.Sprint(waitPID)}
+	argv = append(argv, relaunchOpenArgs(appPath, os.Environ(), os.Args[1:])...)
+	cmd := exec.Command("/bin/sh", argv...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := cmd.Start(); err != nil {
 		return err
@@ -356,6 +475,20 @@ type darwinInstaller struct {
 	opts InstallerOptions
 	app  string
 	err  error
+
+	mu       sync.Mutex
+	teamDone bool
+	team     string // Team ID of the running app, inspected once
+}
+
+// runningTeamID inspects the running app's Team ID once and caches it.
+func (i *darwinInstaller) runningTeamID() string {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if !i.teamDone {
+		i.team, i.teamDone = bundleTeamID(i.app), true
+	}
+	return i.team
 }
 
 // NewPlatformInstaller returns the macOS bundle installer.
@@ -379,6 +512,11 @@ func (i *darwinInstaller) Supported() (bool, string) {
 			return false, "Pocketlab is running from a quarantined location; move it to Applications and reopen it"
 		}
 		return false, "the folder containing Pocketlab is not writable; install the new version from the downloaded disk image"
+	}
+	// Candidates must carry the running app's Team ID (VerifyCandidate); an
+	// ad-hoc signed app has none, so every download would fail verification.
+	if !i.opts.AllowAdhoc && i.runningTeamID() == "" {
+		return false, "this copy of Pocketlab is not signed with a Developer ID, so it cannot update itself; download the new version manually"
 	}
 	return true, ""
 }
@@ -417,4 +555,29 @@ func (i *darwinInstaller) Apply(candidate, version string) (string, error) {
 
 func (i *darwinInstaller) Relaunch() error { return Relaunch(i.app, os.Getpid()) }
 
-func (i *darwinInstaller) Rollback(backup string) error { return Rollback(i.app, backup) }
+func (i *darwinInstaller) Rollback(backup string) error {
+	if i.err != nil {
+		return i.err
+	}
+	// Only a backup this updater made, inside its backup directory.
+	real, err := filepath.EvalSymlinks(backup)
+	if err != nil {
+		return fmt.Errorf("the previous version's backup is unavailable: %w", err)
+	}
+	dir, err := filepath.EvalSymlinks(i.opts.BackupDir)
+	if err != nil || real == dir || !pathWithin(real, dir) {
+		return fmt.Errorf("%w: the backup %q is not inside the backup directory", ErrBundleVerify, backup)
+	}
+	cur, err := InspectBundle(i.app)
+	if err != nil {
+		return err
+	}
+	bak, err := InspectBundle(real)
+	if err != nil {
+		return err
+	}
+	if err := VerifyBackup(cur, bak, i.opts.AllowAdhoc); err != nil {
+		return err
+	}
+	return Rollback(i.app, real)
+}

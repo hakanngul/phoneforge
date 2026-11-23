@@ -24,7 +24,7 @@ import (
 
 const (
 	releasesPage       = repoURL + "/releases/latest"
-	healthyAfter       = 60 * time.Second
+	healthyFor         = 10 * time.Second // loaded window + answering server for this long = healthy launch
 	checkMenuLabel     = "Check for Updates…"
 	remindLaterDefault = 24 * time.Hour
 )
@@ -40,8 +40,10 @@ type desktopUpdater struct {
 
 	mu    sync.Mutex
 	items []*application.MenuItem
+	label string // label currently set on items ("" until first computed)
 
-	navDone atomic.Bool
+	navDone     atomic.Bool
+	everHealthy atomic.Bool // the server answered /health at least once during this launch
 }
 
 // isDevVersion reports an unstamped (development) build.
@@ -147,10 +149,12 @@ func (u *desktopUpdater) bind(app *application.App, win *application.WebviewWind
 }
 
 // healthyLoop marks the running version healthy once the window has loaded and
-// the server answers, after healthyAfter of uptime: a crash during startup
-// leaves the pending marker so the next launch offers a rollback.
+// the server has answered /health continuously for healthyFor. A launch only
+// counts as unhealthy if it ended without a clean quit (see markHealthyOnQuit),
+// so a launch that dies early leaves the pending marker and the next launch
+// offers a rollback.
 func (u *desktopUpdater) healthyLoop() {
-	time.Sleep(healthyAfter)
+	var since time.Time
 	for {
 		u.ctl.mu.Lock()
 		addr, fb, quitting := u.ctl.addr, u.ctl.fallback, u.ctl.quitting
@@ -158,11 +162,32 @@ func (u *desktopUpdater) healthyLoop() {
 		if quitting {
 			return
 		}
-		if up, _ := probeHealth(addr); up && !fb && u.navDone.Load() {
-			u.mgr.MarkHealthy()
-			return
+		if up, _ := probeHealth(addr); up && !fb {
+			u.everHealthy.Store(true)
+			if u.navDone.Load() {
+				if since.IsZero() {
+					since = time.Now()
+				}
+				if time.Since(since) >= healthyFor {
+					u.mgr.MarkHealthy()
+					return
+				}
+			} else {
+				since = time.Time{}
+			}
+		} else {
+			since = time.Time{}
 		}
 		time.Sleep(2 * time.Second)
+	}
+}
+
+// markHealthyOnQuit is called on a clean app shutdown: if the server was
+// healthy at some point in this launch, the launch did not crash, whatever its
+// length. A fallback-mode launch whose server never came up stays unhealthy.
+func (u *desktopUpdater) markHealthyOnQuit() {
+	if u.everHealthy.Load() {
+		u.mgr.MarkHealthy()
 	}
 }
 
@@ -186,6 +211,10 @@ func (u *desktopUpdater) busy() (bool, string) {
 
 func (u *desktopUpdater) beforeInstall(ver string) error {
 	if u.ctl != nil {
+		// The server is about to go away on purpose: monitor() must not switch to the fallback page.
+		u.ctl.mu.Lock()
+		u.ctl.updating = true
+		u.ctl.mu.Unlock()
 		u.ctl.shutdownOwnedBy("update to "+ver, "updater")
 	}
 	return nil
@@ -196,6 +225,7 @@ func (u *desktopUpdater) afterFailedInstall() {
 		return
 	}
 	u.ctl.mu.Lock()
+	u.ctl.updating = false
 	has, attached := u.ctl.srv != nil, u.ctl.attached
 	u.ctl.mu.Unlock()
 	if has || attached {
@@ -212,16 +242,27 @@ func (u *desktopUpdater) quit() {
 	}
 }
 
-// onChange refreshes the menu/tray labels. It must not block.
-func (u *desktopUpdater) onChange(s update.Status) {
-	label := checkMenuLabel
+// menuLabel is the menu/tray text for a status.
+func menuLabel(s update.Status) string {
 	if a := s.Available; a != nil && !s.Disabled && !s.Skipped && s.RemindUntil == nil {
 		switch s.State {
 		case update.StateAvailable, update.StateReady, update.StateDownloading:
-			label = "Update to " + a.Version + " available…"
+			return "Update to " + a.Version + " available…"
 		}
 	}
+	return checkMenuLabel
+}
+
+// onChange refreshes the menu/tray labels, touching the native items only when
+// the label actually changed. It must not block.
+func (u *desktopUpdater) onChange(s update.Status) {
+	label := menuLabel(s)
 	u.mu.Lock()
+	if label == u.label {
+		u.mu.Unlock()
+		return
+	}
+	u.label = label
 	items := append([]*application.MenuItem(nil), u.items...)
 	u.mu.Unlock()
 	for _, it := range items {
@@ -235,10 +276,14 @@ func (u *desktopUpdater) onChange(s update.Status) {
 func (u *desktopUpdater) addMenuItem(m *application.Menu) {
 	it := m.Add(checkMenuLabel)
 	it.OnClick(func(*application.Context) { u.open() })
+	label := menuLabel(u.mgr.Status())
 	u.mu.Lock()
 	u.items = append(u.items, it)
+	u.label = label
 	u.mu.Unlock()
-	u.onChange(u.mgr.Status())
+	if label != checkMenuLabel {
+		it.SetLabel(label)
+	}
 }
 
 // open handles a click on the menu item: the web UI's update modal when the

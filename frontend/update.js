@@ -21,6 +21,9 @@
 
   function req(method, path, body) {
     var o = { method: method, headers: {} };
+    // Every mutation carries the action header: a custom header forces a CORS preflight, so other
+    // websites cannot trigger updates with a simple cross-origin POST.
+    if (method !== 'GET') o.headers['X-Pocketlab-Action'] = 'update';
     if (body !== undefined) { o.headers['Content-Type'] = 'application/json'; o.body = JSON.stringify(body); }
     return fetch(BASE + path, o).then(function (r) {
       return r.text().then(function (t) {
@@ -87,8 +90,8 @@
     var ver = s.available ? s.available.version : '';
 
     if (s.rollback) {
-      msg = 'Pocketlab ' + s.rollback.to + ' crashed before it finished starting. Roll back to ' + s.rollback.from + '?';
-      actions.push(btn('Roll back', 'primary', function () { act('POST', '/rollback'); }));
+      msg = 'Pocketlab ' + s.rollback.to + ' did not start properly. Revert to ' + s.rollback.from + '?';
+      actions.push(btn('Revert', 'primary', function () { act('POST', '/rollback'); }));
       actions.push(btn('Keep', '', function () { dismissed = key(s); render(); }));
       dismissable = false;
     } else if (s.state === 'downloading') {
@@ -104,7 +107,12 @@
       actions.push(btn('Install & Restart', 'primary', function () { act('POST', '/install'); }));
     } else if (s.state === 'error' && s.error && s.available) {
       msg = 'Update failed: ' + s.error;
-      actions.push(btn('Retry', 'primary', function () { act('POST', '/install'); }));
+      if (s.supported === false) {
+        // In-place install is not possible here: retrying /install would only fail again.
+        actions.push(btn('Download', 'primary', function () { if (s.manualUrl) w.open(s.manualUrl, '_blank', 'noopener'); }));
+      } else {
+        actions.push(btn('Retry', 'primary', function () { act('POST', '/install'); }));
+      }
     } else if (s.state === 'available' && s.available && !s.skipped && !remindActive(s)) {
       msg = 'Pocketlab ' + ver + ' is available (you have ' + s.current + ')';
       if (s.supported === false) {

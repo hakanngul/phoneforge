@@ -39,6 +39,7 @@ type serverCtl struct {
 	expectStop bool // a stop was requested by the user: do not quit when the server goes away
 	ctlURL     string
 	quitting   bool
+	updating   bool // an update is stopping the server on purpose: do not show the fallback page
 }
 
 func newServerCtl(app *application.App, opts server.Options, addr string) *serverCtl {
@@ -205,10 +206,14 @@ func (c *serverCtl) monitor() {
 	for {
 		time.Sleep(time.Second)
 		c.mu.Lock()
-		addr, fb, owned, expect, quitting := c.addr, c.fallback, c.srv != nil, c.expectStop, c.quitting
+		addr, fb, owned, expect, quitting, updating := c.addr, c.fallback, c.srv != nil, c.expectStop, c.quitting, c.updating
 		c.mu.Unlock()
 		if quitting {
 			return
+		}
+		if updating {
+			down = 0
+			continue
 		}
 		if fb {
 			if isPocketlab(addr) { // someone (CLI, another app) started a server: reconnect

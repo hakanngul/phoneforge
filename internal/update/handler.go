@@ -1,8 +1,10 @@
 package update
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
@@ -17,8 +19,12 @@ import (
 //	mux.Handle("/api/v1/update", h); mux.Handle("/api/v1/update/", h)
 //	mux.Handle("/api/v1/update/", http.StripPrefix("/api/v1/update", h))
 //
-// work. Mutations (POST/PUT) are accepted only from loopback clients and
-// browser requests whose Origin is loopback; anything else gets 403.
+// work. Mutations (POST/PUT) are accepted only from loopback clients; a
+// request carrying an Origin must come from this server's own origin (or the
+// Wails webview), and every mutation must carry the X-Pocketlab-Action: update
+// header (which forces a CORS preflight that is never granted, so other
+// websites cannot POST here) and, when it has a body, Content-Type
+// application/json. Anything else gets 403 (415 for a wrong content type).
 func (m *Manager) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sub := r.URL.Path
@@ -52,9 +58,25 @@ func (m *Manager) Handler() http.Handler {
 			writeErr(w, http.StatusForbidden, "update actions are only available from this computer")
 			return
 		}
+		if !originOK(r) {
+			writeErr(w, http.StatusForbidden, "cross-origin update request rejected")
+			return
+		}
+		if r.Header.Get(ActionHeader) != ActionValue {
+			writeErr(w, http.StatusForbidden, "missing "+ActionHeader+": "+ActionValue+" header")
+			return
+		}
+		if r.ContentLength != 0 && !isJSON(r.Header.Get("Content-Type")) {
+			writeErr(w, http.StatusUnsupportedMediaType, "Content-Type must be application/json")
+			return
+		}
 		switch sub {
 		case "/check":
-			st, err := m.CheckNow(r.Context())
+			// Detached from the request: a client that disconnects mid-check must
+			// not make the check fail (and count as a feed failure).
+			ctx, cancel := context.WithTimeout(m.baseContext(), 60*time.Second)
+			st, err := m.CheckNow(ctx)
+			cancel()
 			switch {
 			case errors.Is(err, ErrDisabled), errors.Is(err, ErrBusyOp):
 				writeErr(w, http.StatusConflict, err.Error())
@@ -119,6 +141,31 @@ func (m *Manager) async(w http.ResponseWriter, err error) {
 	}
 }
 
+// ActionHeader must be sent as ActionValue on every update mutation.
+const (
+	ActionHeader = "X-Pocketlab-Action"
+	ActionValue  = "update"
+)
+
+func isJSON(ct string) bool {
+	mt, _, err := mime.ParseMediaType(ct)
+	return err == nil && mt == "application/json"
+}
+
+// originOK mirrors the server's shutdown rule: a request without Origin (curl,
+// CLI) is fine; otherwise the Origin must be this server's own (same as Host)
+// or the Wails webview's.
+func originOK(r *http.Request) bool {
+	o := r.Header.Get("Origin")
+	if o == "" {
+		return true
+	}
+	if o == "wails://wails" || o == "http://wails.localhost" || o == "https://wails.localhost" {
+		return true
+	}
+	return o == "http://"+r.Host || o == "https://"+r.Host
+}
+
 func loopbackRequest(r *http.Request) bool {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
@@ -127,7 +174,7 @@ func loopbackRequest(r *http.Request) bool {
 	if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
 		return false
 	}
-	if o := r.Header.Get("Origin"); o != "" {
+	if o := r.Header.Get("Origin"); o != "" && o != "wails://wails" && o != "http://wails.localhost" && o != "https://wails.localhost" {
 		u, err := url.Parse(o)
 		if err != nil {
 			return false

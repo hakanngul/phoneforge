@@ -36,7 +36,7 @@ func TestCompareVersions(t *testing.T) {
 			t.Errorf("%q should be valid", v)
 		}
 	}
-	for _, v := range []string{"", "1.2", "1.2.3.4", "01.2.3", "1.2.x", "1.2.3-"} {
+	for _, v := range []string{"", "1.2", "1.2.3.4", "01.2.3", "1.2.x", "1.2.3-", "1.2.3-beta_1", "1.2.3-be ta", "1.2.3-a/b", "1.2.3+bu!ld", "1.2.3+", "1.2.3-a..b", "1.2.3-é"} {
 		if ValidVersion(v) {
 			t.Errorf("%q should be invalid", v)
 		}

@@ -9,15 +9,34 @@ import (
 	"testing"
 )
 
-func do(h http.Handler, method, path, body, remote string, hdr ...string) *httptest.ResponseRecorder {
+// doRaw sends exactly the given headers (Host is 127.0.0.1:8700 unless set).
+func doRaw(h http.Handler, method, path, body, remote string, hdr ...string) *httptest.ResponseRecorder {
 	r := httptest.NewRequest(method, path, strings.NewReader(body))
+	r.Host = "127.0.0.1:8700"
 	r.RemoteAddr = remote
 	for i := 0; i+1 < len(hdr); i += 2 {
+		if hdr[i] == "Host" {
+			r.Host = hdr[i+1]
+			continue
+		}
 		r.Header.Set(hdr[i], hdr[i+1])
 	}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	return w
+}
+
+// do behaves like the web UI: mutations carry the action header and, with a
+// body, a JSON content type. Extra headers override the defaults.
+func do(h http.Handler, method, path, body, remote string, hdr ...string) *httptest.ResponseRecorder {
+	base := []string{}
+	if method != "GET" && method != "HEAD" {
+		base = append(base, ActionHeader, ActionValue)
+		if body != "" {
+			base = append(base, "Content-Type", "application/json")
+		}
+	}
+	return doRaw(h, method, path, body, remote, append(base, hdr...)...)
 }
 
 const lo = "127.0.0.1:50000"
@@ -85,6 +104,17 @@ func TestHandlerLoopbackOnlyMutations(t *testing.T) {
 		if w := do(h, c.method, c.path, c.body, lo, "Origin", "https://evil.example"); w.Code != 403 {
 			t.Errorf("%s %s with foreign origin: %d", c.method, c.path, w.Code)
 		}
+		// a loopback origin on another port is a different origin
+		if w := do(h, c.method, c.path, c.body, lo, "Origin", "http://127.0.0.1:9999"); w.Code != 403 {
+			t.Errorf("%s %s with other-port origin: %d", c.method, c.path, w.Code)
+		}
+		// no custom header: a simple cross-origin POST would get here, so it is refused
+		if w := doRaw(h, c.method, c.path, c.body, lo, "Content-Type", "application/json"); w.Code != 403 {
+			t.Errorf("%s %s without the action header: %d", c.method, c.path, w.Code)
+		}
+		if w := do(h, c.method, c.path, c.body, lo, ActionHeader, "shutdown"); w.Code != 403 {
+			t.Errorf("%s %s with a wrong action header: %d", c.method, c.path, w.Code)
+		}
 	}
 	if e.f.reqs.Load() != 0 {
 		t.Fatal("rejected requests must not trigger work")
@@ -92,6 +122,47 @@ func TestHandlerLoopbackOnlyMutations(t *testing.T) {
 	// loopback with a loopback origin is fine; IPv6 loopback too
 	if w := do(h, "POST", "/api/v1/update/check", "", "[::1]:5000", "Origin", "http://127.0.0.1:8700"); w.Code != 200 {
 		t.Fatalf("%d %s", w.Code, w.Body)
+	}
+	// the Wails webview's origin is accepted
+	for _, o := range []string{"wails://wails", "http://wails.localhost"} {
+		if w := do(h, "POST", "/api/v1/update/check", "", lo, "Origin", o); w.Code != 200 {
+			t.Fatalf("origin %s: %d %s", o, w.Code, w.Body)
+		}
+	}
+}
+
+func TestHandlerContentType(t *testing.T) {
+	e := newEnv(t, "0.4.2")
+	h := e.m.Handler()
+	if w := do(h, "POST", "/api/v1/update/skip", `{"version":"0.4.2"}`, lo, "Content-Type", "text/plain"); w.Code != 415 {
+		t.Fatalf("text/plain body: %d", w.Code)
+	}
+	if w := do(h, "POST", "/api/v1/update/skip", `{"version":"0.4.2"}`, lo, "Content-Type", ""); w.Code != 415 {
+		t.Fatalf("no content type: %d", w.Code)
+	}
+	if w := do(h, "POST", "/api/v1/update/skip", `{"version":"0.4.2"}`, lo, "Content-Type", "application/json; charset=utf-8"); w.Code != 200 {
+		t.Fatalf("json with charset: %d %s", w.Code, w.Body)
+	}
+	// no body: no content type needed
+	if w := do(h, "POST", "/api/v1/update/check", "", lo); w.Code != 200 {
+		t.Fatalf("%d", w.Code)
+	}
+}
+
+func TestHandlerCheckSurvivesClientDisconnect(t *testing.T) {
+	e := newEnv(t, "0.4.2")
+	h := e.m.Handler()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // the client is already gone
+	r := httptest.NewRequest("POST", "/api/v1/update/check", nil).WithContext(ctx)
+	r.Host, r.RemoteAddr = "127.0.0.1:8700", lo
+	r.Header.Set(ActionHeader, ActionValue)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	var st Status
+	_ = json.Unmarshal(w.Body.Bytes(), &st)
+	if w.Code != 200 || st.State != StateAvailable || st.Error != "" {
+		t.Fatalf("%d %+v", w.Code, st)
 	}
 }
 

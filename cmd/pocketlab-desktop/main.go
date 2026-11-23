@@ -103,6 +103,7 @@ func main() {
 		},
 		OnShutdown: func() {
 			st.save()
+			upd.markHealthyOnQuit()
 			if ctl != nil {
 				ctl.shutdownOwned("desktop app quit")
 			}

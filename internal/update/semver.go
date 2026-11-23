@@ -13,7 +13,10 @@ type semver struct {
 func parseSemver(s string) (semver, bool) {
 	s = strings.TrimSpace(s)
 	s = strings.TrimPrefix(s, "v")
-	if i := strings.IndexByte(s, '+'); i >= 0 { // build metadata is ignored
+	if i := strings.IndexByte(s, '+'); i >= 0 { // build metadata is ignored for ordering, but must be well-formed
+		if !validIdents(s[i+1:]) {
+			return semver{}, false
+		}
 		s = s[:i]
 	}
 	var v semver
@@ -24,12 +27,10 @@ func parseSemver(s string) (semver, bool) {
 		if pre == "" {
 			return v, false
 		}
-		v.pre = strings.Split(pre, ".")
-		for _, p := range v.pre {
-			if p == "" {
-				return v, false
-			}
+		if !validIdents(pre) {
+			return v, false
 		}
+		v.pre = strings.Split(pre, ".")
 	}
 	parts := strings.Split(core, ".")
 	if len(parts) != 3 {
@@ -45,6 +46,26 @@ func parseSemver(s string) (semver, bool) {
 	}
 	v.major, v.minor, v.patch = nums[0], nums[1], nums[2]
 	return v, true
+}
+
+// validIdents reports whether s is a non-empty dot-separated list of
+// non-empty identifiers made only of [0-9A-Za-z-] (semver prerelease/build).
+func validIdents(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, id := range strings.Split(s, ".") {
+		if id == "" {
+			return false
+		}
+		for i := 0; i < len(id); i++ {
+			c := id[i]
+			if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '-') {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // ValidVersion reports whether s is a semantic version ("v" prefix allowed).

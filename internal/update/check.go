@@ -146,31 +146,24 @@ func (c *Checker) check(ctx context.Context, st *State) (Result, error) {
 			return Result{}, err
 		}
 	} else {
-		url := c.cfg.ManifestURL
-		if url == "" {
-			url = DefaultManifestURL
-		}
-		hdr := map[string]string{}
-		if st.ETag != "" && len(st.ManifestData) > 0 && len(st.ManifestSig) > 0 {
-			hdr["If-None-Match"] = st.ETag
-		}
-		body, status, h, err := c.get(ctx, url, hdr, MaxManifestBytes)
+		var err error
+		data, sig, newETag, notModified, err = c.fetchStable(ctx, st, true)
 		if err != nil {
 			return Result{}, err
 		}
-		if status == http.StatusNotModified {
-			notModified = true
-			data, sig = st.ManifestData, st.ManifestSig
-		} else {
-			sb, _, _, err := c.get(ctx, url+".sig", nil, maxSigBytes)
-			if err != nil {
-				return Result{}, err
-			}
-			data, sig = body, sb
-			newETag = h.Get("ETag")
-		}
 	}
 	m, err := VerifyManifest(data, sig, c.cfg.PublicKeys)
+	if err != nil && !beta && !notModified {
+		// The manifest and its .sig are two requests: a release published in
+		// between can pair a new manifest with an old signature. Refetch once.
+		var d2, s2 []byte
+		var e2 string
+		if d2, s2, e2, _, err = c.fetchStable(ctx, st, false); err != nil {
+			return Result{}, err
+		}
+		data, sig, newETag = d2, s2, e2
+		m, err = VerifyManifest(data, sig, c.cfg.PublicKeys)
+	}
 	if err != nil {
 		return Result{}, err
 	}
@@ -181,6 +174,31 @@ func (c *Checker) check(ctx context.Context, st *State) (Result, error) {
 	res := c.Evaluate(m)
 	res.NotModified = notModified
 	return res, nil
+}
+
+// fetchStable fetches the stable feed's manifest and signature. With useETag a
+// cached manifest is revalidated (notModified then returns the cached pair).
+func (c *Checker) fetchStable(ctx context.Context, st *State, useETag bool) (data, sig []byte, etag string, notModified bool, err error) {
+	url := c.cfg.ManifestURL
+	if url == "" {
+		url = DefaultManifestURL
+	}
+	hdr := map[string]string{}
+	if useETag && st.ETag != "" && len(st.ManifestData) > 0 && len(st.ManifestSig) > 0 {
+		hdr["If-None-Match"] = st.ETag
+	}
+	body, status, h, err := c.get(ctx, url, hdr, MaxManifestBytes)
+	if err != nil {
+		return nil, nil, "", false, err
+	}
+	if status == http.StatusNotModified {
+		return st.ManifestData, st.ManifestSig, "", true, nil
+	}
+	sb, _, _, err := c.get(ctx, url+".sig", nil, maxSigBytes)
+	if err != nil {
+		return nil, nil, "", false, err
+	}
+	return body, sb, h.Get("ETag"), false, nil
 }
 
 // Evaluate decides whether the (already verified) manifest is an applicable update.

@@ -211,3 +211,30 @@ func TestCheckResponseTooLarge(t *testing.T) {
 		t.Fatal("oversized manifest must be rejected")
 	}
 }
+
+func TestCheckRefetchesOnceWhenSignatureMismatches(t *testing.T) {
+	// a release published between the manifest and .sig requests: first pair mismatches
+	f := newFeed(t, "0.4.2")
+	f.mu.Lock()
+	f.badSigs = 1
+	f.mu.Unlock()
+	st := &State{}
+	res, err := f.checker("0.4.0").Check(context.Background(), st)
+	if err != nil || !res.Available {
+		t.Fatalf("one stale signature must be retried: %+v %v", res, err)
+	}
+	if f.sigReqs.Load() != 2 {
+		t.Fatalf("sig requests: %d", f.sigReqs.Load())
+	}
+	// a persistent mismatch still fails (only one retry)
+	g := newFeed(t, "0.4.2")
+	g.mu.Lock()
+	g.badSigs = 5
+	g.mu.Unlock()
+	if _, err := g.checker("0.4.0").Check(context.Background(), &State{}); !errors.Is(err, ErrBadSignature) {
+		t.Fatalf("%v", err)
+	}
+	if g.sigReqs.Load() != 2 {
+		t.Fatalf("sig requests: %d", g.sigReqs.Load())
+	}
+}

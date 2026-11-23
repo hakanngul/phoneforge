@@ -3,6 +3,7 @@
 package update
 
 import (
+	"archive/zip"
 	"errors"
 	"fmt"
 	"os"
@@ -200,11 +201,24 @@ func TestPreflight(t *testing.T) {
 	if err := Preflight("/private/var/folders/ab/xyz/AppTranslocation/ABCD-EF/d/Pocketlab.app"); !errors.Is(err, ErrTranslocated) {
 		t.Fatalf("translocated: %v", err)
 	}
-	if err := Preflight(filepath.Join(t.TempDir(), "Pocketlab.app")); err != nil {
+	okApp := filepath.Join(t.TempDir(), "Pocketlab.app")
+	if err := os.MkdirAll(okApp, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Preflight(okApp); err != nil {
 		t.Fatalf("writable parent: %v", err)
 	}
 	if os.Geteuid() == 0 {
 		t.Skip("root ignores directory permissions")
+	}
+	// a writable folder holding a read-only bundle is not replaceable either
+	roApp := filepath.Join(t.TempDir(), "Pocketlab.app")
+	if err := os.MkdirAll(roApp, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(roApp, 0o755) })
+	if err := Preflight(roApp); !errors.Is(err, ErrNotWritable) {
+		t.Fatalf("read-only bundle: %v", err)
 	}
 	parent := t.TempDir()
 	if err := os.Chmod(parent, 0o555); err != nil {
@@ -376,5 +390,198 @@ func TestInstallerTranslocated(t *testing.T) {
 	}
 	if _, err := inst.Apply("/nonexistent.app", "0.4.1"); !errors.Is(err, ErrTranslocated) {
 		t.Fatalf("%v", err)
+	}
+}
+
+func TestSupportedRejectsAdhocApp(t *testing.T) {
+	needTools(t)
+	l := newLayout(t, "0.4.0", "0.4.1")
+	strict := NewPlatformInstaller(InstallerOptions{CurrentApp: l.current, StagingDir: l.staging, BackupDir: l.backup})
+	ok, why := strict.Supported()
+	if ok || !strings.Contains(why, "Developer ID") {
+		t.Fatalf("an ad-hoc app cannot self-update: %v %q", ok, why)
+	}
+	if ok, _ := l.inst.Supported(); !ok { // tests-only AllowAdhoc
+		t.Fatal("AllowAdhoc installer should be supported")
+	}
+}
+
+func TestSwapNeedsBackupDirBeforeTouchingTheApp(t *testing.T) {
+	needTools(t)
+	l := newLayout(t, "0.4.0", "0.4.1")
+	cand, err := l.inst.Prepare(l.zip, &Manifest{Version: "0.4.1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blocker := filepath.Join(l.root, "file")
+	if err := os.WriteFile(blocker, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Swap(cand, l.current, filepath.Join(blocker, "backup")); err == nil {
+		t.Fatal("an unusable backup directory must fail the swap")
+	}
+	if version(t, l.current) != "0.4.0" {
+		t.Fatal("the installed app must be untouched")
+	}
+	if _, err := os.Stat(cand); err != nil {
+		t.Fatalf("candidate should still be in place: %v", err)
+	}
+}
+
+func TestKeepOldAppFallsBackToSibling(t *testing.T) {
+	root := t.TempDir()
+	apps := filepath.Join(root, "Applications")
+	stage := filepath.Join(root, "updates", "0.4.1", "extract", "Pocketlab.app")
+	_ = os.MkdirAll(apps, 0o755)
+	_ = os.MkdirAll(stage, 0o755)
+	_ = os.WriteFile(filepath.Join(stage, "marker"), []byte("old"), 0o644)
+	blocker := filepath.Join(root, "file")
+	_ = os.WriteFile(blocker, []byte("x"), 0o644)
+	got := keepOldApp(stage, filepath.Join(apps, "Pocketlab.app"), filepath.Join(blocker, "backup"), "0.4.0")
+	if filepath.Dir(got) != apps {
+		t.Fatalf("the old app must leave the staging dir: %q", got)
+	}
+	if b, err := os.ReadFile(filepath.Join(got, "marker")); err != nil || string(b) != "old" {
+		t.Fatalf("old app lost: %v", err)
+	}
+	if _, err := os.Stat(stage); !os.IsNotExist(err) {
+		t.Fatal("staging copy should have been moved")
+	}
+}
+
+func TestKeepOldAppPrunesOnlyAfterNewBackup(t *testing.T) {
+	root := t.TempDir()
+	backup := filepath.Join(root, "backup")
+	_ = os.MkdirAll(filepath.Join(backup, "Pocketlab-0.3.0.app"), 0o755)
+	old := filepath.Join(root, "old.app")
+	_ = os.MkdirAll(old, 0o755)
+	got := keepOldApp(old, filepath.Join(root, "Pocketlab.app"), backup, "0.4.0")
+	if got != filepath.Join(backup, "Pocketlab-0.4.0.app") {
+		t.Fatalf("%q", got)
+	}
+	if _, err := os.Stat(filepath.Join(backup, "Pocketlab-0.3.0.app")); !os.IsNotExist(err) {
+		t.Fatal("the older backup should be pruned once the new one is in place")
+	}
+	// when the new backup cannot be made, older ones survive
+	root2 := t.TempDir()
+	b2 := filepath.Join(root2, "backup")
+	_ = os.MkdirAll(filepath.Join(b2, "Pocketlab-0.3.0.app"), 0o755)
+	if got := keepOldApp(filepath.Join(root2, "missing.app"), filepath.Join(root2, "Pocketlab.app"), b2, "0.4.0"); got == filepath.Join(b2, "Pocketlab-0.4.0.app") {
+		t.Fatal("moving a missing app cannot succeed")
+	}
+	if _, err := os.Stat(filepath.Join(b2, "Pocketlab-0.3.0.app")); err != nil {
+		t.Fatal("older backup must survive a failed backup move")
+	}
+}
+
+func TestInstallerRollbackVerifiesBackup(t *testing.T) {
+	needTools(t)
+	l := newLayout(t, "0.4.0", "0.4.1")
+	cand, err := l.inst.Prepare(l.zip, &Manifest{Version: "0.4.1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backup, err := l.inst.Apply(cand, "0.4.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// a valid-looking app outside the backup directory is refused
+	outside := filepath.Join(t.TempDir(), "Pocketlab-0.4.0.app")
+	sh(t, "ditto", backup, outside)
+	if err := l.inst.Rollback(outside); !errors.Is(err, ErrBundleVerify) {
+		t.Fatalf("outside backup dir: %v", err)
+	}
+	// a different app inside the backup directory is refused
+	other := makeApp(t, t.TempDir(), "com.example.other", "0.3.0")
+	otherIn := filepath.Join(l.backup, "Pocketlab-0.3.0.app")
+	sh(t, "ditto", other, otherIn)
+	if err := l.inst.Rollback(otherIn); !errors.Is(err, ErrBundleVerify) {
+		t.Fatalf("different bundle id: %v", err)
+	}
+	// a tampered backup is refused
+	tampered := filepath.Join(l.backup, "Pocketlab-0.2.0.app")
+	sh(t, "ditto", backup, tampered)
+	if err := os.WriteFile(filepath.Join(tampered, "Contents", "MacOS", "pocketlab-desktop"), []byte("evil"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.inst.Rollback(tampered); !errors.Is(err, ErrBundleVerify) {
+		t.Fatalf("tampered backup: %v", err)
+	}
+	if version(t, l.current) != "0.4.1" {
+		t.Fatal("refused rollbacks must leave the app alone")
+	}
+	if err := l.inst.Rollback(backup); err != nil {
+		t.Fatalf("the genuine backup: %v", err)
+	}
+	if version(t, l.current) != "0.4.0" {
+		t.Fatal("rollback did not restore")
+	}
+}
+
+func TestExtractRejectsUnsafeEntries(t *testing.T) {
+	mk := func(name string, mode os.FileMode, body string) string {
+		z := filepath.Join(t.TempDir(), "x.zip")
+		f, err := os.Create(z)
+		if err != nil {
+			t.Fatal(err)
+		}
+		w := zip.NewWriter(f)
+		h := &zip.FileHeader{Name: name, Method: zip.Store}
+		h.SetMode(mode)
+		fw, _ := w.CreateHeader(h)
+		_, _ = fw.Write([]byte(body))
+		_ = w.Close()
+		_ = f.Close()
+		return z
+	}
+	for _, c := range []struct {
+		name string
+		mode os.FileMode
+		want string
+	}{
+		{"../evil", 0o644, ".."},
+		{"Pocketlab.app/../../evil", 0o644, ".."},
+		{"/etc/evil", 0o644, "absolute"},
+		{"Pocketlab.app/link", os.ModeSymlink | 0o755, "symlink"},
+	} {
+		dest := filepath.Join(t.TempDir(), "d")
+		_, err := Extract(mk(c.name, c.mode, "/etc/passwd"), dest)
+		if err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%q: %v", c.name, err)
+		}
+		if ents, _ := os.ReadDir(dest); len(ents) != 0 {
+			t.Errorf("%q: nothing may be extracted, got %v", c.name, ents)
+		}
+	}
+}
+
+func TestRelaunchOpenArgs(t *testing.T) {
+	env := []string{"HOME=/Users/x", "POCKETLAB_HOME=/data dir", "PL_ADDR=127.0.0.1:9000", "PHONEFORGE_X=1", "PATH=/bin", "NOEQUALS", "MY_PL_NOPE=1"}
+	got := relaunchOpenArgs("/Applications/Pocketlab.app", env, []string{"-addr", "127.0.0.1:9000", "--no-tray"})
+	want := []string{"-n", "--env", "POCKETLAB_HOME=/data dir", "--env", "PL_ADDR=127.0.0.1:9000", "--env", "PHONEFORGE_X=1",
+		"/Applications/Pocketlab.app", "--args", "-addr", "127.0.0.1:9000", "--no-tray"}
+	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("got %q\nwant %q", got, want)
+	}
+	if got := relaunchOpenArgs("/A.app", nil, nil); strings.Join(got, " ") != "-n /A.app" {
+		t.Fatalf("%q", got)
+	}
+}
+
+func TestRelaunchScriptGivesUpWhenOldProcessLives(t *testing.T) {
+	// "exec open" is swapped for echo so nothing is launched; the wait is shortened.
+	script := strings.Replace(strings.Replace(relaunchScript, "120", "2", 1), "exec open", "exec echo RAN", 1)
+	out, err := exec.Command("/bin/sh", "-c", script, "sh", fmt.Sprint(os.Getpid()), "-n", "x y").CombinedOutput()
+	if err == nil || strings.Contains(string(out), "RAN") {
+		t.Fatalf("a still-running old process must stop the helper: %v %q", err, out)
+	}
+	// once the old process is gone the helper runs open with the arguments intact
+	dead := exec.Command("/usr/bin/true")
+	if err := dead.Run(); err != nil {
+		t.Fatal(err)
+	}
+	out, err = exec.Command("/bin/sh", "-c", script, "sh", fmt.Sprint(dead.Process.Pid), "-n", "x y").CombinedOutput()
+	if err != nil || strings.TrimSpace(string(out)) != "RAN -n x y" {
+		t.Fatalf("%v %q", err, out)
 	}
 }

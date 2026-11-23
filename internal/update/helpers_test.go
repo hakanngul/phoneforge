@@ -58,6 +58,8 @@ type feed struct {
 	abortAt  int  // abort the archive transfer after this many bytes (once)
 	noRange  bool // ignore Range requests (always 200)
 	extra    []byte
+	gate     chan struct{} // when set, manifest requests block until it is closed
+	badSigs  int           // serve this many garbage signatures before the real one
 
 	reqs    atomic.Int32
 	sigReqs atomic.Int32
@@ -116,6 +118,12 @@ func (f *feed) asset() Asset {
 func (f *feed) serve(w http.ResponseWriter, r *http.Request) {
 	f.reqs.Add(1)
 	f.mu.Lock()
+	g := f.gate
+	f.mu.Unlock()
+	if g != nil && r.URL.Path == "/update-manifest.json" {
+		<-g
+	}
+	f.mu.Lock()
 	defer f.mu.Unlock()
 	p := r.URL.Path
 	switch {
@@ -132,6 +140,11 @@ func (f *feed) serve(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(f.data)
 	case p == "/update-manifest.json.sig":
 		f.sigReqs.Add(1)
+		if f.badSigs > 0 {
+			f.badSigs--
+			_, _ = w.Write(sign(f.priv, []byte("stale manifest")))
+			return
+		}
 		_, _ = w.Write(f.sig)
 	case p == "/releases":
 		f.apiReqs.Add(1)

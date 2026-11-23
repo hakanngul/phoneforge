@@ -281,9 +281,13 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
-      # Signed auto-update feed (update-manifest.json + .sig). Needs the ed25519 private key secret
-      # (one line, base64 of the 32-byte seed); without it the release simply has no update feed.
+      # Signed auto-update feed (update-manifest.json + .sig). Runs for tag pushes only, so the signing
+      # key is never exposed to manual runs. Needs the ed25519 private key secret (one line, base64 of
+      # the 32-byte seed); without it the release simply has no update feed.
+      # Recommended: store the secret in a GitHub Environment (e.g. "release") that is restricted to
+      # v* tags, and set `environment: release` on this job, so only tag builds can ever read the key.
       - name: Signed update manifest
+        if: github.ref_type == 'tag'
         env:
           UPDATE_ED25519_PRIVATE_KEY: ${{ secrets.UPDATE_ED25519_PRIVATE_KEY }}
           VERSION: ${{ needs.version.outputs.version }}
@@ -293,14 +297,8 @@ jobs:
             echo "::warning::UPDATE_ED25519_PRIVATE_KEY is not set; skipping the signed update manifest"
             exit 0
           fi
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/"
-            NOTES="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
-          else
-            # Manual run: nothing is published, but build and verify the manifest so this step stays exercised.
-            BASE="https://example.invalid/manual-run/"
-            NOTES=""
-          fi
+          BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/"
+          NOTES="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
           go run ./scripts/mkmanifest -version "$VERSION" -dir artifacts -base-url "$BASE" -notes-url "$NOTES"
           go run ./scripts/mkmanifest -verify -dir artifacts
       - name: Checksums

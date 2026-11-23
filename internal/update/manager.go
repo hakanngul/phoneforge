@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -122,6 +123,8 @@ type Manager struct {
 	downloaded string // verified archive for result
 	rollback   *RollbackOffer
 	opActive   bool
+	supOK      bool   // cached Installer.Supported() result (refreshed on startup/check/install)
+	supReason  string // why not, when !supOK
 	baseCtx    context.Context
 	kick       chan struct{}
 	wg         sync.WaitGroup
@@ -144,6 +147,7 @@ func NewManager(opts ManagerOptions) *Manager {
 	}
 	m := &Manager{opts: opts, state: StateIdle, baseCtx: context.Background(), kick: make(chan struct{}, 1)}
 	m.st = LoadState(opts.Dir)
+	m.refreshSupported()
 	m.checker = m.newChecker()
 	if len(m.st.ManifestData) > 0 && len(m.st.ManifestSig) > 0 {
 		if mf, err := VerifyManifest(m.st.ManifestData, m.st.ManifestSig, m.checker.cfg.PublicKeys); err == nil {
@@ -163,6 +167,19 @@ func (m *Manager) newChecker() *Checker {
 	cfg := m.opts.Checker
 	cfg.Channel = m.st.Settings.Channel
 	return NewChecker(cfg)
+}
+
+// refreshSupported re-probes whether in-place install is possible and caches
+// the answer; Status() only ever reads the cache (no filesystem work per call).
+func (m *Manager) refreshSupported() (bool, string) {
+	ok, reason := false, ""
+	if m.opts.Installer != nil {
+		ok, reason = m.opts.Installer.Supported()
+	}
+	m.mu.Lock()
+	m.supOK, m.supReason = ok, reason
+	m.mu.Unlock()
+	return ok, reason
 }
 
 func (m *Manager) now() time.Time { return m.opts.Now() }
@@ -195,10 +212,7 @@ func (m *Manager) statusLocked() Status {
 			s.Error = m.opts.DisabledReason
 		}
 	}
-	ok, reason := false, ""
-	if m.opts.Installer != nil {
-		ok, reason = m.opts.Installer.Supported()
-	}
+	ok, reason := m.supOK, m.supReason
 	s.Supported = ok && !m.opts.Disabled
 	if m.result != nil && m.result.Available {
 		a := m.result.Asset
@@ -276,6 +290,21 @@ func (m *Manager) begin() error {
 	return nil
 }
 
+// beginUpdate takes the operation slot and snapshots the offered update under
+// the same lock, so a concurrent check cannot leave the operation with a nil result.
+func (m *Manager) beginUpdate() (Result, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.opActive {
+		return Result{}, ErrBusyOp
+	}
+	if m.result == nil || !m.result.Available {
+		return Result{}, ErrNothingToUpdate
+	}
+	m.opActive = true
+	return *m.result, nil
+}
+
 func (m *Manager) end() {
 	m.mu.Lock()
 	m.opActive = false
@@ -295,21 +324,47 @@ func (m *Manager) CheckNow(ctx context.Context) (Status, error) {
 	if err := m.begin(); err != nil {
 		return m.Status(), err
 	}
-	defer m.end()
-	err := m.check(ctx)
+	auto, err := m.check(ctx)
+	m.end()
+	if auto {
+		m.startAutoDownload()
+	}
 	return m.Status(), err
 }
 
-func (m *Manager) check(ctx context.Context) error {
+// startAutoDownload begins the background download after a check found an
+// update. It runs only after the check released the operation slot, so it never
+// races begin(); losing the slot to another operation just skips the download.
+func (m *Manager) startAutoDownload() { _ = m.StartDownload() }
+
+// check runs one feed check. The caller holds the operation slot. It reports
+// whether the caller should start an automatic download once the slot is released.
+func (m *Manager) check(ctx context.Context) (auto bool, _ error) {
+	m.refreshSupported()
 	m.setState(StateChecking, "")
 	m.mu.Lock()
 	snap := *m.st
+	channel := m.st.Settings.Channel
 	checker := m.newChecker()
 	m.mu.Unlock()
 
 	res, err := checker.Check(ctx, &snap)
 
 	m.mu.Lock()
+	if m.st.Settings.Channel != channel {
+		// The channel was switched while the request was in flight: the answer
+		// belongs to the old feed. Drop it (and its cache write-back) and let the
+		// loop check the new feed.
+		m.result, m.downloaded = nil, ""
+		m.st.LastCheck = time.Time{}
+		m.errMsg = ""
+		m.state = m.settledStateLocked()
+		m.save()
+		s := m.statusLocked()
+		m.mu.Unlock()
+		m.notify(s)
+		return false, nil
+	}
 	m.st.LastCheck, m.st.LastError, m.st.Failures = snap.LastCheck, snap.LastError, snap.Failures
 	if err == nil {
 		m.st.ETag, m.st.ManifestData, m.st.ManifestSig = snap.ETag, snap.ManifestData, snap.ManifestSig
@@ -331,19 +386,12 @@ func (m *Manager) check(ctx context.Context) error {
 		m.state = StateError
 	}
 	m.save()
-	auto := err == nil && res.Available && m.st.Settings.AutoDownload && m.downloaded == "" &&
+	auto = err == nil && res.Available && m.st.Settings.AutoDownload && m.downloaded == "" &&
 		m.st.SkipVersion != res.Manifest.Version
 	s := m.statusLocked()
 	m.mu.Unlock()
 	m.notify(s)
-	if auto {
-		m.wg.Add(1)
-		go func() {
-			defer m.wg.Done()
-			_ = m.Download(m.baseCtx)
-		}()
-	}
-	return err
+	return auto, err
 }
 
 // Start runs the background check loop until ctx ends. Settings are read live;
@@ -390,8 +438,11 @@ func (m *Manager) Start(ctx context.Context) {
 				next = m.now().Add(time.Minute)
 				continue
 			}
-			err := m.check(ctx)
+			auto, err := m.check(ctx)
 			m.end()
+			if auto {
+				m.startAutoDownload()
+			}
 			if err != nil {
 				m.mu.Lock()
 				f := m.st.Failures
@@ -445,6 +496,7 @@ func (m *Manager) SetSettings(s Settings) error {
 	if s.Channel != m.st.Settings.Channel {
 		// Different feed: drop the cache and any offered update.
 		m.st.ETag, m.st.ManifestData, m.st.ManifestSig = "", nil, nil
+		m.st.LastCheck = time.Time{} // the new feed was never checked
 		if !m.opActive {
 			m.result, m.downloaded = nil, ""
 			m.state = StateIdle
@@ -469,11 +521,12 @@ func (m *Manager) Download(ctx context.Context) error {
 	if err := m.preconditions(false); err != nil {
 		return err
 	}
-	if err := m.begin(); err != nil {
+	res, err := m.beginUpdate()
+	if err != nil {
 		return err
 	}
 	defer m.end()
-	_, err := m.download(ctx)
+	_, err = m.download(ctx, res)
 	return err
 }
 
@@ -482,22 +535,23 @@ func (m *Manager) preconditions(needInstall bool) error {
 		return ErrDisabled
 	}
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.result == nil || !m.result.Available {
+	none := m.result == nil || !m.result.Available
+	m.mu.Unlock()
+	if none {
 		return ErrNothingToUpdate
 	}
 	if needInstall {
 		if m.opts.Installer == nil {
 			return ErrUnsupported
 		}
-		if ok, why := m.opts.Installer.Supported(); !ok {
+		if ok, why := m.refreshSupported(); !ok {
 			return fmt.Errorf("%w: %s", ErrUnsupported, why)
 		}
 	}
 	return nil
 }
 
-func (m *Manager) download(ctx context.Context) (string, error) {
+func (m *Manager) download(ctx context.Context, res Result) (string, error) {
 	m.mu.Lock()
 	if m.downloaded != "" {
 		if _, err := os.Stat(m.downloaded); err == nil {
@@ -507,7 +561,6 @@ func (m *Manager) download(ctx context.Context) (string, error) {
 		}
 		m.downloaded = ""
 	}
-	res := *m.result
 	m.mu.Unlock()
 	m.setState(StateDownloading, "")
 	client := m.opts.Checker.HTTPClient
@@ -515,12 +568,24 @@ func (m *Manager) download(ctx context.Context) (string, error) {
 		client = NewHTTPClient(0) // a whole-download timeout would cut big files
 	}
 	dir := filepath.Join(m.updatesDir(), res.Manifest.Version)
+	var lastNotify time.Time
 	path, err := Download(ctx, client, res.Asset, dir, func(done, total int64) {
 		m.mu.Lock()
 		m.progress = &Progress{Done: done, Total: total}
-		s := m.statusLocked()
+		// Throttle: the first update, the final one and at most one per 250 ms.
+		now := time.Now()
+		notify := lastNotify.IsZero() || now.Sub(lastNotify) >= progressInterval || (total > 0 && done >= total)
+		if notify {
+			lastNotify = now
+		}
+		var s Status
+		if notify {
+			s = m.statusLocked()
+		}
 		m.mu.Unlock()
-		m.notify(s)
+		if notify {
+			m.notify(s)
+		}
 	})
 	if err != nil {
 		m.setState(StateError, err.Error())
@@ -533,13 +598,17 @@ func (m *Manager) download(ctx context.Context) (string, error) {
 	return path, nil
 }
 
+// progressInterval is the minimum gap between download-progress notifications.
+const progressInterval = 250 * time.Millisecond
+
 // StartDownload begins a download in the background (state "downloading" is
 // visible immediately).
 func (m *Manager) StartDownload() error {
 	if err := m.preconditions(false); err != nil {
 		return err
 	}
-	if err := m.begin(); err != nil {
+	res, err := m.beginUpdate()
+	if err != nil {
 		return err
 	}
 	m.setState(StateDownloading, "")
@@ -547,7 +616,7 @@ func (m *Manager) StartDownload() error {
 	go func() {
 		defer m.wg.Done()
 		defer m.end()
-		_, _ = m.download(m.baseContext())
+		_, _ = m.download(m.baseContext(), res)
 	}()
 	return nil
 }
@@ -572,11 +641,12 @@ func (m *Manager) Install(ctx context.Context) error {
 	if err := m.preconditions(true); err != nil {
 		return err
 	}
-	if err := m.begin(); err != nil {
+	res, err := m.beginUpdate()
+	if err != nil {
 		return err
 	}
 	defer m.end()
-	return m.install(ctx)
+	return m.install(ctx, res)
 }
 
 // StartInstall runs Install in the background after cheap synchronous checks.
@@ -587,7 +657,8 @@ func (m *Manager) StartInstall() error {
 	if err := m.busyErr(); err != nil {
 		return err
 	}
-	if err := m.begin(); err != nil {
+	res, err := m.beginUpdate()
+	if err != nil {
 		return err
 	}
 	m.setState(StateInstalling, "")
@@ -595,7 +666,7 @@ func (m *Manager) StartInstall() error {
 	go func() {
 		defer m.wg.Done()
 		defer m.end()
-		_ = m.install(m.baseContext())
+		_ = m.install(m.baseContext(), res)
 	}()
 	return nil
 }
@@ -605,14 +676,11 @@ func (m *Manager) fail(err error) error {
 	return err
 }
 
-func (m *Manager) install(ctx context.Context) error {
-	m.mu.Lock()
-	res := *m.result
-	m.mu.Unlock()
+func (m *Manager) install(ctx context.Context, res Result) error {
 	ver := res.Manifest.Version
 	inst := m.opts.Installer
 
-	archive, err := m.download(ctx)
+	archive, err := m.download(ctx, res)
 	if err != nil {
 		return err
 	}
@@ -662,7 +730,11 @@ func (m *Manager) install(ctx context.Context) error {
 	m.save()
 	m.mu.Unlock()
 	m.record("update_started", "update to "+ver, "bundle replaced; relaunching")
-	_ = os.RemoveAll(filepath.Join(m.updatesDir(), ver))
+	// Clean the staging area, but never the old app if the installer could not
+	// move it out of there into the backup directory.
+	if stage := filepath.Join(m.updatesDir(), ver); !pathWithin(backup, stage) {
+		_ = os.RemoveAll(stage)
+	}
 	if err := inst.Relaunch(); err != nil {
 		return failed(fmt.Errorf("updated to %s but could not relaunch; reopen Pocketlab: %w", ver, err))
 	}
@@ -670,6 +742,18 @@ func (m *Manager) install(ctx context.Context) error {
 		m.opts.Hooks.Quit()
 	}
 	return nil
+}
+
+// pathWithin reports whether p is dir or lies inside it.
+func pathWithin(p, dir string) bool {
+	if p == "" || dir == "" {
+		return false
+	}
+	rel, err := filepath.Rel(filepath.Clean(dir), filepath.Clean(p))
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
 
 // ---- rollback / startup ----
@@ -701,7 +785,7 @@ func (m *Manager) Rollback(ctx context.Context) error {
 	if m.opts.Installer == nil {
 		return ErrUnsupported
 	}
-	if ok, why := m.opts.Installer.Supported(); !ok {
+	if ok, why := m.refreshSupported(); !ok {
 		return fmt.Errorf("%w: %s", ErrUnsupported, why)
 	}
 	b, err := m.backupForRollback()
@@ -723,7 +807,7 @@ func (m *Manager) StartRollback() error {
 	if m.opts.Installer == nil {
 		return ErrUnsupported
 	}
-	if ok, why := m.opts.Installer.Supported(); !ok {
+	if ok, why := m.refreshSupported(); !ok {
 		return fmt.Errorf("%w: %s", ErrUnsupported, why)
 	}
 	b, err := m.backupForRollback()
@@ -824,7 +908,9 @@ func (m *Manager) Startup() {
 // cleared (the backup file is kept for a manual rollback).
 func (m *Manager) MarkHealthy() {
 	m.mu.Lock()
-	if m.st.Pending == nil {
+	// Only the freshly installed version can vouch for itself: the old process
+	// quitting after an install must not clear the pending marker of the new one.
+	if m.st.Pending == nil || CompareVersions(m.opts.CurrentVersion, m.st.Pending.To) != 0 {
 		m.mu.Unlock()
 		return
 	}
