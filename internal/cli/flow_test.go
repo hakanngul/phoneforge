@@ -152,7 +152,7 @@ func TestFlowRunFailedExitCodeAndJUnit(t *testing.T) {
 		t.Fatalf("suite: %+v", su)
 	}
 	fc := su.Cases[1]
-	shot := strings.TrimSuffix(report, ".xml") + ".screenshots/step-s2.png"
+	shot := filepath.Join(strings.TrimSuffix(report, ".xml")+".screenshots", "step-s2.png")
 	if fc.Failure == nil || !strings.Contains(fc.Failure.Message, "<no match> & more") || !strings.Contains(fc.Failure.Text, shot) {
 		t.Fatalf("failure: %+v", fc.Failure)
 	}
