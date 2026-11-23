@@ -120,6 +120,7 @@ func init() {
 		{"wait", "wait for text/element to appear", cmdWait},
 		{"dsl", "execute DSL actions from a JSON file", cmdDSL},
 		{"run", "run a .mob (or DSL .json) test script", cmdRun},
+		{"flow", "list|validate .mobflow test cases", cmdFlow},
 		{"logs", "stream device logs", cmdLogs},
 		{"record", "record the screen to MP4", cmdRecord},
 		{"crashes", "list crash reports", cmdCrashes},

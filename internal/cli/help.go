@@ -144,6 +144,13 @@ Run a test script. The script is saved into a server-side test project
 (default "cli", created on first use) as its base name, run on the device, and
 the per-step result printed. Exit 1 if it did not pass.`,
 
+	"flow": `Usage: pocketlab flow list [--project P] [--json]
+       pocketlab flow validate <file.mobflow|project/name>
+
+list prints the .mobflow cases on the server with their cache state.
+validate checks a local file offline, or a stored case by id (<project>/<name>).
+Exit codes: 0 ok, 1 validation failure, 2 error.`,
+
 	"logs": `Usage: pocketlab logs [-f] [--seconds N] [--grep TEXT]
 
 Print device log lines. Without -f, collect for --seconds (default 3) and exit.

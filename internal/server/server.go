@@ -35,6 +35,7 @@ import (
 	"pocketlab/internal/iossim"
 	"pocketlab/internal/lifecycle"
 	"pocketlab/internal/mcpserver"
+	"pocketlab/internal/mobflow"
 	"pocketlab/internal/mobtest"
 	"pocketlab/internal/ocr"
 	"pocketlab/internal/registry"
@@ -288,6 +289,11 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 			tests.Secrets = sec.Reveal
 		}
 		deps.Tests = tests.Routes(getDevice)
+		if flows, ferr := mobflow.NewService(root); ferr != nil {
+			log.Printf("flows: %v", ferr)
+		} else {
+			deps.Flows = flows.Routes()
+		}
 	}
 	if nodeStore != nil {
 		deps.Nodes = nodeStore.Routes()

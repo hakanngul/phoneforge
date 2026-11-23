@@ -54,6 +54,7 @@ type Deps struct {
 	Credentials http.Handler        // mounted at /credentials (exposes /secrets, /app-cards)
 	Farms       http.Handler        // mounted at /farms
 	Tests       http.Handler        // mounted at /tests (projects, .mob scripts, runs)
+	Flows       http.Handler        // mounted at /flows (.mobflow cases, cache sidecars)
 	AI          http.Handler        // mounted at /ai (AI Configuration: agents, settings, runs)
 	OCR         http.Handler        // mounted at /ocr (on-screen text recognition)
 	Web         http.Handler        // mounted at /web (Chrome/WebView automation over CDP)
@@ -105,6 +106,9 @@ func NewRouterWithDeps(reg *registry.Registry, cfg config.Config, deps Deps) htt
 			}
 			if deps.Tests != nil {
 				r.Mount("/tests", deps.Tests)
+			}
+			if deps.Flows != nil {
+				r.Mount("/flows", deps.Flows)
 			}
 			if deps.AI != nil {
 				r.Mount("/ai", deps.AI)
