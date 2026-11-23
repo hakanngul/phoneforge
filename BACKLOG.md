@@ -1,6 +1,28 @@
 # Pocketlab Backlog
 
-Last updated: 2026-11-21
+Last updated: 2026-11-23
+
+## Next up (agreed 2026-11-23)
+
+In progress on their own branches: Workflow flows + replay (`docs/plans/workflow-flows.md`), desktop auto-update (`docs/plans/auto-update.md`).
+
+Then, in this order:
+
+- [ ] MCP tools `save_screenshot` (full-quality PNG to disk), `list_secrets` (ids only), `test_get_active`
+- [ ] `debug_app`: launch a debug build with the debugger attached and capture stdout/stderr to a log file
+- [ ] Reusable GitHub Action for users' CI (`uses: hakanngul/pocketlab-action@v1`: install, start server, boot/slim sims, run `.mob`/flow replays)
+- [ ] Run Maestro YAML flows in `test_run` (`runFlow`, `${VAR}` / `-e` params)
+- [ ] Re-sign an `.ipa` with the user's Apple ID / certificate + profile and install it (`install_app` `resign`)
+- [ ] App Builder + `verify_changes` (add folder / new app from template / clone from GitHub; build, run on device, run `.mob` tests, proof record)
+
+## Later (agreed 2026-11-23)
+
+- [ ] Left control panel clips Record/OCR below ~1400 px window width
+- [ ] In-app Claude Code runs pick up the user's plugins (e.g. claude-mem notices leak into the chat); run agents without user plugins/hooks
+- [ ] REST gestures: add `units=px` so clients using screenshot pixels tap the right place
+- [ ] Ask for a name when cloning a simulator (today: "<name> clone")
+- [ ] `THIRD_PARTY_NOTICES` in the app bundle and archives + `go-licenses` check in CI
+- [ ] Refresh the parity table below (notarization, CI, WDA build, simulator slimming are done)
 
 ## MobAI parity (2026-11-21)
 
