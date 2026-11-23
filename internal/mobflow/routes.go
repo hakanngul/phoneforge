@@ -9,21 +9,6 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// Service is the flows feature: the store today, runs and agents in later
-// slices.
-type Service struct {
-	Store *Store
-}
-
-// NewService opens a service rooted at root (see DefaultRoot).
-func NewService(root string) (*Service, error) {
-	st, err := NewStore(root)
-	if err != nil {
-		return nil, err
-	}
-	return &Service{Store: st}, nil
-}
-
 type apiError struct {
 	Error  string           `json:"error"`
 	Code   string           `json:"code"`
@@ -42,9 +27,16 @@ func writeErr(w http.ResponseWriter, status int, code, msg string) {
 
 func storeErr(w http.ResponseWriter, err error) {
 	var ve ValidationErrors
+	var se *StateError
 	switch {
 	case errors.As(err, &ve):
 		writeJSON(w, http.StatusBadRequest, apiError{Error: ve.Error(), Code: "invalid_case", Errors: ve})
+	case errors.As(err, &se):
+		writeErr(w, http.StatusConflict, "invalid_state", err.Error())
+	case errors.Is(err, ErrDeviceBusy):
+		writeErr(w, http.StatusConflict, "device_busy", err.Error())
+	case errors.Is(err, ErrNotImplemented):
+		writeErr(w, http.StatusNotImplemented, "not_implemented", err.Error())
 	case errors.Is(err, ErrInvalid):
 		writeErr(w, http.StatusBadRequest, "invalid_request", err.Error())
 	case errors.Is(err, ErrNotFound):
@@ -214,5 +206,6 @@ func (s *Service) Routes() http.Handler {
 		}
 		writeJSON(w, http.StatusOK, v)
 	})
+	s.mountRuns(r)
 	return r
 }

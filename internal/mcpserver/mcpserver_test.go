@@ -16,8 +16,8 @@ func TestNewRegistersTools(t *testing.T) {
 	if s == nil {
 		t.Fatal("nil server")
 	}
-	if n := len(s.ListTools()); n != 55 {
-		t.Fatalf("want 55 tools, got %d", n)
+	if n := len(s.ListTools()); n != 62 {
+		t.Fatalf("want 62 tools, got %d", n)
 	}
 	if Handler(s) == nil {
 		t.Fatal("nil handler")

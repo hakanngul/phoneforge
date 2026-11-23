@@ -493,6 +493,7 @@ func New(apiBaseURL, version string) *server.MCPServer {
 		mcp.WithString("text", mcp.Required(), mcp.Description("Text to type"))),
 		webCall("/type", map[string]string{"selector": "selector", "text": "text"}))
 	registerCrashAndDebugTools(s, c, id)
+	registerWorkflowTools(s, c)
 	return s
 }
 

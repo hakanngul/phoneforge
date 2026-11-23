@@ -292,6 +292,7 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 		if flows, ferr := mobflow.NewService(root); ferr != nil {
 			log.Printf("flows: %v", ferr)
 		} else {
+			flows.Devices = getDevice
 			deps.Flows = flows.Routes()
 		}
 	}
