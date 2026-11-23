@@ -45,6 +45,8 @@ func cmdFlow(c *call) error {
 		return flowErr(flowList(c, rest))
 	case "validate":
 		return flowErr(flowValidate(c, rest))
+	case "lint":
+		return flowErr(flowLint(c, rest))
 	case "run":
 		return flowErr(flowRun(c, rest, "run", ""))
 	case "replay":
@@ -54,7 +56,7 @@ func cmdFlow(c *call) error {
 	case "cache":
 		return flowErr(flowCache(c, rest))
 	}
-	return &exitError{flowExitError, fmt.Errorf("flow: unknown subcommand %q (list, validate, run, replay, record, cache)", sub)}
+	return &exitError{flowExitError, fmt.Errorf("flow: unknown subcommand %q (list, validate, lint, run, replay, record, cache)", sub)}
 }
 
 type flowInfo struct {
@@ -184,6 +186,52 @@ func flowValidate(c *call, args []string) error {
 	}
 	if len(errs) > 0 {
 		return &exitError{flowExitInvalid, fmt.Errorf("%d validation error(s)", len(errs))}
+	}
+	return nil
+}
+
+// flowLint prints the lint warnings of a case; it exits 0 unless --strict is
+// given and there are warnings.
+func flowLint(c *call, args []string) error {
+	fs := newFlagSet("flow lint")
+	strict := fs.Bool("strict", false, "")
+	pos, err := c.parse(fs, args)
+	if err != nil {
+		return err
+	}
+	if len(pos) != 1 {
+		return usagef("usage: pocketlab flow lint <project/name> [--strict] [--json]")
+	}
+	project, name, ok := mobflow.SplitCaseID(pos[0])
+	if !ok {
+		return fmt.Errorf("%q is not a case id <project>/<name>", pos[0])
+	}
+	ctx, cancel := c.ctxFor(30 * time.Second)
+	defer cancel()
+	var l struct {
+		Warnings []mobflow.Warning `json:"warnings"`
+	}
+	if err := c.client().do(ctx, "GET", "/flows/cases/"+url.PathEscape(project)+"/"+url.PathEscape(name)+"/lint", nil, &l); err != nil {
+		return err
+	}
+	if l.Warnings == nil {
+		l.Warnings = []mobflow.Warning{}
+	}
+	if c.g.json {
+		b, _ := json.Marshal(struct {
+			OK       bool              `json:"ok"`
+			Warnings []mobflow.Warning `json:"warnings"`
+		}{len(l.Warnings) == 0, l.Warnings})
+		fmt.Fprintln(c.out, string(b))
+	} else if len(l.Warnings) == 0 {
+		fmt.Fprintf(c.out, "%s: no warnings\n", pos[0])
+	} else {
+		for _, w := range l.Warnings {
+			fmt.Fprintf(c.out, "%s: warning: %s\n", pos[0], w)
+		}
+	}
+	if *strict && len(l.Warnings) > 0 {
+		return &exitError{flowExitInvalid, fmt.Errorf("%d lint warning(s)", len(l.Warnings))}
 	}
 	return nil
 }

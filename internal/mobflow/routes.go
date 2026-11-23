@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -216,6 +217,38 @@ func (s *Service) Routes() http.Handler {
 			return
 		}
 		writeJSON(w, http.StatusOK, h)
+	})
+	r.Get("/cases/{project}/{name}/cache/history/{entry}", func(w http.ResponseWriter, req *http.Request) {
+		c, err := st.GetHistory(chi.URLParam(req, "project"), chi.URLParam(req, "name"), platform(req), chi.URLParam(req, "entry"))
+		if err != nil {
+			storeErr(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, struct {
+			Cache *Cache `json:"cache"`
+		}{c})
+	})
+	r.Get("/cases/{project}/{name}/stats", func(w http.ResponseWriter, req *http.Request) {
+		project, name := chi.URLParam(req, "project"), chi.URLParam(req, "name")
+		if _, err := st.Get(project, name); err != nil {
+			storeErr(w, err)
+			return
+		}
+		limit := 0
+		if v := req.URL.Query().Get("limit"); v != "" {
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 1 {
+				writeErr(w, http.StatusBadRequest, "invalid_request", "limit must be a positive integer")
+				return
+			}
+			limit = n
+		}
+		stats, err := s.Stats(CaseID(project, name), limit)
+		if err != nil {
+			storeErr(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, stats)
 	})
 	r.Post("/cases/{project}/{name}/cache/history/{entry}/restore", func(w http.ResponseWriter, req *http.Request) {
 		project, name := chi.URLParam(req, "project"), chi.URLParam(req, "name")

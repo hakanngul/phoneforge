@@ -388,6 +388,28 @@ func (s *Store) ListHistory(project, name, platform string) ([]HistoryEntry, err
 	return listHistoryDir(historyDir(filepath.Dir(p), name, platform))
 }
 
+// GetHistory returns the content of one archived cache version.
+func (s *Store) GetHistory(project, name, platform, entry string) (*Cache, error) {
+	if err := checkPlatform(platform); err != nil {
+		return nil, err
+	}
+	if !historyEntryRe.MatchString(entry) {
+		return nil, fmt.Errorf("%w: bad history entry id", ErrInvalid)
+	}
+	p, err := s.casePath(project, name)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := os.Lstat(p); err != nil {
+		return nil, fmt.Errorf("%w: case %q", ErrNotFound, CaseID(project, name))
+	}
+	c, err := readCacheFile(filepath.Join(historyDir(filepath.Dir(p), name, platform), entry+".json"), platform)
+	if errors.Is(err, ErrNotFound) {
+		return nil, fmt.Errorf("%w: history entry %q", ErrNotFound, entry)
+	}
+	return c, err
+}
+
 // RestoreHistory makes an archived version the current cache. The current one
 // is archived first and the restored content gets the next version number.
 func (s *Store) RestoreHistory(project, name, platform, entry string) (*Cache, error) {

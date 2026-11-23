@@ -89,6 +89,7 @@
 
     h = el('div', 'col-head');
     ui.title = el('h2', '', 'Flow'); h.appendChild(ui.title);
+    ui.stats = el('span', 'muted meta2', ''); ui.stats.hidden = true; h.appendChild(ui.stats);
     ui.dirty = el('span', 'dirty', '●'); ui.dirty.hidden = true; ui.dirty.title = 'Unsaved changes'; h.appendChild(ui.dirty);
     h.appendChild(el('span', 'grow'));
     ui.tabEd = btn('Editor', 'sm', function () { setMid('editor'); }); ui.tabCache = btn('Cache', 'sm', function () { setMid('cache'); });
@@ -230,7 +231,7 @@
     return true;
   }
   function closeCase() {
-    cur = null; ui.title.textContent = 'Flow'; ui.dirty.hidden = true;
+    cur = null; ui.title.textContent = 'Flow'; ui.dirty.hidden = true; ui.stats.hidden = true;
     ui.editor.hidden = true; ui.cache.hidden = true; ui.empty.hidden = false;
     clear(ui.params); renderCases();
   }
@@ -242,8 +243,21 @@
       ui.text.value = cur.saved; ui.empty.hidden = true; ui.dirty.hidden = true;
       showErrors(e.errors || []); renderSteps(e);
       renderParams(e); renderCases(); setMid(mid);
-      loadRuns();
+      loadRuns(); loadStats();
     }).catch(fail);
+  }
+  function loadStats() {
+    var c = cur; if (!c) return;
+    ui.stats.hidden = true;
+    req('GET', casePath(c, '/stats')).then(function (s) {
+      if (cur !== c || !s) return;
+      if (!s.runs) { ui.stats.textContent = 'no runs yet'; ui.stats.hidden = false; return; }
+      var t = Math.round(s.passRate * 100) + '% pass (' + s.passed + '/' + s.runs + ' of last ' + s.window + ')';
+      if (s.heals) t += ', ' + s.heals + ' healed';
+      var bad = Object.keys(s.stepFailures || {}).sort(function (a, b) { return s.stepFailures[b] - s.stepFailures[a]; });
+      if (bad.length) t += ', failing: ' + bad.slice(0, 3).map(function (k) { return k + ' x' + s.stepFailures[k]; }).join(', ');
+      ui.stats.textContent = t; ui.stats.hidden = false;
+    }).catch(function () { /* optional */ });
   }
   function setMid(m) {
     mid = m;
@@ -324,7 +338,7 @@
     var dev = ui.dev.value || PF.selectedId;
     if (!dev) { PF.toast('Select a device first', true); return; }
     var body = { project: cur.project, case: cur.name, deviceId: dev, mode: mode, heal: !!heal, params: readParams() };
-    if (mode === 'record') body.agent = 'default';
+    // no agent field: the server uses the Workflow-slot default agent
     setBusy(true);
     req('POST', '/flows/runs', jbody(body), 'application/json').then(function (r) {
       var id = r && (r.run ? r.run.id : r.id);
@@ -355,7 +369,7 @@
     ['run', 'step', 'substep', 'assert', 'screenshot', 'log'].forEach(function (t) {
       es.addEventListener(t, scheduleRefresh);
     });
-    es.addEventListener('done', function () { closeStream(); fetchRun(id); loadRuns(); loadCases(); if (mid === 'cache') loadCache(); });
+    es.addEventListener('done', function () { closeStream(); fetchRun(id); loadRuns(); loadCases(); loadStats(); if (mid === 'cache') loadCache(); });
     es.onerror = function () { /* server closes the stream after done; EventSource would auto-reconnect */
       if (es && es.readyState === 2) closeStream();
       else if (run && !isActive(run)) closeStream();
@@ -511,6 +525,15 @@
     histEntries.forEach(function (h) {
       var li = el('li', histSel === h.id ? 'sel' : '');
       li.appendChild(el('span', 'n', 'v' + h.version + ' / ' + fmtTime(h.archivedAt)));
+      li.appendChild(btn('View / diff vs current', 'sm', function (ev) {
+        ev.stopPropagation();
+        req('GET', casePath(c, '/cache/history/' + encodeURIComponent(h.id))).then(function (v) {
+          if (cur !== c || !cacheState) return;
+          var old = v && v.cache ? pretty(v.cache) : '';
+          cacheState.diff = { before: old, after: cacheState.cache ? pretty(cacheState.cache) : '', label: 'Diff: v' + h.version + ' (archived) vs current' };
+          renderCache();
+        }).catch(fail);
+      }, 'Show this archived version as a diff against the current cache'));
       li.appendChild(btn('Restore', 'sm', function (ev) {
         ev.stopPropagation();
         PF.confirm('Restore this cache version? The current one is archived.', function () {
@@ -527,10 +550,8 @@
     });
     box.appendChild(ul);
     if (cacheState && cacheState.diff) {
-      box.appendChild(section('Diff: before restore vs restored (current)'));
+      box.appendChild(section(cacheState.diff.label || 'Diff: before restore vs restored (current)'));
       var out = el('div', 'tpad'); out.appendChild(renderDiff(cacheState.diff.before, cacheState.diff.after)); box.appendChild(out);
-    } else if (histEntries.length) {
-      box.appendChild(el('div', 'muted tpad', 'The history API lists versions without content; restore one to see a diff against the previous current version.'));
     }
   }
 

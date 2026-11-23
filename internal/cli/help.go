@@ -146,6 +146,7 @@ the per-step result printed. Exit 1 if it did not pass.`,
 
 	"flow": `Usage: pocketlab flow list [--project P] [--json]
        pocketlab flow validate <file.mobflow|project/name>
+       pocketlab flow lint <project/name> [--strict] [--json]
        pocketlab flow run <project/name> -d DEVICE [--mode auto|record|replay] [--agent A] [--heal]
                           [--param k=v]... [--junit FILE] [--timeout 30m] [--json]
        pocketlab flow replay <project/name> -d DEVICE [--heal] [--param k=v]... [--junit FILE]

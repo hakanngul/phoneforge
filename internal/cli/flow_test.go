@@ -293,3 +293,23 @@ func TestFlowValidatePrintsLintWarnings(t *testing.T) {
 		t.Fatalf("json: %d %q", code, out)
 	}
 }
+
+func TestFlowLint(t *testing.T) {
+	f := newFake(t)
+	f.json("GET /flows/cases/p/good/lint", `{"ok":false,"warnings":[{"step":"s1","path":"0","message":"tap on raw coordinates (1,2)"}]}`)
+	f.json("GET /flows/cases/p/clean/lint", `{"ok":true,"warnings":[]}`)
+	code, out, _ := run(t, f, "", "flow", "lint", "p/good")
+	if code != 0 || !strings.Contains(out, "warning: step s1") {
+		t.Fatalf("%d %q", code, out)
+	}
+	if code, _, _ := run(t, f, "", "flow", "lint", "p/good", "--strict"); code != 1 {
+		t.Fatalf("strict code=%d", code)
+	}
+	code, out, _ = run(t, f, "", "flow", "lint", "p/clean", "--strict")
+	if code != 0 || !strings.Contains(out, "no warnings") {
+		t.Fatalf("clean %d %q", code, out)
+	}
+	if code, _, _ := run(t, f, "", "flow", "lint"); code != 2 {
+		t.Fatalf("usage code=%d", code)
+	}
+}

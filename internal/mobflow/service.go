@@ -208,13 +208,17 @@ func (s *Service) StartRun(req StartRunRequest) (*Run, error) {
 		return nil, fmt.Errorf("%w: case targets %s but device %q is %s", ErrInvalid, want, req.DeviceID, platform)
 	}
 	agent := strings.TrimSpace(req.Agent)
+	if strings.EqualFold(agent, "default") {
+		agent = "" // "default" is an alias for the Workflow-slot default
+	}
+	lookupPlatform := lookupCachePlatform(c, platform)
 
 	// Resolve auto and check what replay needs.
 	var cache *Cache
 	var stale map[string]string
 	heal := req.Heal
 	if mode != ModeRecord {
-		cache, _ = s.Store.GetCache(e.Project, e.Name, casePlatform(c))
+		cache, _ = s.Store.GetCache(e.Project, e.Name, lookupPlatform)
 		stale = Staleness(c, cache)
 		canAgent := s.Launcher != nil && agent != AgentExternal
 		if mode == "auto" {
@@ -432,12 +436,28 @@ func (rt *runtime) finishLocked(l *live) {
 	l.br.publish(EvDone, map[string]string{"status": r.Status, "error": r.Error})
 	switch r.Status {
 	case RunPassed:
-		events.Success(fmt.Sprintf("Flow run passed: %s", r.CaseID))
+		events.Success("Flow run passed: " + r.CaseID + runEventDetail(r))
 	case RunCancelled:
-		events.Info(fmt.Sprintf("Flow run cancelled: %s", r.CaseID))
+		events.Info("Flow run cancelled: " + r.CaseID + runEventDetail(r))
 	default:
-		events.Errorf("Flow run failed: %s: %s", r.CaseID, r.Error)
+		events.Errorf("Flow run failed: %s: %s%s", r.CaseID, r.Error, runEventDetail(r))
 	}
+}
+
+// runEventDetail is the machine-readable tail of the flow-run event message
+// (and so of a webhook payload): run id, status, failed step and healed ids.
+func runEventDetail(r *Run) string {
+	d := fmt.Sprintf(" [run=%s status=%s", r.ID, r.Status)
+	for _, st := range r.Steps {
+		if st.State == StepFailed {
+			d += " failedStep=" + st.ID
+			break
+		}
+	}
+	if len(r.Healed) > 0 {
+		d += " healed=" + strings.Join(r.Healed, ",")
+	}
+	return d + "]"
 }
 
 // mutate runs fn on the live run under the lock and persists the result.
@@ -748,7 +768,7 @@ func (s *Service) SubmitCache(runID string, segs []Segment) (*CacheResult, error
 			}
 		}
 	}
-	project, name := r.Project, r.Name
+	project, name, runPlatform := r.Project, r.Name, r.Platform
 	rt.mu.Unlock()
 
 	e, err := s.Store.Get(project, name)
@@ -764,7 +784,8 @@ func (s *Service) SubmitCache(runID string, segs []Segment) (*CacheResult, error
 	} else {
 		note = n
 	}
-	platform := casePlatform(e.Case)
+	platform := s.writeCachePlatform(project, name, e.Case, runPlatform)
+	lookup := lookupCachePlatform(e.Case, runPlatform)
 	segs = normalizeSegments(segs)
 	if healStep != "" {
 		healedAt := time.Now().UTC().Truncate(time.Millisecond)
@@ -776,7 +797,7 @@ func (s *Service) SubmitCache(runID string, segs []Segment) (*CacheResult, error
 	for _, sg := range segs {
 		submitted[sg.ID] = true
 	}
-	if old, gerr := s.Store.GetCache(project, name, platform); gerr == nil {
+	if old, gerr := s.Store.GetCache(project, name, lookup); gerr == nil {
 		stale := Staleness(e.Case, old)
 		for _, sg := range old.Segments {
 			if !submitted[sg.ID] && stale[sg.ID] == StateFresh {
@@ -851,4 +872,34 @@ func (s *Service) LogLine(runID, stream, line string) {
 		l.br.publish(EvLog, map[string]string{"stream": stream, "text": line})
 	}
 	rt.mu.Unlock()
+}
+
+// lookupCachePlatform is the platform used to find a case's cache: the one the
+// case pins, else the run device's platform (GetCache then falls back to the
+// default sidecar).
+func lookupCachePlatform(c *Case, devicePlatform string) string {
+	if p := casePlatform(c); p != "" {
+		return p
+	}
+	if devicePlatform == "android" || devicePlatform == "ios" {
+		return devicePlatform
+	}
+	return ""
+}
+
+// writeCachePlatform is the sidecar a record or heal writes to. A pinned case
+// writes its own platform; a platform-"any" case writes the default sidecar
+// unless a platform-specific one already exists for the device platform.
+func (s *Service) writeCachePlatform(project, name string, c *Case, devicePlatform string) string {
+	if p := casePlatform(c); p != "" {
+		return p
+	}
+	p := lookupCachePlatform(c, devicePlatform)
+	if p == "" {
+		return ""
+	}
+	if cur, err := s.Store.GetCache(project, name, p); err == nil && cur.Platform == p {
+		return p
+	}
+	return ""
 }

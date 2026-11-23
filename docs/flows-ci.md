@@ -67,3 +67,7 @@ jobs:
 ```
 
 Check `pocketlab help flow` for the full option list, `pocketlab flow cache shop/checkout` to see which segments are fresh, and `pocketlab flow validate shop/checkout` for lint warnings (taps on raw coordinates, fixed sleeps over 2 s).
+
+`pocketlab flow lint shop/checkout [--strict]` prints only the lint warnings (exit 0; with `--strict` exit 1 when there are any). `GET /api/v1/flows/cases/shop/checkout/stats` returns pass rate, heal count and per-step failure counts over the last 20 runs (`?limit=N`).
+
+Every finished flow run also posts an event on the server event bus, so a webhook with the filter `Flow run` (or level `error` for failures only) is notified. The message ends with `[run=<id> status=<s> failedStep=<step> healed=<ids>]`.
