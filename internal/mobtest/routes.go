@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -24,7 +25,12 @@ type Service struct {
 	History *History
 	// Secrets resolves type_secret ids for runs (optional).
 	Secrets dsl.SecretResolver
+
+	running atomic.Int32
 }
+
+// RunningCount is the number of scripts currently running.
+func (s *Service) RunningCount() int { return int(s.running.Load()) }
 
 // NewService opens a service rooted at root (see DefaultRoot).
 func NewService(root string) (*Service, error) {
@@ -45,6 +51,8 @@ func (s *Service) RunScript(ctx context.Context, dev device.Device, projectID, n
 	if err != nil {
 		return RunRecord{}, err
 	}
+	s.running.Add(1)
+	defer s.running.Add(-1)
 	rec, err := RunWith(ctx, dev, src, KindOf(name), RunOptions{
 		Secrets: s.Secrets,
 		ReadFile: func(n string) ([]byte, error) {

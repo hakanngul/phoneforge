@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -75,6 +76,8 @@ func (a *api) streamH264(w http.ResponseWriter, r *http.Request, dev device.Devi
 		writeErr(w, "INTERNAL", http.StatusInternalServerError, "streaming unsupported")
 		return
 	}
+	ActiveRecordings.Add(1)
+	defer ActiveRecordings.Add(-1)
 	noWriteDeadline(w)
 	w.Header().Set("Content-Type", "video/h264")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -377,6 +380,10 @@ func (a *api) streamLogs(w http.ResponseWriter, r *http.Request, dev device.Devi
 	flusher.Flush()
 	_ = ls.StreamLogs(r.Context(), &sseLineWriter{w: w, f: flusher})
 }
+
+// ActiveRecordings counts screen recordings in progress (the desktop updater
+// refuses to install while one runs).
+var ActiveRecordings atomic.Int32
 
 func (a *api) recording(w http.ResponseWriter, r *http.Request, dev device.Device) {
 	rec, ok := dev.(device.ScreenRecorder)

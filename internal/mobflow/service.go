@@ -409,6 +409,23 @@ func (s *Service) ListRuns(caseID string, limit int) ([]*Run, error) {
 	return out, nil
 }
 
+// RunningCount is the number of runs (replay or record) currently running.
+func (s *Service) RunningCount() int {
+	rt, err := s.runtime()
+	if err != nil {
+		return 0
+	}
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	n := 0
+	for _, l := range rt.live {
+		if l.run.Status == RunRunning {
+			n++
+		}
+	}
+	return n
+}
+
 // ActiveRun resolves the single running run of a case.
 func (s *Service) ActiveRun(project, name string) (string, error) {
 	rt, err := s.runtime()

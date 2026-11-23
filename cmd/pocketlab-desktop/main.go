@@ -63,7 +63,8 @@ func main() {
 		attached bool
 		ctl      *serverCtl
 	)
-	opts := server.Options{Addr: *addr, APIToken: *token, ADBPath: *adb, WebDir: *webDir, WebFS: frontend.FS(), StartedVia: "desktop", Owner: "desktop"}
+	upd := newDesktopUpdater(devBuild != "")
+	opts := server.Options{UpdateHandler: upd.mgr.Handler(), Addr: *addr, APIToken: *token, ADBPath: *adb, WebDir: *webDir, WebFS: frontend.FS(), StartedVia: "desktop", Owner: "desktop"}
 	if isPocketlab(*addr) {
 		attached = true
 		log.Printf("attaching to the running Pocketlab server at %s", uiAddr)
@@ -158,6 +159,7 @@ func main() {
 	ctl = newServerCtl(app, opts, uiAddr)
 	ctl.win = win
 	ctl.adopt(srv, uiAddr, attached)
+	upd.bind(app, win, ctl)
 	if err := ctl.startControl(); err != nil {
 		log.Printf("fallback control server: %v", err)
 	}
@@ -194,10 +196,10 @@ func main() {
 		showWindow()
 		win.ExecJS(`(function(){var b=document.querySelector('[data-int="aiconfig"]');if(b)b.click();})()`)
 	}
-	buildMenu(app, win, ctl, dev, openSettings)
+	buildMenu(app, win, ctl, dev, openSettings, upd)
 
 	if !*noTray {
-		buildTray(app, ctl, showWindow)
+		buildTray(app, ctl, showWindow, upd)
 	}
 	go ctl.monitor()
 
@@ -224,11 +226,12 @@ func serverMenuItems(m *application.Menu, ctl *serverCtl) {
 	m.Add("Restart server").OnClick(run(ctl.Restart))
 }
 
-func buildMenu(app *application.App, win *application.WebviewWindow, ctl *serverCtl, dev bool, openSettings func()) {
+func buildMenu(app *application.App, win *application.WebviewWindow, ctl *serverCtl, dev bool, openSettings func(), upd *desktopUpdater) {
 	menu := app.NewMenu()
 
 	appMenu := menu.AddSubmenu("Pocketlab")
 	appMenu.AddRole(application.About)
+	upd.addMenuItem(appMenu)
 	appMenu.AddSeparator()
 	appMenu.Add("Settings…").SetAccelerator("CmdOrCtrl+,").OnClick(func(*application.Context) { openSettings() })
 	appMenu.AddSeparator()
@@ -271,7 +274,7 @@ func buildMenu(app *application.App, win *application.WebviewWindow, ctl *server
 	app.Menu.SetApplicationMenu(menu)
 }
 
-func buildTray(app *application.App, ctl *serverCtl, showWindow func()) {
+func buildTray(app *application.App, ctl *serverCtl, showWindow func(), upd *desktopUpdater) {
 	tray := app.SystemTray.New()
 	tray.SetTemplateIcon(trayIcon)
 	tray.SetTooltip("Pocketlab")
@@ -283,6 +286,7 @@ func buildTray(app *application.App, ctl *serverCtl, showWindow func()) {
 	status.SetEnabled(false)
 	serverMenuItems(m, ctl)
 	m.AddSeparator()
+	upd.addMenuItem(m)
 	m.Add("Quit Pocketlab").OnClick(func(*application.Context) { app.Quit() })
 	tray.SetMenu(m)
 
