@@ -2,6 +2,7 @@ package androiddrv
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -149,5 +150,23 @@ func TestUITreeFallsBackToFile(t *testing.T) {
 	}
 	if n := strings.Count(string(calls), "pl_dump"); n < 4 {
 		t.Fatalf("expected file dump + cat on both calls:\n%s", calls)
+	}
+}
+
+func TestPressKeyAppSwitch(t *testing.T) {
+	for _, k := range []device.Key{"app_switch", "recents", "app_switcher", "appswitch", "recent_apps", "App-Switch"} {
+		adb, log := fakeADB(t, true)
+		d := &androidDevice{adbPath: adb, serial: "KEY1"}
+		if err := d.PressKey(context.Background(), k); err != nil {
+			t.Fatalf("%s: %v", k, err)
+		}
+		calls, _ := os.ReadFile(log)
+		if !strings.Contains(string(calls), "keyevent 187") {
+			t.Fatalf("%s: want keyevent 187, got:\n%s", k, calls)
+		}
+	}
+	d := &androidDevice{adbPath: "adb", serial: "KEY1"}
+	if err := d.PressKey(context.Background(), "bogus"); !errors.Is(err, device.ErrUnsupported) {
+		t.Fatalf("bogus: %v", err)
 	}
 }

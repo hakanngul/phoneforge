@@ -884,9 +884,12 @@ func (r *runner) doNavigate(ctx context.Context, st Step) error {
 	t := strings.TrimSpace(st.Target)
 	switch strings.ToLower(t) {
 	case "":
-		return codeErr(CodeValidation, "navigate requires target (home, back, recent_apps or a URL)")
-	case "home", "back", "recent_apps":
+		return codeErr(CodeValidation, "navigate requires target (home, back, app_switch/recent_apps or a URL)")
+	case "home", "back":
 		return r.dev.PressKey(ctx, device.Key(strings.ToLower(t)))
+	}
+	if device.IsAppSwitch(device.Key(t)) {
+		return r.dev.PressKey(ctx, device.KeyAppSwitch)
 	}
 	if strings.HasPrefix(t, "http://") || strings.HasPrefix(t, "https://") {
 		u, err := capability[device.URLOpener](r.dev, "navigate")
@@ -895,7 +898,7 @@ func (r *runner) doNavigate(ctx context.Context, st Step) error {
 		}
 		return u.OpenURL(ctx, t)
 	}
-	return codeErr(CodeValidation, "navigate target must be home, back, recent_apps or an http(s) URL")
+	return codeErr(CodeValidation, "navigate target must be home, back, app_switch, recent_apps or an http(s) URL")
 }
 
 func (r *runner) doSetPermissions(ctx context.Context, st Step) error {

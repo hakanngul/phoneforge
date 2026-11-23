@@ -43,7 +43,7 @@ tap <pred|x,y>        double_tap <pred>      long_press <pred> duration:800     
 type <pred> → "text" [clear] [dismiss]        # into a field; `type "text"` types into the focused field
 type_secret <pred> → "secret-id"              # value looked up in the credential store
 clear <pred>          hide_keyboard           copy_text <pred>      paste_text
-press_key home|back|enter|delete|recent_apps
+press_key home|back|enter|delete|app_switch|recent_apps
 swipe up|down|left|right [distance:short]     # or: swipe from:200,700 to:200,200 (see drag)
 scroll down [in <pred>]                       # scroll a container
 scroll down to "Privacy" [fully_visible]      # scroll until target visible (max_scrolls:)

@@ -45,7 +45,7 @@ Step `status`: `ok`, `failed`, `skipped`, `needs_replan`, `needs_user`. After a 
 `toElement`|`toSelector`|`toCoords`; `drag_path` `points` `[{x,y,durationMs}]`.
 **Text/keys**: `type` (input_text, enter_text) `selector`?, `text`, `clearFirst`, `dismissKeyboard`;
 `type_secret` `selector`?, `secretId`; `clear`; `dismiss_keyboard`; `copy_text`/`paste_text`; `set_clipboard`
-`text`; `press_key` `key`: home, back, enter, delete, recent_apps, ...; `navigate` `target`; `toggle`
+`text`; `press_key` `key`: home, back, enter, delete, app_switch (alias recent_apps), ...; `navigate` `target`; `toggle`
 `selector` (flips the control; explicit on/off is unsupported); `select_picker` `selector`, `value`.
 **Waits**: `wait` (delay, sleep) `ms`/`durationMs`; `wait_for` `selector`, `timeoutMs`, `pollIntervalMs`,
 `stable`; `wait_stable` (no selector = wait until screen stops changing); `checkpoint` `name`, `metadata`.

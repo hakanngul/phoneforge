@@ -334,6 +334,91 @@ func TestKeysAndKeys(t *testing.T) {
 	}
 }
 
+func TestPressKeyAppSwitchGesture(t *testing.T) {
+	f, c := newFake(t)
+	ctx := context.Background()
+	w, h, err := c.WindowSize(ctx)
+	if err != nil || float64(h)/float64(w) < 2.0 {
+		t.Skipf("fake window %dx%d is a home-button shape", w, h)
+	}
+	for i, k := range []device.Key{"app_switch", "recents", "app_switcher", "appswitch", "recent_apps"} {
+		if err := c.PressKey(ctx, k); err != nil {
+			t.Fatal(k, err)
+		}
+		rs := f.find("/wda/pressAndDragWithVelocity")
+		if len(rs) != i+1 {
+			t.Fatalf("%s: want %d calls, got %d", k, i+1, len(rs))
+		}
+		var b map[string]float64
+		_ = json.Unmarshal([]byte(rs[i].Body), &b)
+		if b["fromX"] != float64(w/2) || b["fromY"] != float64(h-1) || b["toY"] != float64(h*53/100) ||
+			b["pressDuration"] != 0.1 || b["holdDuration"] != 1.0 || b["velocity"] != 400 {
+			t.Fatalf("%s: bad body %s", k, rs[i].Body)
+		}
+	}
+}
+
+// appSwitchServer is a minimal WDA that records POST paths; size is the
+// window size reported and drag404 makes pressAndDragWithVelocity 404.
+func appSwitchServer(t *testing.T, wd, ht int, drag404 bool) (*Client, *[]string) {
+	t.Helper()
+	var mu sync.Mutex
+	var paths []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.ReadAll(r.Body)
+		mu.Lock()
+		if r.Method == http.MethodPost {
+			paths = append(paths, r.URL.Path)
+		}
+		mu.Unlock()
+		reply := func(v any) { _ = json.NewEncoder(w).Encode(map[string]any{"value": v}) }
+		switch {
+		case r.URL.Path == "/status":
+			reply(map[string]any{"ready": true})
+		case r.URL.Path == "/session":
+			_ = json.NewEncoder(w).Encode(map[string]any{"sessionId": "S1", "value": map[string]any{"capabilities": map[string]any{}}})
+		case strings.HasSuffix(r.URL.Path, "/window/size"):
+			reply(map[string]any{"width": wd, "height": ht})
+		case drag404 && strings.HasSuffix(r.URL.Path, "/wda/pressAndDragWithVelocity"):
+			w.WriteHeader(404)
+			reply(map[string]any{"error": "unknown command", "message": "nope"})
+		default:
+			reply(nil)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return New(srv.URL), &paths
+}
+
+func TestAppSwitchHomeButtonDevice(t *testing.T) {
+	c, paths := appSwitchServer(t, 375, 667, false)
+	if err := c.PressKey(context.Background(), "app_switch"); err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, p := range *paths {
+		if strings.HasSuffix(p, "/wda/pressButton") {
+			n++
+		}
+		if strings.Contains(p, "pressAndDrag") {
+			t.Fatal("home-button device must not use the swipe gesture")
+		}
+	}
+	if n != 2 {
+		t.Fatalf("want 2 home presses, got %d: %v", n, *paths)
+	}
+}
+
+func TestAppSwitchFallsBackToActions(t *testing.T) {
+	c, paths := appSwitchServer(t, 393, 852, true)
+	if err := c.PressKey(context.Background(), "recents"); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(*paths, " "); !strings.Contains(got, "pressAndDragWithVelocity") || !strings.HasSuffix(got, "/actions") {
+		t.Fatalf("paths: %v", *paths)
+	}
+}
+
 func TestAppsAndExtras(t *testing.T) {
 	f, c := newFake(t)
 	ctx := context.Background()
@@ -525,5 +610,22 @@ func TestImageToJPEGScalesDown(t *testing.T) {
 	}
 	if _, err := ImageToJPEG([]byte("nope"), 100, 50); err == nil {
 		t.Fatal("garbage must error")
+	}
+}
+
+func TestAppSwitchLandscape(t *testing.T) {
+	c, paths := appSwitchServer(t, 852, 393, false) // landscape Face ID iPhone
+	if err := c.PressKey(context.Background(), "app_switch"); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(*paths, " "); !strings.Contains(got, "pressAndDragWithVelocity") || strings.Contains(got, "pressButton") {
+		t.Fatalf("landscape Face ID must use the gesture: %v", *paths)
+	}
+	c, paths = appSwitchServer(t, 667, 375, false) // landscape iPhone SE
+	if err := c.PressKey(context.Background(), "app_switch"); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(*paths, " "); strings.Contains(got, "pressAndDrag") || strings.Count(got, "pressButton") != 2 {
+		t.Fatalf("landscape SE must double-press home: %v", *paths)
 	}
 }
