@@ -71,6 +71,8 @@
       var id = b.getAttribute('data-tsub');
       Array.prototype.forEach.call(document.querySelectorAll('#testSubTabs .subtab'), function (x) { x.classList.toggle('active', x === b); });
       $('wsView').hidden = id !== 'wsView'; $('quickView').hidden = id !== 'quickView';
+      $('flowsView').hidden = id !== 'flowsView';
+      if (id === 'flowsView' && PF.loadFlows) PF.loadFlows(); else if (PF.leaveFlows) PF.leaveFlows();
     });
   });
 })();

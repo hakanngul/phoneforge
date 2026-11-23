@@ -19,17 +19,29 @@ import (
 const (
 	TypeAutomation = "automation"
 	TypeTesting    = "testing"
+	TypeWorkflow   = "workflow" // Flows (.mobflow) recording and healing
 )
 
 // RunRequest starts a run.
 type RunRequest struct {
 	Agent    string `json:"agent"` // empty = the agent selected for Type in settings
-	Type     string `json:"type"`  // automation | testing
+	Type     string `json:"type"`  // automation | testing | workflow
 	DeviceID string `json:"deviceId"`
 	Prompt   string `json:"prompt"`
 	// SessionID resumes an earlier agent conversation (Claude Code: a session id;
 	// kiro-cli: any non-empty value resumes the last conversation of its work dir).
 	SessionID string `json:"sessionId,omitempty"`
+
+	// SystemPrompt, when set, replaces the built-in agent-type instructions
+	// (the device line and the user's extra instructions are still appended).
+	SystemPrompt string `json:"-"`
+	// OnLine receives every output line (stream is "stdout" or "stderr").
+	OnLine func(stream, line string) `json:"-"`
+	// OnDone is called exactly once, from the run goroutine, after the agent
+	// process exited: err is nil on success, context.Canceled when the run was
+	// cancelled and the process error otherwise. It is not called when
+	// StartRun itself returns an error.
+	OnDone func(runID string, err error) `json:"-"`
 }
 
 // Event is one streamed run event. Type: start | session | stdout | stderr | error | done.
@@ -84,6 +96,29 @@ func AllowedTools(_ Settings) []string {
 
 // SystemPrompt builds the agent-type system prompt.
 func SystemPrompt(typ, deviceID string, s Settings) string {
+	return buildSystemPrompt(typ, "", deviceID, s)
+}
+
+func buildSystemPrompt(typ, override, deviceID string, s Settings) string {
+	var b strings.Builder
+	switch {
+	case strings.TrimSpace(override) != "":
+		b.WriteString(strings.TrimSpace(override))
+	case typ == TypeWorkflow:
+		b.WriteString("You are the Pocketlab Workflow agent. You record a natural-language test case on a real mobile device through the Pocketlab MCP tools (server \"" + MCPName + "\"), reporting every step with the workflow_* tools.")
+	default:
+		b.WriteString(typeIntro(typ))
+	}
+	if deviceID != "" {
+		b.WriteString("\nControl the device with id " + deviceID + ". Do not touch other devices.")
+	}
+	if x := strings.TrimSpace(s.ExtraInstructions); x != "" {
+		b.WriteString("\n\n" + x)
+	}
+	return b.String()
+}
+
+func typeIntro(typ string) string {
 	var b strings.Builder
 	switch typ {
 	case TypeTesting:
@@ -92,12 +127,6 @@ func SystemPrompt(typ, deviceID string, s Settings) string {
 	default:
 		b.WriteString("You are the Pocketlab Automation agent. You operate a real mobile device through the Pocketlab MCP tools (server \"" + MCPName + "\"). ")
 		b.WriteString("Observe the screen before every action, act in small verified steps, and stop when the task is complete or cannot be completed.")
-	}
-	if deviceID != "" {
-		b.WriteString("\nControl the device with id " + deviceID + ". Do not touch other devices.")
-	}
-	if x := strings.TrimSpace(s.ExtraInstructions); x != "" {
-		b.WriteString("\n\n" + x)
 	}
 	return b.String()
 }
@@ -189,13 +218,16 @@ func (m *Manager) StartRun(req RunRequest) (string, error) {
 	if req.Type == "" {
 		req.Type = TypeAutomation
 	}
-	if req.Type != TypeAutomation && req.Type != TypeTesting {
-		return "", errors.New("type must be automation or testing")
+	if req.Type != TypeAutomation && req.Type != TypeTesting && req.Type != TypeWorkflow {
+		return "", errors.New("type must be automation, testing or workflow")
 	}
 	s := m.Settings()
 	ts := s.Automation
-	if req.Type == TypeTesting {
+	switch req.Type {
+	case TypeTesting:
 		ts = s.Testing
+	case TypeWorkflow:
+		ts = s.Workflow
 	}
 	agent := req.Agent
 	if agent == "" {
@@ -215,7 +247,7 @@ func (m *Manager) StartRun(req RunRequest) (string, error) {
 	if bin == "" {
 		return "", fmt.Errorf("%s is not installed", spec.Label)
 	}
-	system := SystemPrompt(req.Type, req.DeviceID, s)
+	system := buildSystemPrompt(req.Type, req.SystemPrompt, req.DeviceID, s)
 
 	var cfgPath string
 	if agent == AgentClaude {
@@ -257,6 +289,10 @@ func (m *Manager) StartRun(req RunRequest) (string, error) {
 
 	go func() {
 		defer cancel()
+		var runErr error
+		if req.OnDone != nil {
+			defer func() { req.OnDone(r.id, runErr) }() // after the done event, exactly once
+		}
 		if cfgPath != "" {
 			defer os.Remove(filepath.Clean(cfgPath))
 		}
@@ -276,11 +312,16 @@ func (m *Manager) StartRun(req RunRequest) (string, error) {
 				}
 			}
 			r.append(stream, line)
+			if req.OnLine != nil {
+				req.OnLine(stream, line)
+			}
 		})
 		switch {
 		case ctx.Err() != nil:
+			runErr = context.Canceled
 			r.append("done", "cancelled")
 		case err != nil:
+			runErr = err
 			r.append("error", err.Error())
 			r.append("done", "failed")
 		default:

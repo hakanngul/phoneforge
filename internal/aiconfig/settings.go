@@ -16,8 +16,11 @@ type TypeSettings struct {
 
 // Settings is the persisted AI Configuration.
 type Settings struct {
-	Automation        TypeSettings `json:"automation"`
-	Testing           TypeSettings `json:"testing"`
+	Automation TypeSettings `json:"automation"`
+	Testing    TypeSettings `json:"testing"`
+	// Workflow is the slot of the Flows (.mobflow) recording agent. When a
+	// settings file has none it starts as a copy of the Testing slot.
+	Workflow          TypeSettings `json:"workflow"`
 	ExtraInstructions string       `json:"extraInstructions"`
 	MaxSteps          int          `json:"maxSteps"`
 	// FullAccess runs Claude Code with --dangerously-skip-permissions so it can also use
@@ -29,7 +32,8 @@ type Settings struct {
 
 // settingsVersion 3: the old autoApprove/read-only mode is gone (agents always get all
 // Pocketlab tools); a leftover "autoApprove" key in older files is ignored.
-const settingsVersion = 3
+// Version 4 adds the Workflow slot (defaults to the Testing slot's agent and model).
+const settingsVersion = 4
 
 // DefaultClaudeModel is the model used for Claude automation runs when none is set.
 const DefaultClaudeModel = "haiku"
@@ -48,12 +52,21 @@ func ResolveModel(agent, typ, model string) string {
 }
 
 func defaultSettings() Settings {
-	return Settings{
+	s := Settings{
 		Automation: TypeSettings{Agent: AgentBuiltin},
 		Testing:    TypeSettings{Agent: AgentBuiltin},
 		MaxSteps:   50,
 		Version:    settingsVersion,
 	}
+	// loadSettings overlays a file onto these defaults, so the Workflow slot is
+	// left empty here and normalize() fills it from the (loaded) Testing slot.
+	return s
+}
+
+func defaultNormalized() Settings {
+	s := defaultSettings()
+	_ = s.normalize()
+	return s
 }
 
 func validAgent(n string) bool {
@@ -71,10 +84,19 @@ func (s *Settings) normalize() error {
 	if s.Testing.Agent == "" {
 		s.Testing.Agent = AgentBuiltin
 	}
-	if !validAgent(s.Automation.Agent) || !validAgent(s.Testing.Agent) {
+	// First migration only: an unset Workflow slot starts as the Testing slot.
+	// A slot with an agent (or just a model) is the user's own and is kept.
+	if s.Workflow.Agent == "" {
+		if s.Workflow.Model == "" {
+			s.Workflow = s.Testing
+		} else {
+			s.Workflow.Agent = s.Testing.Agent
+		}
+	}
+	if !validAgent(s.Automation.Agent) || !validAgent(s.Testing.Agent) || !validAgent(s.Workflow.Agent) {
 		return errors.New("unknown agent")
 	}
-	for _, a := range []string{s.Automation.Agent, s.Testing.Agent} {
+	for _, a := range []string{s.Automation.Agent, s.Testing.Agent, s.Workflow.Agent} {
 		if sp, _ := specFor(a); sp.NoRun {
 			return errors.New(sp.Label + " has no headless mode; it can only be connected, not selected to run")
 		}
@@ -95,20 +117,21 @@ func (s *Settings) normalize() error {
 func (m *Manager) loadSettings() Settings {
 	s := defaultSettings()
 	if m.settingsPath == "" {
-		return s
+		return defaultNormalized()
 	}
 	if b, err := os.ReadFile(m.settingsPath); err == nil {
 		s.Version = 0
 		_ = json.Unmarshal(b, &s)
 		migrate := s.Version < settingsVersion
 		if s.normalize() != nil {
-			return defaultSettings()
+			return defaultNormalized()
 		}
 		if migrate {
 			m.writeSettingsFile(s)
 		}
+		return s
 	}
-	return s
+	return defaultNormalized()
 }
 
 // Settings returns the current settings.

@@ -177,7 +177,7 @@
   <!-- Testing -->
   <section id="testing-tab" class="pane" hidden>
     <div class="tsubbar">
-      <div class="subtabs" id="testSubTabs"><button type="button" class="subtab active" data-tsub="wsView">Workspace</button><button type="button" class="subtab" data-tsub="quickView">Quick run</button></div>
+      <div class="subtabs" id="testSubTabs"><button type="button" class="subtab active" data-tsub="wsView">Workspace</button><button type="button" class="subtab" data-tsub="quickView">Quick run</button><button type="button" class="subtab" data-tsub="flowsView">Flows</button></div>
     </div>
     <div id="wsView" class="ws">
       <aside class="ws-col ws-left">
@@ -208,6 +208,7 @@
         <ul id="runList" class="tlist"></ul>
       </aside>
     </div>
+    <div id="flowsView" class="ws flows" hidden></div>
     <div id="quickView" class="block-inner two quick" hidden>
       <div>
         <div class="col-head"><h2>DSL Script</h2><button id="dslRun" class="btn primary sm">Run</button></div>
@@ -242,6 +243,7 @@
 <script src="apps.js"></script>
 <script src="testing.js"></script>
 <script src="tests.js"></script>
+<script src="flows.js"></script>
 <script src="wdabuild.js"></script>
 <script src="bridge.js"></script>
 <script src="nodes.js"></script>

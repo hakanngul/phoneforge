@@ -433,3 +433,37 @@ body:not(.hide-details) .st .raw{display:inline} body:not(.hide-details) .st .co
 .sim-form .frow{margin-bottom:8px}
 .sim-check{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:6px 0;font-size:13px}
 @media (prefers-reduced-motion:reduce){.sim-spinner{animation-duration:2.4s}.sim-switch,.sim-switch .sim-knob{transition:none}}
+
+/* Testing > Flows */
+.ws.flows[hidden]{display:none}
+.fl-col{min-width:0}
+.fl-mid{overflow:auto}
+.fl-sel{width:100%;min-width:0}
+.fl-ctl label{display:block;margin:4px 0 2px;font-size:11px}
+.fl-prow{display:flex;gap:6px;align-items:center;margin:3px 0}
+.fl-prow label{flex:0 0 35%;margin:0;overflow:hidden;text-overflow:ellipsis}
+.fl-prow input{flex:1;min-width:0}
+.fl-editor{display:flex;flex-direction:column;min-height:0}
+.fl-text{width:100%;min-height:220px;height:260px;resize:vertical;border-radius:0;border-left:0;border-right:0;font:12px/18px ui-monospace,Menlo,monospace;white-space:pre;overflow:auto;tab-size:2}
+.fl-sh{padding:8px 12px 2px;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.fl-step,.fl-tstep{padding:6px 12px;border-bottom:1px solid var(--line);min-width:0}
+.fl-steptop{display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0}
+.fl-steptop .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.fl-do,.fl-sub{font-size:12px;padding-left:4px;overflow-wrap:anywhere}
+.fl-assert{font-size:12px;padding-left:4px;overflow-wrap:anywhere}
+.fl-dur{margin-left:auto;font-size:11px}
+.fl-tl{padding:0;min-width:0}
+.fl-tl .err,.fl-cache .err{color:var(--bad);padding:2px 12px;overflow-wrap:anywhere}
+.fl-tl .meta2{padding:0 12px}
+.fl-runhead{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 12px}
+.fl-tl .chip,.fl-step .chip,.tlist .chip,.fl-seg .chip{display:inline-block;border-radius:10px;padding:0 8px;font-size:11px;font-weight:600;white-space:nowrap}
+.fl-tl .thumb{margin-top:4px}
+.fl-seg{border-bottom:1px solid var(--line);padding:4px 12px}
+.fl-seg summary{cursor:pointer;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.fl-pre{margin:4px 0;padding:6px 8px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;font:11px/1.45 ui-monospace,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto}
+.fl-diff div{white-space:pre-wrap}
+.fl-diff .add{background:#064e3b66;color:var(--ok)} .fl-diff .del{background:#4c1d1d66;color:var(--bad)}
+.fl-cmp{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px}
+.fl-cmp .runimg{max-height:60vh;max-width:100%}
+.tlist li.sel .n{font-weight:600}
+@media (max-width:760px){.ws.flows{grid-template-columns:minmax(0,1fr);overflow:auto}.ws.flows .ws-col{overflow:visible;border:0;border-bottom:1px solid var(--line)}}

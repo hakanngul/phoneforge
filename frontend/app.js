@@ -28,6 +28,9 @@
     try { localStorage.setItem('pf.tab', id); } catch (e) { /* ignore */ }
     if (id === 'apps-tab') PF.loadApps();
     if (id === 'testing-tab' && PF.loadTests) PF.loadTests();
+    // the Flows run stream only lives while the Flows sub-tab is on screen
+    if (id !== 'testing-tab' && PF.leaveFlows) PF.leaveFlows();
+    else if (id === 'testing-tab' && PF.loadFlows && $('flowsView') && !$('flowsView').hidden) PF.loadFlows();
   }
   Array.prototype.forEach.call(tabs, function (t) { t.addEventListener('click', function () { showTab(t.getAttribute('data-tab')); }); });
   var saved = 'automation-tab';

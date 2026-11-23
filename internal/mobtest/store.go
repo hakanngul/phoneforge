@@ -93,6 +93,10 @@ func ValidScriptName(name string) bool {
 	if !scriptNameRe.MatchString(name) || strings.Contains(name, "..") {
 		return false
 	}
+	// Flow cache sidecars (<name>.mobflow.cache*.json) belong to internal/mobflow.
+	if strings.Contains(name, ".mobflow.") {
+		return false
+	}
 	return KindOf(name) != ""
 }
 

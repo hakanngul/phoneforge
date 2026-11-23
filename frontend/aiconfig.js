@@ -6,7 +6,8 @@
 
   var TYPES = [
     { id: 'automation', label: 'Automation', hint: 'Acts on the selected device through the MCP tools.' },
-    { id: 'testing', label: 'Testing', hint: 'Writes, runs and fixes .mob test scripts.' }
+    { id: 'testing', label: 'Testing', hint: 'Writes, runs and fixes .mob test scripts.' },
+    { id: 'workflow', label: 'Workflow (Flows)', hint: 'Records and repairs .mobflow flows. Needs a CLI agent (not built-in).' }
   ];
 
   // Pull readable text out of a stream-json line (Claude/Cursor); plain lines pass through.
@@ -130,6 +131,7 @@
         var body = {
           automation: { agent: sels.automation.value, model: models.automation.value.trim() },
           testing: { agent: sels.testing.value, model: models.testing.value.trim() },
+          workflow: { agent: sels.workflow.value, model: models.workflow.value.trim() },
           maxSteps: s.maxSteps || 50, fullAccess: auto.checked, version: s.version, extraInstructions: extra.value
         };
         PF.busy(save, PF.api('PUT', '/ai/settings', body).then(function (r) { state.settings = r; PF.toast('AI settings saved', true); drawRun(); if (PF.refreshAgentSettings) PF.refreshAgentSettings(); }));
@@ -142,7 +144,7 @@
       if (state.es) return; // do not redraw mid-run
       runBox.innerHTML = '';
       var typeSel = document.createElement('select');
-      TYPES.forEach(function (t) { var o = document.createElement('option'); o.value = t.id; o.textContent = t.label; typeSel.appendChild(o); });
+      TYPES.forEach(function (t) { if (t.id === 'workflow') return; /* started from Flows */ var o = document.createElement('option'); o.value = t.id; o.textContent = t.label; typeSel.appendChild(o); });
       var who = PF.el('span', 'muted');
       function updWho() {
         var ts = state.settings && state.settings[typeSel.value];
