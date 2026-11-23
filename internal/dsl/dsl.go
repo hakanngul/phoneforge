@@ -1,5 +1,5 @@
-// Package dsl implements Pocketlab's JSON scripting engine, compatible with
-// the publicly documented MobAI automation DSL (version 0.2). A script is a
+// Package dsl implements Pocketlab's JSON scripting engine for the
+// Pocketlab automation DSL (version 0.2). A script is a
 // list of steps executed against a device.Device; predicates are resolved
 // against the live UI tree.
 package dsl
@@ -68,7 +68,7 @@ const (
 	webNotSupportedPhrase = "web context not supported yet"
 )
 
-// Selector identifies a UI element (a "predicate" in the MobAI docs). All
+// Selector identifies a UI element (also called a "predicate"). All
 // non-empty fields must match. Index picks the n-th (0-based) match after
 // near / bounds_hint ordering.
 type Selector struct {
@@ -310,7 +310,7 @@ type StepResult struct {
 	Action string `json:"action"`
 	Status string `json:"status"` // ok|failed|skipped|needs_replan|needs_user
 	Error  string `json:"error,omitempty"`
-	// Code is a MobAI-style error code (NO_MATCH, TIMEOUT, ...) for failed steps.
+	// Code is a DSL error code (NO_MATCH, TIMEOUT, ...) for failed steps.
 	Code       string       `json:"code,omitempty"`
 	Matched    *device.Rect `json:"matched,omitempty"`
 	DurationMs int64        `json:"durationMs"`

@@ -22,8 +22,8 @@ const DefaultRunnerBundleID = "com.pocketlab.WebDriverAgentRunner.xctrunner"
 const DefaultXCTestConfig = "WebDriverAgentRunner.xctest"
 
 const (
-	// Default on-device ports. MobAI's own WDA owns 8100/9100, so Pocketlab
-	// uses a distinct range to coexist with it.
+	// Default on-device ports. Other WebDriverAgent installs commonly use
+	// 8100/9100, so Pocketlab uses a distinct range to coexist with them.
 	defaultWDAPort   = 8110
 	defaultMJPEGPort = 9110
 	defaultTimeout   = 60 * time.Second

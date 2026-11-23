@@ -112,7 +112,7 @@ func ActionNames() map[string]string {
 	return out
 }
 
-// stepError is an error carrying a MobAI-style error code.
+// stepError is an error carrying a DSL error code.
 type stepError struct {
 	code string
 	err  error
