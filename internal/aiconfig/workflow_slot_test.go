@@ -48,3 +48,19 @@ func TestWorkflowSlotSurvivesSaveWithoutWorkflowKey(t *testing.T) {
 		t.Fatalf("model-only: %+v %v", in.Workflow, err)
 	}
 }
+
+func TestRunsRouteRejectsWorkflowType(t *testing.T) {
+	m := newTestMgr(t, &fakeExec{})
+	srv := httptest.NewServer(m.Routes())
+	defer srv.Close()
+	resp, err := http.Post(srv.URL+"/runs", "application/json", strings.NewReader(`{"type":"workflow","prompt":"x"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var out map[string]string
+	_ = json.NewDecoder(resp.Body).Decode(&out)
+	if resp.StatusCode != 400 || !strings.Contains(out["error"], "/api/v1/flows/runs") {
+		t.Fatalf("%d %v", resp.StatusCode, out)
+	}
+}

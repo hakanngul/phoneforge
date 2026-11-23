@@ -119,6 +119,10 @@ func (m *Manager) Routes() http.Handler {
 			writeErr(w, http.StatusBadRequest, err)
 			return
 		}
+		if in.Type == TypeWorkflow {
+			writeErr(w, http.StatusBadRequest, errors.New("workflow runs are started from Flows (POST /api/v1/flows/runs)"))
+			return
+		}
 		id, err := m.StartRun(in)
 		if errors.Is(err, ErrBuiltin) {
 			writeJSON(w, http.StatusOK, map[string]any{"builtin": true, "id": ""})

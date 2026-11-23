@@ -144,7 +144,7 @@
       if (state.es) return; // do not redraw mid-run
       runBox.innerHTML = '';
       var typeSel = document.createElement('select');
-      TYPES.forEach(function (t) { var o = document.createElement('option'); o.value = t.id; o.textContent = t.label; typeSel.appendChild(o); });
+      TYPES.forEach(function (t) { if (t.id === 'workflow') return; /* started from Flows */ var o = document.createElement('option'); o.value = t.id; o.textContent = t.label; typeSel.appendChild(o); });
       var who = PF.el('span', 'muted');
       function updWho() {
         var ts = state.settings && state.settings[typeSel.value];
