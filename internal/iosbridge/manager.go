@@ -509,6 +509,18 @@ func (m *Manager) annotate(udid, msg string) {
 	m.mu.Unlock()
 }
 
+// ClearError drops a stale error after a successful helper install: a device
+// in the error state goes back to stopped with no error text.
+func (m *Manager) ClearError(udid string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	s := m.get(udid)
+	if s.state == StateError {
+		s.state = StateStopped
+	}
+	s.err = ""
+}
+
 // Refresh re-queries the installed flag, then returns Status.
 func (m *Manager) Refresh(ctx context.Context, udid string) Status {
 	m.mu.Lock()

@@ -223,6 +223,7 @@
 
   var wdaEnv = null;    // GET /ios/wda?quick=1 env ({runnerBuilt, supported, ...}) or null
   function runnerMissing() { return !!wdaEnv && wdaEnv.runnerBuilt === false; }
+  function runnerStale() { return !!wdaEnv && wdaEnv.runnerBuilt === false && wdaEnv.runnerReason === 'stale_bundle_id'; }
   function installLabel() { return runnerMissing() ? 'Build WDA' : 'Install helper'; }
   function refreshWdaEnv() { return PF.wdaBuild.env(true).then(function (e) { wdaEnv = e; refreshUI(); return e; }); }
 
@@ -282,7 +283,7 @@
     chip.title = iTip(d.id);
     var conn = d.state === 'connected' || !!d.simulator;
     var action = st === 'running' ? 'Stop' : (st === 'starting' ? (iinstalling[d.id] ? 'Installing...' : 'Starting...') : (missing ? (runnerMissing() ? 'Build WDA' : 'Install') : 'Start'));
-    var tip = iTip(d.id) + (action === 'Build WDA' ? ' Click to build the helper on this Mac (needs Xcode), then install and start it.' : action === 'Install' ? ' Click to install it.' : '');
+    var tip = iTip(d.id) + (action === 'Build WDA' ? (runnerStale() ? ' Rebuild needed after update: the helper on this Mac was built under an old app id.' : '') + ' Click to build the helper on this Mac (needs Xcode), then install and start it.' : action === 'Install' ? ' Click to install it.' : '');
     setToggle(st, action, tip, st === 'starting' || !!istopping[d.id] || !conn);
   }
 
@@ -347,20 +348,20 @@
   }
 
   function buildThenInstall(id) {
-    PF.confirm('The WebDriverAgent helper has not been built on this Mac yet.\n\n' +
+    PF.confirm((runnerStale() ? 'The WebDriverAgent helper on this Mac was built before the update and needs a rebuild.\n\n'
+      : 'The WebDriverAgent helper has not been built on this Mac yet.\n\n') +
       'Pocketlab will build it now with your own Apple team (needs Xcode; a few minutes the first time), ' +
       'install it on this iPhone over USB and start it. Nothing leaves your Mac.', function () {
       PF.wdaBuild.open({
         mode: 'device',
-        onSuccess: function () { wdaEnv = { runnerBuilt: true }; refreshUI(); runInstall(id, true); }
+        onSuccess: function () { wdaEnv = { runnerBuilt: true }; refreshUI(); refreshWdaEnv(); runInstall(id, true); }
       });
     }, { title: 'Build WebDriverAgent?', okLabel: 'Build WDA' });
   }
 
   function confirmInstall(id, thenStart) {
     PF.confirm('Install Pocketlab\'s WebDriverAgent helper on this iPhone?\n\n' +
-      'It was built on this Mac with your own signing identity and is installed over USB. ' +
-      'You may need to trust the developer profile on the phone afterwards (Settings > General > VPN & Device Management).',
+      'It was built on this Mac with your own signing identity and is installed over USB.',
       function () { runInstall(id, thenStart); }, { title: 'Install helper?', okLabel: 'Install' });
   }
 
@@ -375,11 +376,12 @@
       }
       return PF.api('POST', ipath(id, '/install'), {}).then(function (s) {
         iinstalling[id] = false; setIStatus(id, s || {});
-        PF.toast('WDA helper installed', true);
+        PF.toast('Installed. If iOS asks, trust the developer in Settings > General > VPN & Device Management.', true);
         if (thenStart) startIOS(id);
       }, function (e) {
         iinstalling[id] = false; refreshUI();
         if (e.code === 'IOSBRIDGE_RUNNER_NOT_BUILT') { wdaEnv = { runnerBuilt: false }; refreshUI(); buildThenInstall(id); return; }
+        if (e.code === 'RUNNER_STALE') { wdaEnv = { runnerBuilt: false, runnerReason: 'stale_bundle_id' }; refreshUI(); buildThenInstall(id); return; }
         if (e.hint) { PF.wdaBuild.showIssue('Could not install the helper', PF.wdaBuild.issueFromErr(e), { retry: retry }); return; }
         PF.toast(e.serverMessage || e.message);
       });

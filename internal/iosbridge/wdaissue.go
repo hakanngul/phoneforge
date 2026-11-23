@@ -25,6 +25,7 @@ const (
 	CodeBuildFailed        = "BUILD_FAILED"
 	CodeBuildBusy          = "BUILD_BUSY"
 	CodeCanceled           = "BUILD_CANCELED"
+	CodeRunnerStale        = "RUNNER_STALE"
 )
 
 // Issue is a structured, user-actionable problem. It implements error.
@@ -142,7 +143,7 @@ func ClassifyInstallError(err error) *Issue {
 	case strings.Contains(low, "device not found"):
 		return &Issue{Code: CodeDeviceNotTrusted, Message: "The iPhone is not reachable (not connected, locked, or not trusted).", Hint: hintTrustComputer, Lines: []string{s}}
 	case strings.Contains(low, "install failed") || strings.Contains(low, "cannot open install service"):
-		return &Issue{Code: CodeDeveloperNotTrust, Message: "The iPhone refused the helper app.", Hint: "Make sure the phone is unlocked and Developer Mode is on (Settings > Privacy & Security > Developer Mode). " + hintTrustDeveloper, Lines: []string{s}}
+		return &Issue{Code: CodeDeveloperNotTrust, Message: "The iPhone refused the helper app.", Hint: "Make sure the phone is unlocked and Developer Mode is on (Settings > Privacy & Security > Developer Mode), then try again.", Lines: []string{s}}
 	}
 	return nil
 }

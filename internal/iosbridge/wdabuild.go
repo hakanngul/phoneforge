@@ -89,7 +89,11 @@ type Env struct {
 	WDATag       string `json:"wdaVersion"`
 	RunnerBuilt  bool   `json:"runnerBuilt"`
 	RunnerApp    string `json:"runnerApp,omitempty"`
+	// RunnerReason explains runnerBuilt=false when an app exists but is
+	// unusable (stale_bundle_id: built under an old bundle id, rebuild needed).
+	RunnerReason string `json:"runnerReason,omitempty"`
 	SimBuilt     bool   `json:"simBuilt"`
+	SimReason    string `json:"simReason,omitempty"`
 	Home         string `json:"home"`
 }
 
@@ -171,6 +175,25 @@ func (b *Builder) SimXCTestRun() string {
 	return m[0]
 }
 
+// runnerReason reports why an existing device runner is unusable ("" = fine
+// or absent).
+func (b *Builder) runnerReason() string {
+	if !exists(b.RunnerApp()) {
+		return ""
+	}
+	return RunnerAppReason(b.RunnerApp(), ExpectedRunnerBundleID(b.bundlePrefix()))
+}
+
+// simReason reports why an existing simulator build is unusable: its runner
+// .app (next to the xctestrun) carries an unexpected bundle id.
+func (b *Builder) simReason() string {
+	m, _ := filepath.Glob(filepath.Join(b.home(), "build-sim", "Build", "Products", "*", "WebDriverAgentRunner-Runner.app"))
+	if len(m) == 0 {
+		return ""
+	}
+	return RunnerAppReason(m[0], ExpectedRunnerBundleID(b.bundlePrefix()))
+}
+
 func exists(p string) bool { _, err := os.Stat(p); return err == nil }
 
 // EnvironmentQuick reports only what is known without running any command
@@ -183,14 +206,16 @@ func (b *Builder) Environment(ctx context.Context) Env { return b.environment(ct
 func (b *Builder) environment(ctx context.Context, quick bool) Env {
 	home := b.home()
 	e := Env{
-		Supported:   b.goos() == "darwin",
-		WDATag:      WDATag,
-		Tarball:     FindTarball(home),
-		SourceReady: SourceReady(home),
-		RunnerBuilt: exists(b.RunnerApp()),
-		SimBuilt:    b.SimXCTestRun() != "",
-		Home:        home,
+		Supported:    b.goos() == "darwin",
+		WDATag:       WDATag,
+		Tarball:      FindTarball(home),
+		SourceReady:  SourceReady(home),
+		RunnerReason: b.runnerReason(),
+		SimReason:    b.simReason(),
+		Home:         home,
 	}
+	e.RunnerBuilt = exists(b.RunnerApp()) && e.RunnerReason == ""
+	e.SimBuilt = b.SimXCTestRun() != "" && e.SimReason == ""
 	if e.RunnerBuilt {
 		e.RunnerApp = b.RunnerApp()
 	}

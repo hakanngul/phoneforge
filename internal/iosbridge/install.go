@@ -8,7 +8,70 @@ import (
 
 	"github.com/danielpaulus/go-ios/ios"
 	"github.com/danielpaulus/go-ios/ios/zipconduit"
+	"howett.net/plist"
+
+	"pocketlab/internal/brand"
 )
+
+// Reasons a built runner app is not usable (Env.RunnerReason / SimReason).
+const (
+	ReasonStaleBundleID = "stale_bundle_id" // CFBundleIdentifier differs from the expected runner id
+	ReasonBadPlist      = "unreadable_info_plist"
+)
+
+// ExpectedRunnerBundleID is the xctrunner bundle id a build with the given
+// bundle prefix produces ("" prefix = the default com.pocketlab).
+func ExpectedRunnerBundleID(prefix string) string {
+	if prefix == "" {
+		prefix = devBundleID
+	}
+	return prefix + ".WebDriverAgentRunner.xctrunner"
+}
+
+// envBundlePrefix is the configured bundle prefix (PL_BUNDLE_PREFIX or default).
+func envBundlePrefix() string {
+	if v := brand.Getenv("PL_BUNDLE_PREFIX"); v != "" {
+		return v
+	}
+	return devBundleID
+}
+
+// AppBundleID reads CFBundleIdentifier from the .app's Info.plist.
+func AppBundleID(appPath string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(appPath, "Info.plist"))
+	if err != nil {
+		return "", err
+	}
+	var info struct {
+		ID string `plist:"CFBundleIdentifier"`
+	}
+	if _, err := plist.Unmarshal(data, &info); err != nil {
+		return "", err
+	}
+	return info.ID, nil
+}
+
+// RunnerAppReason returns "" when the runner .app carries the expected bundle
+// id, ReasonStaleBundleID when it was built with another one (for example
+// before a rename) and ReasonBadPlist when its Info.plist cannot be read.
+func RunnerAppReason(appPath, expectedID string) string {
+	id, err := AppBundleID(appPath)
+	if err != nil || id == "" {
+		return ReasonBadPlist
+	}
+	if id != expectedID {
+		return ReasonStaleBundleID
+	}
+	return ""
+}
+
+func staleRunnerIssue(have, want string) *Issue {
+	return &Issue{
+		Code:    CodeRunnerStale,
+		Message: "The built WebDriverAgent runner uses an old bundle id (" + have + ", expected " + want + ").",
+		Hint:    "Rebuild WDA",
+	}
+}
 
 // ErrRunnerNotBuilt means the signed WebDriverAgent runner .app does not exist
 // on this machine yet.
@@ -51,6 +114,14 @@ func InstallRunner(udid, appPath string) error {
 	}
 	if _, err := os.Stat(appPath); err != nil {
 		return ErrRunnerNotBuilt
+	}
+	want := ExpectedRunnerBundleID(envBundlePrefix())
+	if reason := RunnerAppReason(appPath, want); reason != "" {
+		have, _ := AppBundleID(appPath)
+		if have == "" {
+			have = "unreadable Info.plist"
+		}
+		return staleRunnerIssue(have, want)
 	}
 	return InstallApp(udid, appPath)
 }

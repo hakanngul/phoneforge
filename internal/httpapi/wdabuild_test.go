@@ -207,3 +207,69 @@ func TestIOSReadinessAndInstallIssue(t *testing.T) {
 		t.Fatalf("install issue: %d %v", rec.Code, m)
 	}
 }
+
+type shotDev struct {
+	serialDev
+	err error
+}
+
+func (d shotDev) Screenshot(context.Context) (device.Screenshot, error) {
+	return device.Screenshot{}, d.err
+}
+
+func TestScreenshotWDARequiredMapping(t *testing.T) {
+	reg := registry.New()
+	cause := errors.New("instruments service com.apple.instruments.remoteserver.DVTSecureSocketProxy unavailable")
+	reg.AddDiscoverer(serialDisc{shotDev{serialDev{info: device.Info{ID: "ios-1", Serial: "UDID1", Name: "I", Platform: device.PlatformIOS}}, &device.WDARequiredError{Cause: cause}}})
+	if err := reg.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	h := NewRouterWithDeps(reg, config.Config{Version: "t"}, Deps{})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/devices/ios-1/screenshot", nil))
+	var m map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &m)
+	if rec.Code != http.StatusConflict || m["code"] != "WDA_REQUIRED" || m["error"] != "Start WDA to see the screen of iOS 17+ devices" || strings.Contains(m["error"].(string), "instruments") {
+		t.Fatalf("%d %v", rec.Code, m)
+	}
+}
+
+func TestIOSInstallStaleRunnerAndClearsError(t *testing.T) {
+	reg := registry.New()
+	reg.AddDiscoverer(serialDisc{serialDev{info: device.Info{ID: "ios-1", Serial: "UDID1", Name: "I", Platform: device.PlatformIOS}}})
+	if err := reg.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	ctl := NewIOSControl(iosbridge.NewManagerWithDeps(t.TempDir(), iosbridge.Deps{Installer: fakeInstaller{ok: false}}))
+	f := false
+	ctl.Readiness = func(string) iosbridge.Readiness { return iosbridge.Readiness{Reachable: true, DeveloperMode: &f} }
+	_, _ = ctl.Mgr.Start(context.Background(), "UDID1", iosbridge.Options{}) // -> error: not installed
+	if st := ctl.Mgr.Status("UDID1"); st.Error == "" {
+		t.Fatal("setup: expected an error state")
+	}
+	h := NewRouterWithDeps(reg, config.Config{Version: "t"}, Deps{IOS: ctl})
+	post := func() (int, map[string]any) {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest("POST", "/api/v1/devices/ios-1/iosbridge/install", nil))
+		var m map[string]any
+		_ = json.Unmarshal(rec.Body.Bytes(), &m)
+		return rec.Code, m
+	}
+	ctl.Install = func(string, string) error {
+		return &iosbridge.Issue{Code: iosbridge.CodeRunnerStale, Message: "old bundle id", Hint: "Rebuild WDA"}
+	}
+	if code, m := post(); code != http.StatusConflict || m["code"] != "RUNNER_STALE" || m["hint"] != "Rebuild WDA" {
+		t.Fatalf("stale: %d %v", code, m)
+	}
+	if ctl.Mgr.Status("UDID1").Error == "" {
+		t.Fatal("a refused install must not clear the error")
+	}
+	ctl.Install = func(string, string) error { return nil }
+	code, m := post()
+	if code != http.StatusOK || m["error"] != nil && m["error"] != "" {
+		t.Fatalf("after install: %d %v", code, m)
+	}
+	if st := ctl.Mgr.Status("UDID1"); st.Error != "" || st.State == iosbridge.StateError {
+		t.Fatalf("error not cleared: %+v", st)
+	}
+}

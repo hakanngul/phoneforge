@@ -187,6 +187,13 @@ func deviceErr(w http.ResponseWriter, err error) {
 		writeErr(w, "DEVICE_NOT_FOUND", http.StatusNotFound, err.Error())
 	case errors.Is(err, device.ErrUnsupported):
 		writeErr(w, "UNSUPPORTED", http.StatusNotImplemented, err.Error())
+	case errors.Is(err, device.ErrWDARequired):
+		body := map[string]any{"error": device.WDARequiredMessage, "code": "WDA_REQUIRED", "hint": "Start WDA from the toolbar (Install helper first if needed)."}
+		var we *device.WDARequiredError
+		if errors.As(err, &we) && we.Cause != nil {
+			body["detail"] = we.Cause.Error()
+		}
+		writeJSON(w, http.StatusConflict, body)
 	case errors.Is(err, iossim.ErrWDAStarting):
 		w.Header().Set("Retry-After", "5")
 		writeErr(w, "SIMULATOR_WDA_STARTING", http.StatusServiceUnavailable, err.Error())

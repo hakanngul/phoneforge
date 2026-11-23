@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"image/png"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/danielpaulus/go-ios/ios/instruments"
@@ -16,9 +18,16 @@ func wdaErr() error {
 	return fmt.Errorf("iOS UI automation requires the WebDriverAgent bridge (not configured): %w", device.ErrUnsupported)
 }
 
+// iosMajor returns the major version of an iOS version string ("26.5.2" -> 26), or 0.
+func iosMajor(v string) int {
+	n, _, _ := strings.Cut(strings.TrimSpace(v), ".")
+	m, _ := strconv.Atoi(n)
+	return m
+}
+
 // Screenshot captures the screen through the instruments screenshot service.
-// On iOS 17+ this needs the device tunnel (usually root); otherwise it fails
-// with a descriptive error.
+// On iOS 17+ this needs the device tunnel (usually root); without it the
+// error is device.ErrWDARequired (the WDA bridge provides screenshots).
 func (d *iosDevice) Screenshot(ctx context.Context) (device.Screenshot, error) {
 	cctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
@@ -31,7 +40,10 @@ func (d *iosDevice) Screenshot(ctx context.Context) (device.Screenshot, error) {
 		return svc.TakeScreenshot()
 	})
 	if err != nil {
-		return device.Screenshot{}, fmt.Errorf("iOS screenshot requires the device tunnel (iOS 17+): %w", err)
+		if iosMajor(d.info.OSVersion) >= 17 {
+			return device.Screenshot{}, &device.WDARequiredError{Cause: err}
+		}
+		return device.Screenshot{}, fmt.Errorf("iOS screenshot failed: %w", err)
 	}
 	cfg, err := png.DecodeConfig(bytes.NewReader(data))
 	if err != nil {

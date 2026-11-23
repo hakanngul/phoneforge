@@ -347,6 +347,7 @@ func (a *api) iosBridgeInstall(w http.ResponseWriter, r *http.Request, dev devic
 		return
 	}
 	events.Success("WDA helper installed on " + name)
+	a.ios.M(udid).ClearError(udid) // the "not installed" error from before is stale now
 	writeJSON(w, http.StatusOK, a.iosStatus(r.Context(), udid))
 }
 

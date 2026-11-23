@@ -399,7 +399,11 @@
       frameFailures++;
       if (PF.isIOS(d)) {
         // iOS without the WDA bridge: show a notice instead of a broken image / toast spam.
-        $('iosNotice').querySelector('.detail').textContent = e.message;
+        var wdaNeeded = e.code === 'WDA_REQUIRED';
+        $('iosNotice').querySelector('.detail').textContent = wdaNeeded ? (e.serverMessage || 'Start WDA to see the screen of iOS 17+ devices') : e.message;
+        var na = $('iosNoticeAction'), bt = $('bridgeToggle');
+        na.hidden = !wdaNeeded || !bt;
+        if (bt) { var tt = (bt.textContent || '').trim(); na.textContent = tt === 'Build WDA' ? 'Build WDA' : (tt === 'Install' ? 'Install helper' : 'Start WDA'); }
         if (!img.getAttribute('src')) { $('noDevice').hidden = true; $('iosNotice').hidden = false; }
         return;
       }
@@ -412,6 +416,8 @@
       frameTimer = setTimeout(function () { tick(gen); }, Math.max(fpsMs() - (Date.now() - t0), 0) + backoff);
     });
   }
+
+  $('iosNoticeAction').addEventListener('click', function () { var bt = $('bridgeToggle'); if (bt && !bt.disabled) bt.click(); });
 
   function refreshSoon() { setTimeout(function () { if (videoActive || mjpegActive || !mirrorOn) return; if (!frameBusy) { clearTimeout(frameTimer); tick(frameGen); } }, 350); }
 
