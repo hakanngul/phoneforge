@@ -39,6 +39,7 @@ type serverCtl struct {
 	expectStop bool // a stop was requested by the user: do not quit when the server goes away
 	ctlURL     string
 	quitting   bool
+	updating   bool // an update is stopping the server on purpose: do not show the fallback page
 }
 
 func newServerCtl(app *application.App, opts server.Options, addr string) *serverCtl {
@@ -96,7 +97,10 @@ func (c *serverCtl) quit() {
 }
 
 // shutdownOwned stops the owned server (if any) recording reason.
-func (c *serverCtl) shutdownOwned(reason string) {
+func (c *serverCtl) shutdownOwned(reason string) { c.shutdownOwnedBy(reason, "desktop") }
+
+// shutdownOwnedBy is shutdownOwned with an explicit origin (e.g. "updater").
+func (c *serverCtl) shutdownOwnedBy(reason, origin string) {
 	c.mu.Lock()
 	srv := c.srv
 	c.srv = nil
@@ -104,7 +108,7 @@ func (c *serverCtl) shutdownOwned(reason string) {
 	if srv == nil {
 		return
 	}
-	srv.SetStopReason(reason, "desktop")
+	srv.SetStopReason(reason, origin)
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(ctx)
@@ -202,10 +206,14 @@ func (c *serverCtl) monitor() {
 	for {
 		time.Sleep(time.Second)
 		c.mu.Lock()
-		addr, fb, owned, expect, quitting := c.addr, c.fallback, c.srv != nil, c.expectStop, c.quitting
+		addr, fb, owned, expect, quitting, updating := c.addr, c.fallback, c.srv != nil, c.expectStop, c.quitting, c.updating
 		c.mu.Unlock()
 		if quitting {
 			return
+		}
+		if updating {
+			down = 0
+			continue
 		}
 		if fb {
 			if isPocketlab(addr) { // someone (CLI, another app) started a server: reconnect
@@ -377,7 +385,7 @@ pre{margin:4px 0 0;font:11px/1.4 ui-monospace,Menlo,monospace;background:#0b0a10
 <div><button class="p" id="start">Start server</button><button id="quit">Quit Pocketlab</button></div>
 <table><thead><tr><th>Time</th><th>Event</th><th>PID</th><th>Reason</th></tr></thead><tbody id="rows"></tbody></table>
 <script>
-var BAD={unexpected_exit:1,crash:1,listen_failed:1},LAB={start:'started',stop:'stopped',unexpected_exit:'unexpected exit',crash:'crashed',listen_failed:'listen failed'};
+var BAD={unexpected_exit:1,crash:1,listen_failed:1,update_failed:1},LAB={start:'started',stop:'stopped',unexpected_exit:'unexpected exit',crash:'crashed',listen_failed:'listen failed',update_started:'update started',update_ok:'updated',update_failed:'update failed',rollback:'rolled back'};
 var busy=false;
 function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
 function msg(t,ok){var m=document.getElementById('msg');m.hidden=!t;m.textContent=t||'';m.className='msg'+(ok?' ok':'')}

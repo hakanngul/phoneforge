@@ -109,8 +109,8 @@
   };
 
   /* ---------- panel ---------- */
-  var BAD = { unexpected_exit: 1, crash: 1, listen_failed: 1 };
-  var LABEL = { start: 'started', stop: 'stopped', unexpected_exit: 'unexpected exit', crash: 'crashed', listen_failed: 'listen failed' };
+  var BAD = { unexpected_exit: 1, crash: 1, listen_failed: 1, update_failed: 1 };
+  var LABEL = { start: 'started', stop: 'stopped', unexpected_exit: 'unexpected exit', crash: 'crashed', listen_failed: 'listen failed', update_started: 'update started', update_ok: 'updated', update_failed: 'update failed', rollback: 'rolled back' };
 
   PF.openServer = function () {
     var tick = null, poll = null, status = null;

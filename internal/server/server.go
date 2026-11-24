@@ -64,6 +64,10 @@ type Options struct {
 	// history ("pocketlabd"/"desktop"/"pocketlab server start"; owner "cli"/"desktop").
 	StartedVia string
 	Owner      string
+	// UpdateHandler, when set (the desktop app), is mounted at /api/v1/update.
+	// It is absent in pocketlabd, so the endpoint answers 404 and the web UI
+	// hides its update controls.
+	UpdateHandler http.Handler
 }
 
 // Server is a running Pocketlab server.
@@ -81,6 +85,41 @@ type Server struct {
 	shutdown error
 	stopReq  chan struct{}
 	life     *lifecycle.Recorder
+	testsSvc *mobtest.Service
+	flowsSvc *mobflow.Service
+}
+
+// Busy reports whether a test run, flow run or screen recording is in
+// progress, with a human-readable reason. The desktop updater uses it to
+// refuse installing while work is active.
+func (s *Server) Busy() (bool, string) {
+	if s.testsSvc != nil && s.testsSvc.RunningCount() > 0 {
+		return true, "a test run is in progress"
+	}
+	if s.flowsSvc != nil && s.flowsSvc.RunningCount() > 0 {
+		return true, "a flow run is in progress"
+	}
+	if httpapi.ActiveRecordings.Load() > 0 {
+		return true, "a screen recording is in progress"
+	}
+	return false, ""
+}
+
+// updateAuth applies the same API-token rule as the REST router (non-loopback
+// callers need the token) to the update handler, which is mounted outside it.
+func updateAuth(token string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if token != "" {
+			host, _, err := net.SplitHostPort(r.RemoteAddr)
+			ip := net.ParseIP(host)
+			loop := err == nil && ip != nil && ip.IsLoopback()
+			if !loop && r.Header.Get("X-API-Key") != token && r.Header.Get("Authorization") != "Bearer "+token {
+				http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // logTail keeps the last log lines so crashes and unclean exits can show them.
@@ -281,6 +320,10 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 	deps.Debug = debugger.Routes(dbgMgr, getDevice)
 	deps.Crashes = crashreport.Routes(&crashreport.Service{ADB: adbPath}, getDevice)
 	go warmOCR()
+	var (
+		testsSvc *mobtest.Service
+		flowsSvc *mobflow.Service
+	)
 	if root, rerr := mobtest.DefaultRoot(); rerr != nil {
 		log.Printf("tests: %v", rerr)
 	} else if tests, terr := mobtest.NewService(root); terr != nil {
@@ -290,6 +333,7 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 			tests.Secrets = sec.Reveal
 		}
 		deps.Tests = tests.Routes(getDevice)
+		testsSvc = tests
 		if flows, ferr := mobflow.NewService(root); ferr != nil {
 			log.Printf("flows: %v", ferr)
 		} else {
@@ -299,6 +343,7 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 				flows.Secrets = sec.Reveal
 			}
 			deps.Flows = flows.Routes()
+			flowsSvc = flows
 		}
 	}
 	if nodeStore != nil {
@@ -314,6 +359,11 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 	mux := http.NewServeMux()
 	mux.Handle("/mcp", mcpserver.Handler(mcp))
 	mux.Handle("/mcp/", mcpserver.Handler(mcp))
+	if opts.UpdateHandler != nil {
+		uh := updateAuth(cfg.APIToken, opts.UpdateHandler)
+		mux.Handle("/api/v1/update", uh)
+		mux.Handle("/api/v1/update/", uh)
+	}
 	mux.Handle("/api/", router)
 	switch {
 	case opts.WebDir != "" && dirExists(opts.WebDir):
@@ -328,7 +378,7 @@ func Start(ctx context.Context, opts Options) (*Server, error) {
 
 	s := &Server{
 		addr: cfg.Addr, srv: &http.Server{Handler: mux}, cancel: cancel, done: make(chan struct{}),
-		stopReq: stopReq, life: life, bridges: bridges, iosMgr: iosMgr, dbgMgr: dbgMgr, simCtl: simCtl, webMgr: webMgr,
+		stopReq: stopReq, life: life, testsSvc: testsSvc, flowsSvc: flowsSvc, bridges: bridges, iosMgr: iosMgr, dbgMgr: dbgMgr, simCtl: simCtl, webMgr: webMgr,
 	}
 	go func() {
 		defer close(s.done)

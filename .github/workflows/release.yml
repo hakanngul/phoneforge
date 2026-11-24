@@ -272,10 +272,35 @@ jobs:
       HAVE_SIGNING: ${{ secrets.APPLE_CERT_P12_BASE64 != '' && secrets.APPLE_CERT_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
       HAVE_NOTARY: ${{ secrets.APPLE_CERT_P12_BASE64 != '' && secrets.APPLE_CERT_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' && ((secrets.ASC_KEY_ID != '' && secrets.ASC_ISSUER_ID != '' && secrets.ASC_KEY_P8_BASE64 != '') || (secrets.APPLE_ID != '' && secrets.APPLE_APP_PASSWORD != '')) }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+          cache: true
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: artifacts
           merge-multiple: true
+      # Signed auto-update feed (update-manifest.json + .sig). Runs for tag pushes only, so the signing
+      # key is never exposed to manual runs. Needs the ed25519 private key secret (one line, base64 of
+      # the 32-byte seed); without it the release simply has no update feed.
+      # Recommended: store the secret in a GitHub Environment (e.g. "release") that is restricted to
+      # v* tags, and set `environment: release` on this job, so only tag builds can ever read the key.
+      - name: Signed update manifest
+        if: github.ref_type == 'tag'
+        env:
+          UPDATE_ED25519_PRIVATE_KEY: ${{ secrets.UPDATE_ED25519_PRIVATE_KEY }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -z "${UPDATE_ED25519_PRIVATE_KEY:-}" ]; then
+            echo "::warning::UPDATE_ED25519_PRIVATE_KEY is not set; skipping the signed update manifest"
+            exit 0
+          fi
+          BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/"
+          NOTES="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
+          go run ./scripts/mkmanifest -version "$VERSION" -dir artifacts -base-url "$BASE" -notes-url "$NOTES"
+          go run ./scripts/mkmanifest -verify -dir artifacts
       - name: Checksums
         working-directory: artifacts
         run: |

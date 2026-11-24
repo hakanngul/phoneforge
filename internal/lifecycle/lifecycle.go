@@ -25,6 +25,12 @@ const (
 	KindUnexpectedExit = "unexpected_exit"
 	KindCrash          = "crash"
 	KindListenFailed   = "listen_failed"
+
+	// Updater events (origin "updater").
+	KindUpdateStarted = "update_started"
+	KindUpdateOK      = "update_ok"
+	KindUpdateFailed  = "update_failed"
+	KindRollback      = "rollback"
 )
 
 // File names inside the state directory.
@@ -296,6 +302,19 @@ func RecordListenFailure(dir string, info Info, err error) {
 		Reason: "could not listen on " + info.Addr + " (port in use?)", Message: err.Error(),
 	}
 	ev.ParentPID, ev.ParentCmd = parentInfo()
+	appendEvent(dir, ev)
+}
+
+// Append writes one event to the log in dir (used by the updater, which runs
+// outside a Recorder). Time and PID are filled in when unset.
+func Append(dir string, ev Event) {
+	if ev.Time.IsZero() {
+		ev.Time = time.Now()
+	}
+	if ev.PID == 0 {
+		ev.PID = os.Getpid()
+	}
+	_ = os.MkdirAll(dir, 0o700)
 	appendEvent(dir, ev)
 }
 
